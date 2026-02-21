@@ -1,9 +1,13 @@
-import "dotenv/config";
+import { config } from "dotenv";
+config({ path: ".env.local" });
+config(); // fallback to .env
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 async function main() {
-  const prisma = new PrismaClient();
+  const prisma = new PrismaClient({
+    datasourceUrl: process.env.POSTGRES_PRISMA_URL || process.env.DATABASE_URL,
+  });
 
   try {
     // 관리자 계정
