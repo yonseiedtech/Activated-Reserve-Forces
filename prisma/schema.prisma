@@ -39,6 +39,7 @@ model User {
   pushSubscriptions    PushSubscription[]
   mobileIdCard         MobileIdCard?
   approvedIdCards      MobileIdCard[]     @relation("ApprovedByUser")
+  transportAllowances  UserTransportAllowance[]
 }
 
 // ─── 차수 (훈련 기수) ───
@@ -52,10 +53,11 @@ model Batch {
   status    String   @default("PLANNED") // PLANNED, ACTIVE, COMPLETED
   createdAt DateTime @default(now())
 
-  users     User[]
-  trainings Training[]
-  meals     Meal[]
-  paymentProcesses PaymentProcess[]
+  users               User[]
+  trainings           Training[]
+  meals               Meal[]
+  paymentProcesses    PaymentProcess[]
+  transportAllowances UserTransportAllowance[]
 }
 
 // ─── 훈련 일정 ───
@@ -75,6 +77,7 @@ model Training {
   createdAt    DateTime @default(now())
 
   attendances  Attendance[]
+  compensation TrainingCompensation?
 }
 
 // ─── 출석 (참석/불참) ───
@@ -140,13 +143,12 @@ model Meal {
   @@unique([batchId, date, type])
 }
 
-// ─── 훈련비 입금 프로세스 ───
+// ─── 훈련비 입금 프로세스 (차수당 1개, 자동 생성) ───
 model PaymentProcess {
   id        String   @id @default(cuid())
-  batchId   String
+  batchId   String   @unique
   batch     Batch    @relation(fields: [batchId], references: [id])
   title     String   // 예: "2026년 1차수 훈련비"
-  amount    Int?     // 금액
   bankInfo  String?  // 은행/계좌 정보
   status    String   @default("DOC_DRAFT") // DOC_DRAFT → DOC_APPROVED → CMS_DRAFT → CMS_APPROVED
   docDraftAt    DateTime? // 공문 상신 일시
@@ -232,6 +234,35 @@ model SurveyResponse {
   createdAt DateTime @default(now())
 
   @@unique([surveyId, userId])
+}
+
+// ─── 훈련별 보상비 (자동 계산) ───
+model TrainingCompensation {
+  id             String   @id @default(cuid())
+  trainingId     String   @unique
+  training       Training @relation(fields: [trainingId], references: [id], onDelete: Cascade)
+  trainingHours  Float    // 실훈련 시간 (점심시간 제외)
+  isWeekend      Boolean  // 주말 여부
+  dailyRate      Int      // 계산된 보상비 (원)
+  overrideRate   Int?     // 관리자 수동 오버라이드 금액
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+// ─── 인원별 교통비 ───
+model UserTransportAllowance {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  batchId   String
+  batch     Batch    @relation(fields: [batchId], references: [id])
+  amount    Int      // 교통비 금액 (원)
+  address   String?  // 기준 주소 (참고용)
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, batchId])
 }
 
 // ─── 모바일 신분증 ───

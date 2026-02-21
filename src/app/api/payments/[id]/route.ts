@@ -23,6 +23,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const nextStatus = PAYMENT_STATUS_ORDER[currentIndex + 1];
     const dateFieldMap: Record<string, Record<string, Date>> = {
+      DOC_DRAFT: { docDraftAt: new Date() },
       DOC_APPROVED: { docApprovedAt: new Date() },
       CMS_DRAFT: { cmsDraftAt: new Date() },
       CMS_APPROVED: { cmsApprovedAt: new Date() },
@@ -37,12 +38,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     return json(updated);
   }
 
-  // 일반 수정
+  // 일반 수정 (bankInfo, note)
   const updated = await prisma.paymentProcess.update({
     where: { id },
     data: {
-      title: body.title,
-      amount: body.amount,
       bankInfo: body.bankInfo,
       note: body.note,
     },
