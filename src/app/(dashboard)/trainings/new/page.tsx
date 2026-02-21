@@ -1,0 +1,156 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import PageTitle from "@/components/ui/PageTitle";
+import { TRAINING_TYPES } from "@/lib/constants";
+
+interface Batch {
+  id: string;
+  name: string;
+}
+
+export default function NewTrainingPage() {
+  const router = useRouter();
+  const [batches, setBatches] = useState<Batch[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [form, setForm] = useState({
+    title: "",
+    type: "사격",
+    date: "",
+    startTime: "08:00",
+    endTime: "17:00",
+    location: "",
+    description: "",
+    batchId: "",
+  });
+
+  useEffect(() => {
+    fetch("/api/batches")
+      .then((r) => r.json())
+      .then(setBatches);
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    const res = await fetch("/api/trainings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(form),
+    });
+    if (res.ok) {
+      router.push("/trainings");
+      router.refresh();
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div className="max-w-2xl">
+      <PageTitle title="훈련 추가" />
+      <form onSubmit={handleSubmit} className="bg-white rounded-xl border p-6 space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">차수</label>
+          <select
+            value={form.batchId}
+            onChange={(e) => setForm({ ...form, batchId: e.target.value })}
+            required
+            className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+          >
+            <option value="">차수 선택</option>
+            {batches.map((b) => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">훈련명</label>
+          <input
+            value={form.title}
+            onChange={(e) => setForm({ ...form, title: e.target.value })}
+            required
+            className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">유형</label>
+            <select
+              value={form.type}
+              onChange={(e) => setForm({ ...form, type: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+            >
+              {TRAINING_TYPES.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">날짜</label>
+            <input
+              type="date"
+              value={form.date}
+              onChange={(e) => setForm({ ...form, date: e.target.value })}
+              required
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+            />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">시작 시간</label>
+            <input
+              type="time"
+              value={form.startTime}
+              onChange={(e) => setForm({ ...form, startTime: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">종료 시간</label>
+            <input
+              type="time"
+              value={form.endTime}
+              onChange={(e) => setForm({ ...form, endTime: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+            />
+          </div>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">장소</label>
+          <input
+            value={form.location}
+            onChange={(e) => setForm({ ...form, location: e.target.value })}
+            className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">설명</label>
+          <textarea
+            value={form.description}
+            onChange={(e) => setForm({ ...form, description: e.target.value })}
+            rows={3}
+            className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+          />
+        </div>
+        <div className="flex gap-3 pt-2">
+          <button
+            type="submit"
+            disabled={loading}
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+          >
+            {loading ? "저장 중..." : "저장"}
+          </button>
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="px-6 py-2 border rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            취소
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}

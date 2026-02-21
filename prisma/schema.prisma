@@ -1,0 +1,227 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─── 사용자 (관리자/행정담당자/급식담당자/대상자) ───
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      String   @default("RESERVIST") // ADMIN, MANAGER, COOK, RESERVIST
+  phone     String?
+  rank      String?  // 계급 (대상자용)
+  serviceNumber String? // 군번 (대상자용)
+  unit      String?  // 소속부대
+  batchId   String?  // 소속 차수 (대상자용)
+  batch     Batch?   @relation(fields: [batchId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // 관계
+  trainingsAsInstructor Training[]       @relation("InstructorTrainings")
+  attendances          Attendance[]
+  commutingRecords     CommutingRecord[]
+  sentMessages         Message[]         @relation("SentMessages")
+  receivedMessages     Message[]         @relation("ReceivedMessages")
+  notifications        Notification[]
+  surveyResponses      SurveyResponse[]
+  pushSubscriptions    PushSubscription[]
+}
+
+// ─── 차수 (훈련 기수) ───
+model Batch {
+  id        String   @id @default(cuid())
+  name      String   // 예: "2026년 1차수"
+  year      Int
+  number    Int      // 차수 번호
+  startDate DateTime
+  endDate   DateTime
+  status    String   @default("PLANNED") // PLANNED, ACTIVE, COMPLETED
+  createdAt DateTime @default(now())
+
+  users     User[]
+  trainings Training[]
+  meals     Meal[]
+  paymentProcesses PaymentProcess[]
+}
+
+// ─── 훈련 일정 ───
+model Training {
+  id           String   @id @default(cuid())
+  title        String
+  type         String   // 사격, 화생방, 전술, 체력, 정신교육 등
+  date         DateTime
+  startTime    String?  // "09:00"
+  endTime      String?  // "17:00"
+  location     String?
+  description  String?
+  batchId      String
+  batch        Batch    @relation(fields: [batchId], references: [id])
+  instructorId String?
+  instructor   User?    @relation("InstructorTrainings", fields: [instructorId], references: [id])
+  createdAt    DateTime @default(now())
+
+  attendances  Attendance[]
+}
+
+// ─── 출석 (참석/불참) ───
+model Attendance {
+  id          String   @id @default(cuid())
+  trainingId  String
+  training    Training @relation(fields: [trainingId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  status      String   @default("PENDING") // PRESENT, ABSENT, PENDING
+  reason      String?  // 불참 사유
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([trainingId, userId])
+}
+
+// ─── 출퇴근 기록 (GPS 기반) ───
+model CommutingRecord {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  date        DateTime
+  checkInAt   DateTime?
+  checkOutAt  DateTime?
+  checkInLat  Float?   // GPS 위도 (관리자만 열람)
+  checkInLng  Float?   // GPS 경도
+  checkOutLat Float?
+  checkOutLng Float?
+  isManual    Boolean  @default(false) // 관리자 수기 입력 여부
+  note        String?  // 비고
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, date])
+}
+
+// ─── GPS 기준 위치 (위병소/훈련장) ───
+model GpsLocation {
+  id        String @id @default(cuid())
+  name      String // 예: "00부대 위병소"
+  latitude  Float
+  longitude Float
+  radius    Int    @default(200) // 허용 반경(미터)
+  isActive  Boolean @default(true)
+  createdAt DateTime @default(now())
+}
+
+// ─── 식사 관리 ───
+model Meal {
+  id        String   @id @default(cuid())
+  batchId   String
+  batch     Batch    @relation(fields: [batchId], references: [id])
+  date      DateTime
+  type      String   // BREAKFAST, LUNCH, DINNER
+  menuInfo  String?  // 메뉴 내용
+  menuFile  String?  // 메뉴 파일 경로
+  headcount Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([batchId, date, type])
+}
+
+// ─── 훈련비 입금 프로세스 ───
+model PaymentProcess {
+  id        String   @id @default(cuid())
+  batchId   String
+  batch     Batch    @relation(fields: [batchId], references: [id])
+  title     String   // 예: "2026년 1차수 훈련비"
+  amount    Int?     // 금액
+  bankInfo  String?  // 은행/계좌 정보
+  status    String   @default("DOC_DRAFT") // DOC_DRAFT → DOC_APPROVED → CMS_DRAFT → CMS_APPROVED
+  docDraftAt    DateTime? // 공문 상신 일시
+  docApprovedAt DateTime? // 공문 결재완료
+  cmsDraftAt    DateTime? // CMS 결재 상신
+  cmsApprovedAt DateTime? // 결재완료 입금
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── 쪽지 ───
+model Message {
+  id         String   @id @default(cuid())
+  senderId   String
+  sender     User     @relation("SentMessages", fields: [senderId], references: [id])
+  receiverId String
+  receiver   User     @relation("ReceivedMessages", fields: [receiverId], references: [id])
+  title      String
+  content    String
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+}
+
+// ─── 알림 ───
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  title     String
+  content   String
+  type      String   @default("GENERAL") // GENERAL, TRAINING, PAYMENT, NOTICE
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+// ─── 푸시 구독 정보 ───
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  endpoint  String
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, endpoint])
+}
+
+// ─── 공지사항 ───
+model Notice {
+  id        String   @id @default(cuid())
+  title     String
+  content   String
+  isPinned  Boolean  @default(false)
+  filePath  String?
+  authorId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── 설문조사 ───
+model Survey {
+  id        String   @id @default(cuid())
+  title     String
+  description String?
+  questions String   // JSON 형태로 질문 저장
+  isActive  Boolean  @default(true)
+  startDate DateTime?
+  endDate   DateTime?
+  createdAt DateTime @default(now())
+
+  responses SurveyResponse[]
+}
+
+model SurveyResponse {
+  id        String   @id @default(cuid())
+  surveyId  String
+  survey    Survey   @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  answers   String   // JSON 형태로 답변 저장
+  createdAt DateTime @default(now())
+
+  @@unique([surveyId, userId])
+}
