@@ -5,12 +5,22 @@ import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
+type LoginType = "reservist" | "admin";
+
 export default function LoginPage() {
   const router = useRouter();
-  const [username, setUsername] = useState("");
+  const [loginType, setLoginType] = useState<LoginType>("reservist");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const handleTabChange = (type: LoginType) => {
+    setLoginType(type);
+    setIdentifier("");
+    setPassword("");
+    setError("");
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -18,15 +28,20 @@ export default function LoginPage() {
     setLoading(true);
 
     const result = await signIn("credentials", {
-      username,
+      identifier,
       password,
+      loginType,
       redirect: false,
     });
 
     setLoading(false);
 
     if (result?.error) {
-      setError("아이디 또는 비밀번호가 올바르지 않습니다.");
+      setError(
+        loginType === "reservist"
+          ? "군번 또는 비밀번호가 올바르지 않습니다."
+          : "아이디 또는 비밀번호가 올바르지 않습니다."
+      );
     } else {
       router.push("/");
       router.refresh();
@@ -46,6 +61,32 @@ export default function LoginPage() {
           <p className="text-gray-500 mt-1">소집훈련 관리 시스템</p>
         </div>
 
+        {/* 탭 UI */}
+        <div className="flex mb-6 bg-gray-100 rounded-lg p-1">
+          <button
+            type="button"
+            onClick={() => handleTabChange("reservist")}
+            className={`flex-1 py-2.5 text-sm font-medium rounded-md transition-colors ${
+              loginType === "reservist"
+                ? "bg-white text-blue-600 shadow-sm"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            훈련대상자
+          </button>
+          <button
+            type="button"
+            onClick={() => handleTabChange("admin")}
+            className={`flex-1 py-2.5 text-sm font-medium rounded-md transition-colors ${
+              loginType === "admin"
+                ? "bg-white text-blue-600 shadow-sm"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            관리자
+          </button>
+        </div>
+
         <form onSubmit={handleSubmit} className="space-y-5">
           {error && (
             <div className="bg-red-50 text-red-600 text-sm rounded-lg p-3 text-center">
@@ -54,17 +95,17 @@ export default function LoginPage() {
           )}
 
           <div>
-            <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">
-              아이디
+            <label htmlFor="identifier" className="block text-sm font-medium text-gray-700 mb-1">
+              {loginType === "reservist" ? "군번" : "아이디"}
             </label>
             <input
-              id="username"
+              id="identifier"
               type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
               required
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
-              placeholder="아이디를 입력하세요"
+              placeholder={loginType === "reservist" ? "군번 (예: 22-76001)" : "아이디를 입력하세요"}
             />
           </div>
 
@@ -79,9 +120,15 @@ export default function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
               required
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
-              placeholder="비밀번호를 입력하세요"
+              placeholder={loginType === "reservist" ? "생년월일 6자리 (예: 980315)" : "비밀번호를 입력하세요"}
             />
           </div>
+
+          {loginType === "reservist" && (
+            <p className="text-xs text-gray-400 -mt-2">
+              초기 비밀번호는 생년월일 6자리입니다
+            </p>
+          )}
 
           <button
             type="submit"

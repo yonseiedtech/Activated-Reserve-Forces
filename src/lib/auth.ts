@@ -8,19 +8,29 @@ export const authOptions: NextAuthOptions = {
     CredentialsProvider({
       name: "credentials",
       credentials: {
-        username: { label: "아이디", type: "text" },
+        identifier: { label: "아이디/군번", type: "text" },
         password: { label: "비밀번호", type: "password" },
+        loginType: { label: "로그인 유형", type: "text" },
       },
       async authorize(credentials) {
-        if (!credentials?.username || !credentials?.password) return null;
+        if (!credentials?.identifier || !credentials?.password) return null;
 
-        const user = await prisma.user.findUnique({
-          where: { username: credentials.username },
-        });
+        const { identifier, password, loginType } = credentials;
+
+        let user;
+        if (loginType === "reservist") {
+          user = await prisma.user.findFirst({
+            where: { serviceNumber: identifier, role: "RESERVIST" },
+          });
+        } else {
+          user = await prisma.user.findFirst({
+            where: { username: identifier, role: { not: "RESERVIST" } },
+          });
+        }
 
         if (!user) return null;
 
-        const isValid = await bcrypt.compare(credentials.password, user.password);
+        const isValid = await bcrypt.compare(password, user.password);
         if (!isValid) return null;
 
         return {

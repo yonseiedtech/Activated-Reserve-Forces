@@ -3,8 +3,11 @@
 import { useState } from "react";
 import Link from "next/link";
 
+type UserType = "reservist" | "admin";
+
 export default function ResetPasswordPage() {
-  const [username, setUsername] = useState("");
+  const [userType, setUserType] = useState<UserType>("reservist");
+  const [identifier, setIdentifier] = useState("");
   const [name, setName] = useState("");
   const [verifyType, setVerifyType] = useState<"serviceNumber" | "phone">("serviceNumber");
   const [serviceNumber, setServiceNumber] = useState("");
@@ -14,6 +17,18 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  const handleTabChange = (type: UserType) => {
+    setUserType(type);
+    setIdentifier("");
+    setName("");
+    setServiceNumber("");
+    setPhone("");
+    setNewPassword("");
+    setConfirmPassword("");
+    setError("");
+    setVerifyType("serviceNumber");
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,9 +50,10 @@ export default function ResetPasswordPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        username,
+        userType,
+        identifier,
         name,
-        serviceNumber: verifyType === "serviceNumber" ? serviceNumber : undefined,
+        serviceNumber: userType === "admin" && verifyType === "serviceNumber" ? serviceNumber : undefined,
         phone: verifyType === "phone" ? phone : undefined,
         newPassword,
       }),
@@ -83,6 +99,32 @@ export default function ResetPasswordPage() {
           <p className="text-gray-500 mt-1">본인 확인 후 비밀번호를 재설정합니다</p>
         </div>
 
+        {/* 탭 UI */}
+        <div className="flex mb-6 bg-gray-100 rounded-lg p-1">
+          <button
+            type="button"
+            onClick={() => handleTabChange("reservist")}
+            className={`flex-1 py-2.5 text-sm font-medium rounded-md transition-colors ${
+              userType === "reservist"
+                ? "bg-white text-blue-600 shadow-sm"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            훈련대상자
+          </button>
+          <button
+            type="button"
+            onClick={() => handleTabChange("admin")}
+            className={`flex-1 py-2.5 text-sm font-medium rounded-md transition-colors ${
+              userType === "admin"
+                ? "bg-white text-blue-600 shadow-sm"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            관리자
+          </button>
+        </div>
+
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
             <div className="bg-red-50 text-red-600 text-sm rounded-lg p-3 text-center">
@@ -91,14 +133,16 @@ export default function ResetPasswordPage() {
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">아이디</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {userType === "reservist" ? "군번" : "아이디"}
+            </label>
             <input
               type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
               required
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-              placeholder="아이디를 입력하세요"
+              placeholder={userType === "reservist" ? "군번을 입력하세요 (예: 22-76001)" : "아이디를 입력하세요"}
             />
           </div>
 
@@ -114,55 +158,86 @@ export default function ResetPasswordPage() {
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">본인 확인 방법</label>
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => setVerifyType("serviceNumber")}
-                className={`flex-1 py-2 rounded-lg text-sm font-medium border ${
-                  verifyType === "serviceNumber"
-                    ? "bg-blue-50 border-blue-500 text-blue-700"
-                    : "border-gray-300 text-gray-500"
-                }`}
-              >
-                군번
-              </button>
-              <button
-                type="button"
-                onClick={() => setVerifyType("phone")}
-                className={`flex-1 py-2 rounded-lg text-sm font-medium border ${
-                  verifyType === "phone"
-                    ? "bg-blue-50 border-blue-500 text-blue-700"
-                    : "border-gray-300 text-gray-500"
-                }`}
-              >
-                전화번호
-              </button>
-            </div>
-          </div>
+          {userType === "admin" && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">본인 확인 방법</label>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setVerifyType("serviceNumber")}
+                    className={`flex-1 py-2 rounded-lg text-sm font-medium border ${
+                      verifyType === "serviceNumber"
+                        ? "bg-blue-50 border-blue-500 text-blue-700"
+                        : "border-gray-300 text-gray-500"
+                    }`}
+                  >
+                    군번
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setVerifyType("phone")}
+                    className={`flex-1 py-2 rounded-lg text-sm font-medium border ${
+                      verifyType === "phone"
+                        ? "bg-blue-50 border-blue-500 text-blue-700"
+                        : "border-gray-300 text-gray-500"
+                    }`}
+                  >
+                    전화번호
+                  </button>
+                </div>
+              </div>
 
-          {verifyType === "serviceNumber" ? (
+              {verifyType === "serviceNumber" ? (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">군번</label>
+                  <input
+                    type="text"
+                    value={serviceNumber}
+                    onChange={(e) => setServiceNumber(e.target.value)}
+                    required
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    placeholder="군번을 입력하세요"
+                  />
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">전화번호</label>
+                  <input
+                    type="text"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    required
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    placeholder="전화번호를 입력하세요"
+                  />
+                </div>
+              )}
+            </>
+          )}
+
+          {userType === "reservist" && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">군번</label>
-              <input
-                type="text"
-                value={serviceNumber}
-                onChange={(e) => setServiceNumber(e.target.value)}
-                required
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                placeholder="군번을 입력하세요"
-              />
-            </div>
-          ) : (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">전화번호</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">본인 확인 방법</label>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setVerifyType("phone")}
+                  className={`flex-1 py-2 rounded-lg text-sm font-medium border ${
+                    verifyType === "phone"
+                      ? "bg-blue-50 border-blue-500 text-blue-700"
+                      : "border-gray-300 text-gray-500"
+                  }`}
+                >
+                  전화번호
+                </button>
+              </div>
               <input
                 type="text"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 required
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                className="w-full mt-2 px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                 placeholder="전화번호를 입력하세요"
               />
             </div>

@@ -79,18 +79,27 @@ async function main() {
     });
 
     // 대상자 계정 (1차수)
-    const reservistPassword = await bcrypt.hash("reservist1234", 10);
+    // 초기 비밀번호: 생년월일 6자리 (예: 980315)
     const reservistNames = ["이준호", "박민수", "최영철", "정태웅", "한성민"];
     const birthDates = ["1998-03-15", "1997-07-22", "1999-01-08", "1998-11-30", "1997-05-12"];
 
+    const birthDateToPassword = (bd: string) => {
+      const d = new Date(bd);
+      const yy = String(d.getFullYear()).slice(2);
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      return `${yy}${mm}${dd}`;
+    };
+
     const batch1Users = [];
     for (let i = 0; i < reservistNames.length; i++) {
+      const pw = await bcrypt.hash(birthDateToPassword(birthDates[i]), 10);
       const u = await prisma.user.create({
         data: {
           name: reservistNames[i],
           username: `reservist${i + 1}`,
           email: `reservist${i + 1}@reserve.mil`,
-          password: reservistPassword,
+          password: pw,
           role: "RESERVIST",
           rank: "병장",
           serviceNumber: `22-7600${i + 1}`,
@@ -108,12 +117,13 @@ async function main() {
     const reservistNames2 = ["송재현", "유승호", "오지훈"];
     const birthDates2 = ["2000-02-14", "1999-08-25", "2000-06-03"];
     for (let i = 0; i < reservistNames2.length; i++) {
+      const pw = await bcrypt.hash(birthDateToPassword(birthDates2[i]), 10);
       await prisma.user.create({
         data: {
           name: reservistNames2[i],
           username: `reservist${i + 6}`,
           email: `reservist${i + 6}@reserve.mil`,
-          password: reservistPassword,
+          password: pw,
           role: "RESERVIST",
           rank: "상병",
           serviceNumber: `23-7600${i + 1}`,
@@ -196,12 +206,22 @@ async function main() {
 
     console.log("시드 데이터 생성 완료");
     console.log("─────────────────────────");
-    console.log("관리자: admin / admin1234");
-    console.log("행정담당자: manager / manager1234");
-    console.log("급식담당자: cook / cook1234");
-    console.log("대상자: reservist1 ~ reservist8 / reservist1234");
-    console.log("  - reservist1: 모바일 신분증 승인됨");
-    console.log("  - reservist2: 모바일 신분증 승인 대기");
+    console.log("[관리자 탭] 아이디로 로그인");
+    console.log("  관리자: admin / admin1234");
+    console.log("  행정담당자: manager / manager1234");
+    console.log("  급식담당자: cook / cook1234");
+    console.log("─────────────────────────");
+    console.log("[훈련대상자 탭] 군번으로 로그인 (비밀번호: 생년월일 6자리)");
+    console.log("  이준호: 22-76001 / 980315");
+    console.log("  박민수: 22-76002 / 970722");
+    console.log("  최영철: 22-76003 / 990108");
+    console.log("  정태웅: 22-76004 / 981130");
+    console.log("  한성민: 22-76005 / 970512");
+    console.log("  송재현: 23-76001 / 000214");
+    console.log("  유승호: 23-76002 / 990825");
+    console.log("  오지훈: 23-76003 / 000603");
+    console.log("  - 이준호(22-76001): 모바일 신분증 승인됨");
+    console.log("  - 박민수(22-76002): 모바일 신분증 승인 대기");
   } finally {
     await prisma.$disconnect();
   }
