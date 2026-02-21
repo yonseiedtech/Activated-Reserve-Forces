@@ -3,9 +3,11 @@
 import { useSession, signOut } from "next-auth/react";
 import Link from "next/link";
 import { ROLE_LABELS } from "@/lib/constants";
+import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 
 export default function Header({ onMenuToggle }: { onMenuToggle: () => void }) {
   const { data: session } = useSession();
+  const unreadCount = useUnreadMessages();
 
   return (
     <header className="sticky top-0 z-30 bg-white border-b border-gray-200 px-4 py-3">
@@ -30,6 +32,11 @@ export default function Header({ onMenuToggle }: { onMenuToggle: () => void }) {
                 <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
+                {unreadCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                )}
               </Link>
               <div className="flex items-center gap-2">
                 <div className="text-right hidden sm:block">

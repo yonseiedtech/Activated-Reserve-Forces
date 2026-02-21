@@ -7,9 +7,32 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   if (!session) return unauthorized();
 
   const { id } = await params;
-  const notice = await prisma.notice.findUnique({ where: { id } });
+  const notice = await prisma.notice.findUnique({
+    where: { id },
+    include: {
+      reads: { select: { userId: true, readAt: true } },
+    },
+  });
   if (!notice) return notFound();
-  return json(notice);
+
+  // Auto-record read
+  await prisma.noticeRead.upsert({
+    where: { noticeId_userId: { noticeId: id, userId: session.user.id } },
+    create: { noticeId: id, userId: session.user.id },
+    update: { readAt: new Date() },
+  });
+
+  // For admins, include total user count for read ratio
+  let totalUsers = 0;
+  if (["ADMIN", "MANAGER"].includes(session.user.role)) {
+    totalUsers = await prisma.user.count();
+  }
+
+  return json({
+    ...notice,
+    readCount: notice.reads.length,
+    totalUsers,
+  });
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

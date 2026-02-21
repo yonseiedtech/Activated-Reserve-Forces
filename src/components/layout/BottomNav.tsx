@@ -6,11 +6,13 @@ import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { ROLE_LABELS } from "@/lib/constants";
 import { getBottomTabs, getMoreMenuItems } from "@/lib/navigation";
+import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 
 export default function BottomNav() {
   const pathname = usePathname();
   const { data: session } = useSession();
   const [moreOpen, setMoreOpen] = useState(false);
+  const unreadCount = useUnreadMessages();
 
   const role = session?.user?.role || "";
   const tabs = getBottomTabs(role);
@@ -57,7 +59,14 @@ export default function BottomNav() {
                       : "text-gray-700 hover:bg-gray-50"
                   }`}
                 >
-                  <span className="text-lg">{item.icon}</span>
+                  <span className="text-lg relative">
+                    {item.icon}
+                    {item.href === "/messages" && unreadCount > 0 && (
+                      <span className="absolute -top-1 -right-2 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-4 flex items-center justify-center px-1">
+                        {unreadCount > 99 ? "99+" : unreadCount}
+                      </span>
+                    )}
+                  </span>
                   {item.label}
                 </Link>
               ))}
@@ -92,7 +101,14 @@ export default function BottomNav() {
                   : "text-gray-500"
               }`}
             >
-              <span className="text-lg leading-none">{tab.icon}</span>
+              <span className="text-lg leading-none relative">
+                {tab.icon}
+                {tab.href === "/messages" && unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-2 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-4 flex items-center justify-center px-1">
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                )}
+              </span>
               <span className="truncate max-w-[60px]">{tab.label}</span>
             </Link>
           ))}

@@ -130,6 +130,20 @@ export default function MessagesPage() {
             <div className="bg-gray-50 rounded-lg p-4 whitespace-pre-wrap text-sm min-h-[100px]">
               {selectedMsg.content}
             </div>
+            {tab === "received" && selectedMsg.sender && (
+              <button
+                onClick={() => {
+                  const replyTo = selectedMsg.sender!;
+                  const reTitle = selectedMsg.title.startsWith("RE: ") ? selectedMsg.title : `RE: ${selectedMsg.title}`;
+                  setSelectedMsg(null);
+                  setForm({ receiverIds: [replyTo.id], title: reTitle, content: "" });
+                  setShowCompose(true);
+                }}
+                className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
+              >
+                답장
+              </button>
+            )}
           </div>
         </div>
       )}

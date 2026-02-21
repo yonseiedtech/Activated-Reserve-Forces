@@ -4,11 +4,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { getFilteredNav } from "@/lib/navigation";
+import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 
 export default function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const role = session?.user?.role || "";
+  const unreadCount = useUnreadMessages();
 
   const filteredNav = getFilteredNav(role);
 
@@ -41,7 +43,12 @@ export default function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose:
                 }`}
               >
                 <span className="text-lg">{item.icon}</span>
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+                {item.href === "/messages" && unreadCount > 0 && (
+                  <span className="bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                )}
               </Link>
             );
           })}

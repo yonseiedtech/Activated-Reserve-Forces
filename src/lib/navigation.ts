@@ -18,6 +18,7 @@ export const navItems: NavItem[] = [
   { href: "/messages", label: "쪽지", icon: "✉️", roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.COOK, ROLES.RESERVIST] },
   { href: "/mobile-id", label: "모바일 신분증", icon: "🪪", roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.RESERVIST] },
   { href: "/surveys", label: "설문조사", icon: "📝", roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.RESERVIST] },
+  { href: "/profile", label: "내 정보", icon: "👤", roles: [ROLES.RESERVIST] },
   { href: "/admin", label: "관리자", icon: "⚙️", roles: [ROLES.ADMIN] },
 ];
 

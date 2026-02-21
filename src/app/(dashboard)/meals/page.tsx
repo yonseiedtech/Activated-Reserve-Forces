@@ -28,6 +28,10 @@ export default function MealsPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ batchId: "", date: "", type: "BREAKFAST", menuInfo: "", headcount: 0 });
 
+  // Edit state
+  const [editingMeal, setEditingMeal] = useState<Meal | null>(null);
+  const [editForm, setEditForm] = useState({ menuInfo: "", headcount: 0 });
+
   const canEdit = session?.user?.role === "ADMIN" || session?.user?.role === "MANAGER" || session?.user?.role === "COOK";
 
   useEffect(() => {
@@ -37,11 +41,15 @@ export default function MealsPage() {
     });
   }, []);
 
-  useEffect(() => {
+  const fetchMeals = () => {
     if (selectedBatch) {
       fetch(`/api/meals?batchId=${selectedBatch}`).then((r) => r.json()).then(setMeals);
     }
-  }, [selectedBatch]);
+  };
+
+  useEffect(() => {
+    fetchMeals();
+  }, [selectedBatch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSubmit = async () => {
     const res = await fetch("/api/meals", {
@@ -51,8 +59,32 @@ export default function MealsPage() {
     });
     if (res.ok) {
       setShowForm(false);
-      fetch(`/api/meals?batchId=${selectedBatch}`).then((r) => r.json()).then(setMeals);
+      fetchMeals();
     }
+  };
+
+  const handleEditOpen = (meal: Meal) => {
+    setEditingMeal(meal);
+    setEditForm({ menuInfo: meal.menuInfo || "", headcount: meal.headcount });
+  };
+
+  const handleEditSave = async () => {
+    if (!editingMeal) return;
+    const res = await fetch(`/api/meals/${editingMeal.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(editForm),
+    });
+    if (res.ok) {
+      setEditingMeal(null);
+      fetchMeals();
+    }
+  };
+
+  const handleDelete = async (mealId: string) => {
+    if (!confirm("식사 정보를 삭제하시겠습니까?")) return;
+    const res = await fetch(`/api/meals/${mealId}`, { method: "DELETE" });
+    if (res.ok) fetchMeals();
   };
 
   // 날짜별 그룹핑
@@ -105,6 +137,22 @@ export default function MealsPage() {
                       <>
                         <p className="text-sm">{meal.menuInfo || "메뉴 미등록"}</p>
                         <p className="text-xs text-gray-400 mt-1">{meal.headcount}명</p>
+                        {canEdit && (
+                          <div className="flex gap-2 mt-2">
+                            <button
+                              onClick={() => handleEditOpen(meal)}
+                              className="text-xs text-blue-600 hover:underline"
+                            >
+                              수정
+                            </button>
+                            <button
+                              onClick={() => handleDelete(meal.id)}
+                              className="text-xs text-red-600 hover:underline"
+                            >
+                              삭제
+                            </button>
+                          </div>
+                        )}
                       </>
                     ) : (
                       <p className="text-sm text-gray-400">미등록</p>
@@ -148,6 +196,28 @@ export default function MealsPage() {
             <div className="flex gap-3 pt-2">
               <button onClick={handleSubmit} className="flex-1 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700">저장</button>
               <button onClick={() => setShowForm(false)} className="flex-1 py-2 border rounded-lg text-gray-700 hover:bg-gray-50">취소</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 수정 모달 */}
+      {editingMeal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl w-full max-w-md p-6 space-y-4">
+            <h3 className="text-lg font-semibold">식사 수정</h3>
+            <p className="text-sm text-gray-500">{MEAL_TYPE_LABELS[editingMeal.type]} - {new Date(editingMeal.date).toLocaleDateString("ko-KR")}</p>
+            <div>
+              <label className="block text-sm font-medium mb-1">메뉴</label>
+              <textarea value={editForm.menuInfo} onChange={(e) => setEditForm({ ...editForm, menuInfo: e.target.value })} rows={3} className="w-full px-3 py-2 border rounded-lg resize-none" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">인원</label>
+              <input type="number" value={editForm.headcount} onChange={(e) => setEditForm({ ...editForm, headcount: parseInt(e.target.value) || 0 })} className="w-full px-3 py-2 border rounded-lg" />
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button onClick={handleEditSave} className="flex-1 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700">저장</button>
+              <button onClick={() => setEditingMeal(null)} className="flex-1 py-2 border rounded-lg text-gray-700 hover:bg-gray-50">취소</button>
             </div>
           </div>
         </div>
