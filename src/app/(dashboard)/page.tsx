@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { ROLES, BATCH_STATUS_LABELS, PAYMENT_STATUS_LABELS } from "@/lib/constants";
+import { ROLES, BATCH_STATUS_LABELS } from "@/lib/constants";
 import Link from "next/link";
 
 export default async function DashboardPage() {
@@ -9,12 +9,15 @@ export default async function DashboardPage() {
   if (!session) return null;
 
   const role = session.user.role;
+  const isAdmin = role === ROLES.ADMIN || role === ROLES.MANAGER;
+
+  const today = new Date(new Date().toDateString());
+  const tomorrow = new Date(today.getTime() + 86400000);
 
   const [
     totalReservists,
     activeBatches,
     todayTrainings,
-    unreadNotices,
     unreadMessages,
     recentNotices,
     batches,
@@ -22,14 +25,8 @@ export default async function DashboardPage() {
     prisma.user.count({ where: { role: "RESERVIST" } }),
     prisma.batch.count({ where: { status: "ACTIVE" } }),
     prisma.training.count({
-      where: {
-        date: {
-          gte: new Date(new Date().toDateString()),
-          lt: new Date(new Date(new Date().toDateString()).getTime() + 86400000),
-        },
-      },
+      where: { date: { gte: today, lt: tomorrow } },
     }),
-    prisma.notice.count({ where: { isPinned: true } }),
     prisma.message.count({
       where: { receiverId: session.user.id, isRead: false },
     }),
@@ -37,11 +34,90 @@ export default async function DashboardPage() {
     prisma.batch.findMany({
       orderBy: { startDate: "desc" },
       take: 5,
-      include: { _count: { select: { users: true, trainings: true } } },
+      include: { _count: { select: { batchUsers: true, trainings: true } } },
     }),
   ]);
 
-  const isAdmin = role === ROLES.ADMIN || role === ROLES.MANAGER;
+  // Admin-specific data
+  let pendingAttendance = 0;
+  let pendingMobileIds = 0;
+  let activeBatchNames: string[] = [];
+
+  if (isAdmin) {
+    const [pa, pmi, abn] = await Promise.all([
+      prisma.attendance.count({
+        where: {
+          status: "PENDING",
+          training: { date: { gte: today, lt: tomorrow } },
+        },
+      }),
+      prisma.mobileIdCard.count({ where: { isApproved: false, rejectedAt: null } }),
+      prisma.batch.findMany({
+        where: { status: "ACTIVE" },
+        select: { name: true },
+      }),
+    ]);
+    pendingAttendance = pa;
+    pendingMobileIds = pmi;
+    activeBatchNames = abn.map((b) => b.name);
+  }
+
+  // Reservist-specific data
+  let nextTraining: { title: string; date: Date; dDay: number } | null = null;
+  let todayCommute: { checkIn: boolean; checkOut: boolean } = { checkIn: false, checkOut: false };
+  let attendanceRate = 0;
+  let mobileIdExpiringSoon = false;
+
+  if (role === ROLES.RESERVIST) {
+    const batchUserRecords = await prisma.batchUser.findMany({
+      where: { userId: session.user.id },
+      select: { batchId: true },
+    });
+    const batchIds = batchUserRecords.map((bu) => bu.batchId);
+
+    if (batchIds.length > 0) {
+      const [nt, cr, totalAtt, presentAtt] = await Promise.all([
+        prisma.training.findFirst({
+          where: { batchId: { in: batchIds }, date: { gte: today } },
+          orderBy: { date: "asc" },
+          select: { title: true, date: true },
+        }),
+        prisma.commutingRecord.findFirst({
+          where: { userId: session.user.id, date: { gte: today, lt: tomorrow } },
+        }),
+        prisma.attendance.count({
+          where: { userId: session.user.id },
+        }),
+        prisma.attendance.count({
+          where: { userId: session.user.id, status: "PRESENT" },
+        }),
+      ]);
+
+      if (nt) {
+        const diffMs = nt.date.getTime() - today.getTime();
+        nextTraining = {
+          title: nt.title,
+          date: nt.date,
+          dDay: Math.ceil(diffMs / 86400000),
+        };
+      }
+      todayCommute = {
+        checkIn: !!cr?.checkInAt,
+        checkOut: !!cr?.checkOutAt,
+      };
+      attendanceRate = totalAtt > 0 ? Math.round((presentAtt / totalAtt) * 100) : 0;
+    }
+
+    // Mobile ID expiry check (D-3)
+    const mobileId = await prisma.mobileIdCard.findUnique({
+      where: { userId: session.user.id },
+      select: { validUntil: true, isApproved: true },
+    });
+    if (mobileId?.isApproved) {
+      const daysUntilExpiry = Math.ceil((mobileId.validUntil.getTime() - today.getTime()) / 86400000);
+      mobileIdExpiringSoon = daysUntilExpiry <= 3 && daysUntilExpiry >= 0;
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -59,6 +135,112 @@ export default async function DashboardPage() {
         <StatCard label="오늘 훈련" value={todayTrainings} icon="📅" color="yellow" />
         <StatCard label="읽지 않은 쪽지" value={unreadMessages} icon="✉️" color="red" />
       </div>
+
+      {/* 운영자: 오늘의 할 일 패널 */}
+      {isAdmin && (
+        <div className="bg-white rounded-xl shadow-sm border p-6">
+          <h2 className="text-lg font-semibold mb-4">오늘의 할 일</h2>
+          <div className="grid sm:grid-cols-3 gap-4">
+            <Link href="/attendance" className="block p-4 bg-orange-50 border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">✅</span>
+                <div>
+                  <p className="text-2xl font-bold text-orange-700">{pendingAttendance}</p>
+                  <p className="text-xs text-gray-600">미처리 출석 건수</p>
+                </div>
+              </div>
+            </Link>
+            <Link href="/mobile-id" className="block p-4 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">🪪</span>
+                <div>
+                  <p className="text-2xl font-bold text-purple-700">{pendingMobileIds}</p>
+                  <p className="text-xs text-gray-600">승인 대기 신분증</p>
+                </div>
+              </div>
+            </Link>
+            <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">📋</span>
+                <div>
+                  <p className="text-sm font-bold text-green-700">
+                    {activeBatchNames.length > 0 ? activeBatchNames.join(", ") : "없음"}
+                  </p>
+                  <p className="text-xs text-gray-600">진행중 차수</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 대상자: 내 훈련 현황 카드 */}
+      {role === ROLES.RESERVIST && (
+        <div className="bg-white rounded-xl shadow-sm border p-6">
+          <h2 className="text-lg font-semibold mb-4">내 훈련 현황</h2>
+          <div className="grid sm:grid-cols-3 gap-4">
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">📅</span>
+                <div>
+                  {nextTraining ? (
+                    <>
+                      <p className="text-lg font-bold text-blue-700">
+                        D{nextTraining.dDay === 0 ? "-Day" : `-${nextTraining.dDay}`}
+                      </p>
+                      <p className="text-xs text-gray-600">{nextTraining.title}</p>
+                      <p className="text-xs text-gray-400">
+                        {new Date(nextTraining.date).toLocaleDateString("ko-KR")}
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm font-medium text-gray-500">예정 없음</p>
+                      <p className="text-xs text-gray-400">다음 훈련</p>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">🕐</span>
+                <div>
+                  <div className="flex gap-2">
+                    <span className={`px-2 py-0.5 text-xs rounded-full ${todayCommute.checkIn ? "bg-green-200 text-green-800" : "bg-gray-200 text-gray-600"}`}>
+                      출근 {todayCommute.checkIn ? "완료" : "미완"}
+                    </span>
+                    <span className={`px-2 py-0.5 text-xs rounded-full ${todayCommute.checkOut ? "bg-green-200 text-green-800" : "bg-gray-200 text-gray-600"}`}>
+                      퇴근 {todayCommute.checkOut ? "완료" : "미완"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-600 mt-1">오늘 출퇴근</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">📊</span>
+                <div>
+                  <p className="text-2xl font-bold text-yellow-700">{attendanceRate}%</p>
+                  <p className="text-xs text-gray-600">내 출석률</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* P2-13: 모바일 신분증 만료 경고 */}
+      {role === ROLES.RESERVIST && mobileIdExpiringSoon && (
+        <div className="bg-red-50 border border-red-300 rounded-xl p-4 flex items-center gap-3">
+          <span className="text-2xl">⚠️</span>
+          <div>
+            <p className="font-semibold text-red-800">모바일 신분증 만료 예정</p>
+            <p className="text-sm text-red-600">신분증이 3일 이내에 만료됩니다. 관리자에게 갱신을 요청하세요.</p>
+          </div>
+        </div>
+      )}
 
       <div className="grid lg:grid-cols-2 gap-6">
         {/* 차수 현황 */}
@@ -88,7 +270,7 @@ export default async function DashboardPage() {
                   }`}>
                     {BATCH_STATUS_LABELS[batch.status]}
                   </span>
-                  <p className="text-xs text-gray-500 mt-1">{batch._count.users}명 / {batch._count.trainings}개 훈련</p>
+                  <p className="text-xs text-gray-500 mt-1">{batch._count.batchUsers}명 / {batch._count.trainings}개 훈련</p>
                 </div>
               </div>
             ))}

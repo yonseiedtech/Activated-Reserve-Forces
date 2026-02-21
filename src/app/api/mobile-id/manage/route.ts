@@ -14,7 +14,11 @@ export async function GET() {
         select: {
           name: true, rank: true, serviceNumber: true,
           unit: true, position: true, birthDate: true,
-          batch: { select: { name: true } },
+          batchUsers: {
+            select: { batch: { select: { name: true } } },
+            orderBy: { createdAt: "desc" },
+            take: 1,
+          },
         },
       },
       approvedBy: { select: { name: true } },
@@ -22,7 +26,19 @@ export async function GET() {
     orderBy: { createdAt: "desc" },
   });
 
-  return json(cards);
+  // Transform batchUsers to batch for frontend compatibility
+  const transformed = cards.map((card) => {
+    const { batchUsers, ...userRest } = card.user;
+    return {
+      ...card,
+      user: {
+        ...userRest,
+        batch: batchUsers[0]?.batch || null,
+      },
+    };
+  });
+
+  return json(transformed);
 }
 
 // 승인 / 반려

@@ -14,14 +14,28 @@ export async function GET() {
         select: {
           name: true, rank: true, serviceNumber: true,
           unit: true, position: true, birthDate: true,
-          batch: { select: { name: true, startDate: true, endDate: true } },
+          batchUsers: {
+            select: { batch: { select: { name: true, startDate: true, endDate: true } } },
+            orderBy: { createdAt: "desc" },
+            take: 1,
+          },
         },
       },
       approvedBy: { select: { name: true } },
     },
   });
 
-  return json(card);
+  if (!card) return json(null);
+
+  // Transform batchUsers to batch for frontend compatibility
+  const { batchUsers, ...userRest } = card.user;
+  return json({
+    ...card,
+    user: {
+      ...userRest,
+      batch: batchUsers[0]?.batch || null,
+    },
+  });
 }
 
 // 신분증 발급 신청 (RESERVIST)
@@ -36,15 +50,18 @@ export async function POST(req: NextRequest) {
   });
   if (existing) return badRequest("이미 신분증이 발급(신청)되었습니다.");
 
-  // 사용자 정보 가져오기
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
+  // 최신 차수 정보 가져오기
+  const latestBatchUser = await prisma.batchUser.findFirst({
+    where: { userId: session.user.id },
+    orderBy: { createdAt: "desc" },
     include: { batch: true },
   });
-  if (!user?.batchId || !user.batch) return badRequest("차수 정보가 없습니다.");
+  if (!latestBatchUser) return badRequest("차수 정보가 없습니다.");
+
+  const batch = latestBatchUser.batch;
 
   // 고유번호 생성: RES-{년도}-{순번5자리}
-  const year = user.batch.year;
+  const year = batch.year;
   const count = await prisma.mobileIdCard.count({
     where: { uniqueNumber: { startsWith: `RES-${year}-` } },
   });
@@ -54,8 +71,8 @@ export async function POST(req: NextRequest) {
     data: {
       userId: session.user.id,
       uniqueNumber,
-      validFrom: user.batch.startDate,
-      validUntil: user.batch.endDate,
+      validFrom: batch.startDate,
+      validUntil: batch.endDate,
     },
   });
 

@@ -22,19 +22,22 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const batch = await prisma.batch.findUnique({
     where: { id },
     include: {
-      users: { select: { id: true, name: true, rank: true, serviceNumber: true, phone: true, unit: true } },
+      batchUsers: { select: { user: { select: { id: true, name: true, rank: true, serviceNumber: true, phone: true, unit: true } } } },
       trainings: {
         orderBy: { date: "asc" },
         include: { instructor: { select: { id: true, name: true } } },
       },
-      _count: { select: { users: true, trainings: true } },
+      _count: { select: { batchUsers: true, trainings: true } },
     },
   });
 
   if (!batch) return notFound("차수를 찾을 수 없습니다.");
 
+  const { batchUsers, _count, ...rest } = batch;
   return json({
-    ...batch,
+    ...rest,
+    users: batchUsers.map((bu) => bu.user),
+    _count: { users: _count.batchUsers, trainings: _count.trainings },
     status: computeBatchStatus(batch.startDate, batch.endDate),
   });
 }

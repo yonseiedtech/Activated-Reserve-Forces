@@ -16,11 +16,15 @@ export default async function DailySchedulePage({ params, searchParams }: Props)
   const { date } = await params;
   const { batchId: qsBatchId } = await searchParams;
 
-  // RESERVIST는 자동으로 자기 차수 필터
+  // RESERVIST는 자동으로 자기 차수 필터 (최신)
   let batchId = qsBatchId;
   if (session.user.role === "RESERVIST") {
-    const user = await prisma.user.findUnique({ where: { id: session.user.id } });
-    batchId = user?.batchId || undefined;
+    const latestBatchUser = await prisma.batchUser.findFirst({
+      where: { userId: session.user.id },
+      orderBy: { createdAt: "desc" },
+      select: { batchId: true },
+    });
+    batchId = latestBatchUser?.batchId || undefined;
   }
 
   const dayStart = new Date(date + "T00:00:00");

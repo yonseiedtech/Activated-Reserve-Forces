@@ -24,14 +24,29 @@ export async function GET(req: NextRequest) {
       serviceNumber: true,
       phone: true,
       unit: true,
-      batchId: true,
       birthDate: true,
-      batch: { select: { name: true } },
+      branch: true,
+      warBattalion: true,
+      warCompany: true,
+      warPlatoon: true,
+      warPosition: true,
+      batchUsers: {
+        select: { batch: { select: { id: true, name: true } } },
+      },
     },
     orderBy: { name: "asc" },
   });
 
-  return json(users);
+  // Transform batchUsers to batches for frontend compatibility
+  const transformed = users.map((u) => {
+    const { batchUsers, ...rest } = u;
+    return {
+      ...rest,
+      batches: batchUsers.map((bu) => bu.batch),
+    };
+  });
+
+  return json(transformed);
 }
 
 export async function POST(req: NextRequest) {
@@ -53,9 +68,20 @@ export async function POST(req: NextRequest) {
       serviceNumber: body.serviceNumber || null,
       phone: body.phone || null,
       unit: body.unit || null,
-      batchId: body.batchId || null,
+      branch: body.branch || null,
+      warBattalion: body.warBattalion || null,
+      warCompany: body.warCompany || null,
+      warPlatoon: body.warPlatoon || null,
+      warPosition: body.warPosition || null,
     },
   });
+
+  // batchId가 있으면 BatchUser로 연결
+  if (body.batchId) {
+    await prisma.batchUser.create({
+      data: { userId: user.id, batchId: body.batchId },
+    });
+  }
 
   return json({ id: user.id, name: user.name, username: user.username }, 201);
 }

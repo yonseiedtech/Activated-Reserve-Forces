@@ -14,9 +14,13 @@ interface User {
   serviceNumber: string | null;
   phone: string | null;
   unit: string | null;
-  batchId: string | null;
   birthDate: string | null;
-  batch: { name: string } | null;
+  branch: string | null;
+  warBattalion: string | null;
+  warCompany: string | null;
+  warPlatoon: string | null;
+  warPosition: string | null;
+  batches: { id: string; name: string }[];
 }
 
 interface Batch {
@@ -50,8 +54,16 @@ export default function AdminUsersPage() {
   const [editTarget, setEditTarget] = useState<User | null>(null);
   const [editForm, setEditForm] = useState({
     name: "", rank: "", serviceNumber: "", unit: "", phone: "", batchId: "", birthDate: "",
+    branch: "", warBattalion: "", warCompany: "", warPlatoon: "", warPosition: "",
   });
   const [editLoading, setEditLoading] = useState(false);
+
+  // CSV 일괄 등록 모달 상태
+  const [showCsvUpload, setShowCsvUpload] = useState(false);
+  const [csvData, setCsvData] = useState<Array<Record<string, string>>>([]);
+  const [csvError, setCsvError] = useState("");
+  const [csvLoading, setCsvLoading] = useState(false);
+  const [csvResult, setCsvResult] = useState("");
 
   const fetchUsers = () => fetch("/api/users").then((r) => r.json()).then(setUsers);
 
@@ -107,8 +119,13 @@ export default function AdminUsersPage() {
       serviceNumber: user.serviceNumber || "",
       unit: user.unit || "",
       phone: user.phone || "",
-      batchId: user.batchId || "",
+      batchId: user.batches?.[0]?.id || "",
       birthDate: user.birthDate ? user.birthDate.split("T")[0] : "",
+      branch: user.branch || "",
+      warBattalion: user.warBattalion || "",
+      warCompany: user.warCompany || "",
+      warPlatoon: user.warPlatoon || "",
+      warPosition: user.warPosition || "",
     });
   };
 
@@ -130,20 +147,100 @@ export default function AdminUsersPage() {
     }
   };
 
-  const filtered = filter
-    ? users.filter((u) => u.role === filter)
-    : users;
+  const handleCsvFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setCsvError("");
+    setCsvResult("");
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+      if (lines.length < 2) {
+        setCsvError("헤더와 최소 1행의 데이터가 필요합니다.");
+        return;
+      }
+      const headers = lines[0].split(",").map((h) => h.trim());
+      const requiredHeaders = ["name", "username", "password"];
+      const missing = requiredHeaders.filter((h) => !headers.includes(h));
+      if (missing.length > 0) {
+        setCsvError(`필수 헤더 누락: ${missing.join(", ")}`);
+        return;
+      }
+      const rows = lines.slice(1).map((line) => {
+        const values = line.split(",").map((v) => v.trim());
+        const row: Record<string, string> = {};
+        headers.forEach((h, i) => { row[h] = values[i] || ""; });
+        return row;
+      });
+      setCsvData(rows);
+    };
+    reader.readAsText(file);
+  };
+
+  const handleCsvUpload = async () => {
+    if (csvData.length === 0) return;
+    setCsvLoading(true);
+    setCsvError("");
+    setCsvResult("");
+
+    const res = await fetch("/api/users/bulk", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ users: csvData }),
+    });
+
+    setCsvLoading(false);
+    if (res.ok) {
+      const data = await res.json();
+      setCsvResult(`${data.created}명이 등록되었습니다.`);
+      fetchUsers();
+      setCsvData([]);
+    } else {
+      const err = await res.json();
+      setCsvError(err.error || "등록에 실패했습니다.");
+    }
+  };
+
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filtered = users.filter((u) => {
+    const matchesRole = !filter || u.role === filter;
+    const matchesSearch = !searchQuery ||
+      u.name.includes(searchQuery) ||
+      u.serviceNumber?.includes(searchQuery) ||
+      u.unit?.includes(searchQuery) ||
+      u.username.includes(searchQuery);
+    return matchesRole && matchesSearch;
+  });
 
   return (
     <div>
       <PageTitle
         title="사용자 관리"
         actions={
-          <button onClick={() => setShowForm(true)} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
-            + 사용자 추가
-          </button>
+          <div className="flex gap-2">
+            <button onClick={() => setShowCsvUpload(true)} className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700">
+              CSV 일괄 등록
+            </button>
+            <button onClick={() => setShowForm(true)} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
+              + 사용자 추가
+            </button>
+          </div>
         }
       />
+
+      {/* 검색 */}
+      <div className="mb-4">
+        <input
+          type="text"
+          placeholder="이름, 군번, 부대명, 아이디로 검색..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full sm:w-80 px-3 py-2 border rounded-lg text-sm"
+        />
+      </div>
 
       {/* 필터 */}
       <div className="flex gap-2 mb-4 flex-wrap">
@@ -177,7 +274,7 @@ export default function AdminUsersPage() {
                 </td>
                 <td className="px-4 py-3">{u.rank || "-"}</td>
                 <td className="px-4 py-3">{u.serviceNumber || "-"}</td>
-                <td className="px-4 py-3">{u.batch?.name || "-"}</td>
+                <td className="px-4 py-3">{u.batches?.map((b) => b.name).join(", ") || "-"}</td>
                 <td className="px-4 py-3">{u.phone || "-"}</td>
                 <td className="px-4 py-3">
                   <div className="flex gap-1">
@@ -281,6 +378,32 @@ export default function AdminUsersPage() {
               <label className="text-sm font-medium">생년월일</label>
               <input type="date" value={editForm.birthDate} onChange={(e) => setEditForm({ ...editForm, birthDate: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
             </div>
+
+            {/* 새 필드들 */}
+            <div className="border-t pt-3 mt-3">
+              <p className="text-sm font-semibold text-gray-700 mb-2">추가 정보</p>
+            </div>
+            <div>
+              <label className="text-sm font-medium">병과</label>
+              <input placeholder="예: 보병, 포병, 공병" value={editForm.branch} onChange={(e) => setEditForm({ ...editForm, branch: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+            </div>
+            <div>
+              <label className="text-sm font-medium">전시부대 (대대)</label>
+              <input placeholder="전시 대대" value={editForm.warBattalion} onChange={(e) => setEditForm({ ...editForm, warBattalion: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+            </div>
+            <div>
+              <label className="text-sm font-medium">전시부대 (중대)</label>
+              <input placeholder="전시 중대" value={editForm.warCompany} onChange={(e) => setEditForm({ ...editForm, warCompany: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+            </div>
+            <div>
+              <label className="text-sm font-medium">전시부대 (소대/지휘부)</label>
+              <input placeholder="전시 소대/지휘부" value={editForm.warPlatoon} onChange={(e) => setEditForm({ ...editForm, warPlatoon: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+            </div>
+            <div>
+              <label className="text-sm font-medium">전시직책</label>
+              <input placeholder="전시직책" value={editForm.warPosition} onChange={(e) => setEditForm({ ...editForm, warPosition: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+            </div>
+
             <div className="flex gap-3 pt-2">
               <button
                 onClick={handleEditSave}
@@ -328,6 +451,55 @@ export default function AdminUsersPage() {
                 className="flex-1 py-2 border rounded-lg text-gray-700 hover:bg-gray-50"
               >
                 취소
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CSV 일괄 등록 모달 */}
+      {showCsvUpload && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl w-full max-w-lg p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+            <h3 className="text-lg font-semibold">CSV 일괄 등록</h3>
+            <div className="bg-gray-50 rounded-lg p-3 text-xs text-gray-600 space-y-1">
+              <p className="font-medium">CSV 파일 형식:</p>
+              <p>필수 헤더: <code className="bg-gray-200 px-1 rounded">name,username,password</code></p>
+              <p>선택 헤더: <code className="bg-gray-200 px-1 rounded">role,rank,serviceNumber,phone,unit,branch,warBattalion,warCompany,warPlatoon,warPosition</code></p>
+              <p className="mt-1 text-gray-500">예: 홍길동,hong123,pass1234,RESERVIST,병장,12-12345678,010-1234-5678,00사단</p>
+            </div>
+            <input
+              type="file"
+              accept=".csv"
+              onChange={handleCsvFile}
+              className="w-full text-sm"
+            />
+            {csvData.length > 0 && (
+              <div className="bg-blue-50 rounded-lg p-3">
+                <p className="text-sm text-blue-700 font-medium">{csvData.length}명의 데이터가 준비되었습니다.</p>
+                <div className="mt-2 max-h-32 overflow-y-auto text-xs text-gray-600">
+                  {csvData.slice(0, 5).map((row, i) => (
+                    <p key={i}>{row.name} ({row.username}) - {row.rank || "계급없음"}</p>
+                  ))}
+                  {csvData.length > 5 && <p>... 외 {csvData.length - 5}명</p>}
+                </div>
+              </div>
+            )}
+            {csvError && <p className="text-sm text-red-600 whitespace-pre-wrap">{csvError}</p>}
+            {csvResult && <p className="text-sm text-green-600">{csvResult}</p>}
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={handleCsvUpload}
+                disabled={csvLoading || csvData.length === 0}
+                className="flex-1 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50"
+              >
+                {csvLoading ? "등록 중..." : `${csvData.length}명 등록`}
+              </button>
+              <button
+                onClick={() => { setShowCsvUpload(false); setCsvData([]); setCsvError(""); setCsvResult(""); }}
+                className="flex-1 py-2 border rounded-lg text-gray-700 hover:bg-gray-50"
+              >
+                닫기
               </button>
             </div>
           </div>

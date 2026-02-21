@@ -31,12 +31,16 @@ model User {
   unit      String?  // 소속부대
   position  String?  // 직책 (예: "상비예비군")
   birthDate DateTime? // 생년월일
-  batchId   String?  // 소속 차수 (대상자용)
-  batch     Batch?   @relation(fields: [batchId], references: [id])
+  branch       String?  // 병과 (보병, 포병, 공병 등)
+  warBattalion String?  // 전시부대 소속1 (대대)
+  warCompany   String?  // 전시부대 소속2 (중대)
+  warPlatoon   String?  // 전시부대 소속3 (소대/지휘부)
+  warPosition  String?  // 전시직책
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // 관계
+  batchUsers           BatchUser[]
   trainingsAsInstructor Training[]       @relation("InstructorTrainings")
   attendances          Attendance[]
   commutingRecords     CommutingRecord[]
@@ -50,6 +54,17 @@ model User {
   transportAllowances  UserTransportAllowance[]
 }
 
+// ─── User-Batch M:N 조인 테이블 ───
+model BatchUser {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  batchId   String
+  batch     Batch    @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  @@unique([userId, batchId])
+}
+
 // ─── 차수 (훈련 기수) ───
 model Batch {
   id        String   @id @default(cuid())
@@ -61,7 +76,7 @@ model Batch {
   status    String   @default("PLANNED") // PLANNED, ACTIVE, COMPLETED
   createdAt DateTime @default(now())
 
-  users               User[]
+  batchUsers          BatchUser[]
   trainings           Training[]
   meals               Meal[]
   paymentProcesses    PaymentProcess[]
@@ -216,6 +231,19 @@ model Notice {
   authorId  String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  reads     NoticeRead[]
+}
+
+// ─── 공지 읽음 추적 ───
+model NoticeRead {
+  id        String   @id @default(cuid())
+  noticeId  String
+  notice    Notice   @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+  userId    String
+  readAt    DateTime @default(now())
+
+  @@unique([noticeId, userId])
 }
 
 // ─── 설문조사 ───

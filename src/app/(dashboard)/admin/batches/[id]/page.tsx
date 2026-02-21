@@ -54,6 +54,11 @@ interface UnassignedUser {
   unit: string | null;
 }
 
+interface AttendanceSummary {
+  byUser: { userId: string; name: string; rank: string | null; present: number; absent: number; pending: number; total: number; rate: number }[];
+  byTraining: { trainingId: string; title: string; date: string; present: number; total: number; rate: number }[];
+}
+
 const STATUS_COLORS: Record<string, string> = {
   PLANNED: "bg-yellow-100 text-yellow-700",
   ACTIVE: "bg-green-100 text-green-700",
@@ -89,7 +94,7 @@ export default function AdminBatchDetailPage() {
   const batchId = params.id as string;
 
   const [batch, setBatch] = useState<Batch | null>(null);
-  const [tab, setTab] = useState<"training" | "trainees">("training");
+  const [tab, setTab] = useState<"training" | "trainees" | "attendance">("training");
   const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [showTrainingForm, setShowTrainingForm] = useState(false);
   const [trainingFormDate, setTrainingFormDate] = useState("");
@@ -97,9 +102,24 @@ export default function AdminBatchDetailPage() {
     title: "", type: "기타", startTime: "", endTime: "", location: "", description: "", instructorId: "",
   });
 
+  // Edit training state
+  const [editingTraining, setEditingTraining] = useState<Training | null>(null);
+  const [editForm, setEditForm] = useState({
+    title: "", type: "기타", startTime: "", endTime: "", location: "", description: "", instructorId: "",
+  });
+
   // Trainee assignment state
   const [unassigned, setUnassigned] = useState<UnassignedUser[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+
+  // Bulk assignment state
+  const [selectedUnassigned, setSelectedUnassigned] = useState<Set<string>>(new Set());
+  const [selectedAssigned, setSelectedAssigned] = useState<Set<string>>(new Set());
+  const [bulkLoading, setBulkLoading] = useState(false);
+
+  // Attendance summary state
+  const [attendanceSummary, setAttendanceSummary] = useState<AttendanceSummary | null>(null);
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
 
   const fetchBatch = useCallback(() => {
     fetch(`/api/batches/${batchId}`).then((r) => r.json()).then(setBatch);
@@ -114,16 +134,28 @@ export default function AdminBatchDetailPage() {
   }, []);
 
   const fetchUnassigned = useCallback(() => {
-    fetch("/api/users?role=RESERVIST").then((r) => r.json()).then((users: UnassignedUser[]) => {
-      setUnassigned(users.filter((u: UnassignedUser & { batchId?: string | null }) => !(u as UnassignedUser & { batchId?: string | null }).batchId));
+    fetch("/api/users?role=RESERVIST").then((r) => r.json()).then((users: (UnassignedUser & { batches?: { id: string; name: string }[] })[]) => {
+      setUnassigned(users.filter((u) => !u.batches?.some((b) => b.id === batchId)));
     });
-  }, []);
+  }, [batchId]);
+
+  const fetchAttendanceSummary = useCallback(() => {
+    setAttendanceLoading(true);
+    fetch(`/api/batches/${batchId}/attendance-summary`)
+      .then((r) => r.json())
+      .then(setAttendanceSummary)
+      .finally(() => setAttendanceLoading(false));
+  }, [batchId]);
 
   useEffect(() => {
     fetchBatch();
     fetchInstructors();
     fetchUnassigned();
   }, [fetchBatch, fetchInstructors, fetchUnassigned]);
+
+  useEffect(() => {
+    if (tab === "attendance") fetchAttendanceSummary();
+  }, [tab, fetchAttendanceSummary]);
 
   const handleAddTraining = (date: string) => {
     setTrainingFormDate(date);
@@ -154,6 +186,37 @@ export default function AdminBatchDetailPage() {
     fetchBatch();
   };
 
+  // Edit training
+  const handleEditTraining = (training: Training) => {
+    setEditingTraining(training);
+    setEditForm({
+      title: training.title,
+      type: training.type,
+      startTime: training.startTime || "",
+      endTime: training.endTime || "",
+      location: training.location || "",
+      description: training.description || "",
+      instructorId: training.instructor?.id || "",
+    });
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingTraining) return;
+    const res = await fetch(`/api/trainings/${editingTraining.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...editForm,
+        instructorId: editForm.instructorId || null,
+      }),
+    });
+    if (res.ok) {
+      setEditingTraining(null);
+      fetchBatch();
+    }
+  };
+
+  // Single assignment
   const handleAssign = async (userId: string) => {
     const res = await fetch(`/api/batches/${batchId}/assign`, {
       method: "POST",
@@ -163,6 +226,7 @@ export default function AdminBatchDetailPage() {
     if (res.ok) {
       fetchBatch();
       fetchUnassigned();
+      setSelectedUnassigned((prev) => { const next = new Set(prev); next.delete(userId); return next; });
     }
   };
 
@@ -175,7 +239,41 @@ export default function AdminBatchDetailPage() {
     if (res.ok) {
       fetchBatch();
       fetchUnassigned();
+      setSelectedAssigned((prev) => { const next = new Set(prev); next.delete(userId); return next; });
     }
+  };
+
+  // Bulk assignment
+  const handleBulkAssign = async (userIds: string[]) => {
+    if (userIds.length === 0) return;
+    setBulkLoading(true);
+    const res = await fetch(`/api/batches/${batchId}/assign`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userIds }),
+    });
+    if (res.ok) {
+      fetchBatch();
+      fetchUnassigned();
+      setSelectedUnassigned(new Set());
+    }
+    setBulkLoading(false);
+  };
+
+  const handleBulkUnassign = async (userIds: string[]) => {
+    if (userIds.length === 0) return;
+    setBulkLoading(true);
+    const res = await fetch(`/api/batches/${batchId}/unassign`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userIds }),
+    });
+    if (res.ok) {
+      fetchBatch();
+      fetchUnassigned();
+      setSelectedAssigned(new Set());
+    }
+    setBulkLoading(false);
   };
 
   if (!batch) return <div className="text-center py-8 text-gray-400">로딩 중...</div>;
@@ -199,6 +297,22 @@ export default function AdminBatchDetailPage() {
     if (!groupedUnassigned[key]) groupedUnassigned[key] = [];
     groupedUnassigned[key].push(u);
   }
+
+  const toggleUnassignedSelect = (id: string) => {
+    setSelectedUnassigned((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAssignedSelect = (id: string) => {
+    setSelectedAssigned((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
 
   return (
     <div>
@@ -227,6 +341,12 @@ export default function AdminBatchDetailPage() {
           className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === "trainees" ? "bg-white shadow text-blue-600" : "text-gray-600 hover:text-gray-900"}`}
         >
           대상자 ({batch._count.users})
+        </button>
+        <button
+          onClick={() => setTab("attendance")}
+          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === "attendance" ? "bg-white shadow text-blue-600" : "text-gray-600 hover:text-gray-900"}`}
+        >
+          출석현황
         </button>
       </div>
 
@@ -273,12 +393,20 @@ export default function AdminBatchDetailPage() {
                           <td className="px-4 py-2.5 text-gray-500">{t.location || "-"}</td>
                           <td className="px-4 py-2.5 text-gray-500">{t.instructor?.name || "-"}</td>
                           <td className="px-4 py-2.5">
-                            <button
-                              onClick={() => handleDeleteTraining(t.id)}
-                              className="text-red-500 hover:text-red-700 text-xs"
-                            >
-                              삭제
-                            </button>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleEditTraining(t)}
+                                className="text-blue-500 hover:text-blue-700 text-xs"
+                              >
+                                수정
+                              </button>
+                              <button
+                                onClick={() => handleDeleteTraining(t.id)}
+                                className="text-red-500 hover:text-red-700 text-xs"
+                              >
+                                삭제
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -307,6 +435,24 @@ export default function AdminBatchDetailPage() {
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full px-3 py-1.5 border rounded-lg text-sm"
               />
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={() => handleBulkAssign(filteredUnassigned.map((u) => u.id))}
+                  disabled={bulkLoading || filteredUnassigned.length === 0}
+                  className="px-2.5 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                >
+                  전체 배정 ({filteredUnassigned.length})
+                </button>
+                {selectedUnassigned.size > 0 && (
+                  <button
+                    onClick={() => handleBulkAssign(Array.from(selectedUnassigned))}
+                    disabled={bulkLoading}
+                    className="px-2.5 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+                  >
+                    선택 배정 ({selectedUnassigned.size})
+                  </button>
+                )}
+              </div>
             </div>
             <div className="max-h-96 overflow-y-auto">
               {Object.keys(groupedUnassigned).length > 0 ? (
@@ -314,17 +460,29 @@ export default function AdminBatchDetailPage() {
                   <div key={unit}>
                     <div className="px-4 py-1.5 bg-gray-50 text-xs text-gray-500 font-medium border-b">{unit}</div>
                     {users.map((u) => (
-                      <button
+                      <div
                         key={u.id}
-                        onClick={() => handleAssign(u.id)}
                         className="w-full text-left px-4 py-2.5 border-b hover:bg-blue-50 transition-colors flex items-center justify-between"
                       >
-                        <div>
-                          <span className="font-medium text-sm">{u.name}</span>
-                          <span className="ml-2 text-xs text-gray-500">{u.rank} | {u.serviceNumber}</span>
-                        </div>
-                        <span className="text-blue-500 text-xs">배정 &rarr;</span>
-                      </button>
+                        <label className="flex items-center gap-2 flex-1 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={selectedUnassigned.has(u.id)}
+                            onChange={() => toggleUnassignedSelect(u.id)}
+                            className="rounded"
+                          />
+                          <div>
+                            <span className="font-medium text-sm">{u.name}</span>
+                            <span className="ml-2 text-xs text-gray-500">{u.rank} | {u.serviceNumber}</span>
+                          </div>
+                        </label>
+                        <button
+                          onClick={() => handleAssign(u.id)}
+                          className="text-blue-500 text-xs hover:text-blue-700"
+                        >
+                          배정 &rarr;
+                        </button>
+                      </div>
                     ))}
                   </div>
                 ))
@@ -338,28 +496,158 @@ export default function AdminBatchDetailPage() {
           <div className="bg-white rounded-xl border overflow-hidden">
             <div className="px-4 py-3 bg-blue-50 border-b">
               <h3 className="font-semibold text-sm text-blue-700">배정된 대상자 ({batch.users.length}명)</h3>
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={() => handleBulkUnassign(batch.users.map((u) => u.id))}
+                  disabled={bulkLoading || batch.users.length === 0}
+                  className="px-2.5 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+                >
+                  전체 해제 ({batch.users.length})
+                </button>
+                {selectedAssigned.size > 0 && (
+                  <button
+                    onClick={() => handleBulkUnassign(Array.from(selectedAssigned))}
+                    disabled={bulkLoading}
+                    className="px-2.5 py-1 text-xs bg-orange-600 text-white rounded hover:bg-orange-700 disabled:opacity-50"
+                  >
+                    선택 해제 ({selectedAssigned.size})
+                  </button>
+                )}
+              </div>
             </div>
             <div className="max-h-96 overflow-y-auto">
               {batch.users.length > 0 ? (
                 batch.users.map((u) => (
-                  <button
+                  <div
                     key={u.id}
-                    onClick={() => handleUnassign(u.id)}
                     className="w-full text-left px-4 py-2.5 border-b hover:bg-red-50 transition-colors flex items-center justify-between"
                   >
-                    <div>
-                      <span className="font-medium text-sm">{u.name}</span>
-                      <span className="ml-2 text-xs text-gray-500">{u.rank} | {u.serviceNumber}</span>
-                      {u.unit && <span className="ml-2 text-xs text-gray-400">{u.unit}</span>}
-                    </div>
-                    <span className="text-red-500 text-xs">&larr; 해제</span>
-                  </button>
+                    <label className="flex items-center gap-2 flex-1 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedAssigned.has(u.id)}
+                        onChange={() => toggleAssignedSelect(u.id)}
+                        className="rounded"
+                      />
+                      <div>
+                        <span className="font-medium text-sm">{u.name}</span>
+                        <span className="ml-2 text-xs text-gray-500">{u.rank} | {u.serviceNumber}</span>
+                        {u.unit && <span className="ml-2 text-xs text-gray-400">{u.unit}</span>}
+                      </div>
+                    </label>
+                    <button
+                      onClick={() => handleUnassign(u.id)}
+                      className="text-red-500 text-xs hover:text-red-700"
+                    >
+                      &larr; 해제
+                    </button>
+                  </div>
                 ))
               ) : (
                 <p className="px-4 py-6 text-sm text-gray-400 text-center">배정된 대상자가 없습니다.</p>
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Attendance Summary Tab */}
+      {tab === "attendance" && (
+        <div className="space-y-6">
+          {attendanceLoading ? (
+            <div className="text-center py-8 text-gray-400">로딩 중...</div>
+          ) : attendanceSummary ? (
+            <>
+              {/* Per-person summary */}
+              <div className="bg-white rounded-xl border overflow-hidden">
+                <div className="px-4 py-3 bg-gray-50 border-b">
+                  <h3 className="font-semibold text-sm">인원별 출석률</h3>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-gray-500 text-xs border-b">
+                        <th className="px-4 py-2 font-medium">이름</th>
+                        <th className="px-4 py-2 font-medium text-center">참석</th>
+                        <th className="px-4 py-2 font-medium text-center">불참</th>
+                        <th className="px-4 py-2 font-medium text-center">미정</th>
+                        <th className="px-4 py-2 font-medium text-center">출석률</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {attendanceSummary.byUser.map((u) => (
+                        <tr key={u.userId} className="hover:bg-gray-50">
+                          <td className="px-4 py-2.5">
+                            <span className="font-medium">{u.name}</span>
+                            {u.rank && <span className="ml-1 text-xs text-gray-500">{u.rank}</span>}
+                          </td>
+                          <td className="px-4 py-2.5 text-center text-green-600 font-medium">{u.present}</td>
+                          <td className="px-4 py-2.5 text-center text-red-600 font-medium">{u.absent}</td>
+                          <td className="px-4 py-2.5 text-center text-gray-500">{u.pending}</td>
+                          <td className="px-4 py-2.5 text-center">
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                              u.rate >= 80 ? "bg-green-100 text-green-700" :
+                              u.rate >= 50 ? "bg-yellow-100 text-yellow-700" :
+                              "bg-red-100 text-red-700"
+                            }`}>
+                              {u.rate}%
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                      {attendanceSummary.byUser.length === 0 && (
+                        <tr><td colSpan={5} className="px-4 py-6 text-center text-gray-400">출석 데이터가 없습니다.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Per-training summary */}
+              <div className="bg-white rounded-xl border overflow-hidden">
+                <div className="px-4 py-3 bg-gray-50 border-b">
+                  <h3 className="font-semibold text-sm">훈련별 참석률</h3>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-gray-500 text-xs border-b">
+                        <th className="px-4 py-2 font-medium">훈련명</th>
+                        <th className="px-4 py-2 font-medium">날짜</th>
+                        <th className="px-4 py-2 font-medium text-center">참석</th>
+                        <th className="px-4 py-2 font-medium text-center">전체</th>
+                        <th className="px-4 py-2 font-medium text-center">참석률</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {attendanceSummary.byTraining.map((t) => (
+                        <tr key={t.trainingId} className="hover:bg-gray-50">
+                          <td className="px-4 py-2.5 font-medium">{t.title}</td>
+                          <td className="px-4 py-2.5 text-gray-500">{new Date(t.date).toLocaleDateString("ko-KR")}</td>
+                          <td className="px-4 py-2.5 text-center text-green-600 font-medium">{t.present}</td>
+                          <td className="px-4 py-2.5 text-center">{t.total}</td>
+                          <td className="px-4 py-2.5 text-center">
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                              t.rate >= 80 ? "bg-green-100 text-green-700" :
+                              t.rate >= 50 ? "bg-yellow-100 text-yellow-700" :
+                              "bg-red-100 text-red-700"
+                            }`}>
+                              {t.rate}%
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                      {attendanceSummary.byTraining.length === 0 && (
+                        <tr><td colSpan={5} className="px-4 py-6 text-center text-gray-400">훈련 데이터가 없습니다.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="text-center py-8 text-gray-400">출석 데이터를 불러올 수 없습니다.</div>
+          )}
         </div>
       )}
 
@@ -426,6 +714,72 @@ export default function AdminBatchDetailPage() {
             <div className="flex gap-3 pt-2">
               <button onClick={handleCreateTraining} className="flex-1 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700">추가</button>
               <button onClick={() => setShowTrainingForm(false)} className="flex-1 py-2 border rounded-lg text-gray-700 hover:bg-gray-50">취소</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Training edit modal */}
+      {editingTraining && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl w-full max-w-md p-6 space-y-3">
+            <h3 className="text-lg font-semibold">훈련 수정</h3>
+            <input
+              placeholder="훈련명"
+              value={editForm.title}
+              onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg"
+            />
+            <select
+              value={editForm.type}
+              onChange={(e) => setEditForm({ ...editForm, type: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg"
+            >
+              {TRAINING_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium">시작 시간</label>
+                <input
+                  type="time"
+                  value={editForm.startTime}
+                  onChange={(e) => setEditForm({ ...editForm, startTime: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">종료 시간</label>
+                <input
+                  type="time"
+                  value={editForm.endTime}
+                  onChange={(e) => setEditForm({ ...editForm, endTime: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg"
+                />
+              </div>
+            </div>
+            <input
+              placeholder="장소"
+              value={editForm.location}
+              onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg"
+            />
+            <select
+              value={editForm.instructorId}
+              onChange={(e) => setEditForm({ ...editForm, instructorId: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg"
+            >
+              <option value="">교관 선택 (선택사항)</option>
+              {instructors.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
+            </select>
+            <input
+              placeholder="비고 (선택)"
+              value={editForm.description}
+              onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg"
+            />
+            <div className="flex gap-3 pt-2">
+              <button onClick={handleSaveEdit} className="flex-1 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700">저장</button>
+              <button onClick={() => setEditingTraining(null)} className="flex-1 py-2 border rounded-lg text-gray-700 hover:bg-gray-50">취소</button>
             </div>
           </div>
         </div>

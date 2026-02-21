@@ -20,12 +20,13 @@ export async function PATCH(req: NextRequest) {
   if (!["PRESENT", "ABSENT", "PENDING"].includes(status)) return badRequest("유효하지 않은 상태입니다.");
 
   // 훈련이 본인 차수에 속하는지 검증
-  const user = await prisma.user.findUnique({ where: { id: session.user.id } });
-  if (!user?.batchId) return badRequest("차수 정보가 없습니다.");
-
   const training = await prisma.training.findUnique({ where: { id: trainingId } });
   if (!training) return badRequest("훈련을 찾을 수 없습니다.");
-  if (training.batchId !== user.batchId) return forbidden();
+
+  const batchLink = await prisma.batchUser.findFirst({
+    where: { userId: session.user.id, batchId: training.batchId },
+  });
+  if (!batchLink) return forbidden();
 
   // status별 필드 정리
   const data: {

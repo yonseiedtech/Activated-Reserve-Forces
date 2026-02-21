@@ -14,8 +14,12 @@ export default async function TrainingsPage() {
 
   let batchFilter = {};
   if (isReservist) {
-    const user = await prisma.user.findUnique({ where: { id: session.user.id } });
-    if (user?.batchId) batchFilter = { batchId: user.batchId };
+    const batchUserRecords = await prisma.batchUser.findMany({
+      where: { userId: session.user.id },
+      select: { batchId: true },
+    });
+    const batchIds = batchUserRecords.map((bu) => bu.batchId);
+    if (batchIds.length > 0) batchFilter = { batchId: { in: batchIds } };
   }
 
   const trainings = await prisma.training.findMany({

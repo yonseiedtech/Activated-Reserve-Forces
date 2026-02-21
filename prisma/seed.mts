@@ -67,28 +67,34 @@ async function main() {
       },
     });
 
-    // 차수 생성
-    const batch1 = await prisma.batch.create({
-      data: {
-        name: "2026년 1차수",
-        year: 2026,
-        number: 1,
-        startDate: new Date("2026-03-02"),
-        endDate: new Date("2026-03-06"),
-        status: "PLANNED",
-      },
-    });
+    // 기존 차수 확인 후 없으면 생성
+    let batch1 = await prisma.batch.findFirst({ where: { year: 2026, number: 1 } });
+    if (!batch1) {
+      batch1 = await prisma.batch.create({
+        data: {
+          name: "2026년 1차수",
+          year: 2026,
+          number: 1,
+          startDate: new Date("2026-03-02"),
+          endDate: new Date("2026-03-06"),
+          status: "PLANNED",
+        },
+      });
+    }
 
-    const batch2 = await prisma.batch.create({
-      data: {
-        name: "2026년 2차수",
-        year: 2026,
-        number: 2,
-        startDate: new Date("2026-03-16"),
-        endDate: new Date("2026-03-20"),
-        status: "PLANNED",
-      },
-    });
+    let batch2 = await prisma.batch.findFirst({ where: { year: 2026, number: 2 } });
+    if (!batch2) {
+      batch2 = await prisma.batch.create({
+        data: {
+          name: "2026년 2차수",
+          year: 2026,
+          number: 2,
+          startDate: new Date("2026-03-16"),
+          endDate: new Date("2026-03-20"),
+          status: "PLANNED",
+        },
+      });
+    }
 
     // 대상자 계정 (1차수)
     // 초기 비밀번호: 생년월일 6자리 (예: 980315)
@@ -106,8 +112,10 @@ async function main() {
     const batch1Users = [];
     for (let i = 0; i < reservistNames.length; i++) {
       const pw = await bcrypt.hash(birthDateToPassword(birthDates[i]), 10);
-      const u = await prisma.user.create({
-        data: {
+      const u = await prisma.user.upsert({
+        where: { username: `reservist${i + 1}` },
+        update: {},
+        create: {
           name: reservistNames[i],
           username: `reservist${i + 1}`,
           email: `reservist${i + 1}@reserve.mil`,
@@ -119,8 +127,13 @@ async function main() {
           position: "상비예비군",
           birthDate: new Date(birthDates[i]),
           phone: `010-1234-${String(i + 1).padStart(4, "0")}`,
-          batchId: batch1.id,
         },
+      });
+      // M:N 조인 테이블에 차수 배정
+      await prisma.batchUser.upsert({
+        where: { userId_batchId: { userId: u.id, batchId: batch1.id } },
+        update: {},
+        create: { userId: u.id, batchId: batch1.id },
       });
       batch1Users.push(u);
     }
@@ -130,8 +143,10 @@ async function main() {
     const birthDates2 = ["2000-02-14", "1999-08-25", "2000-06-03"];
     for (let i = 0; i < reservistNames2.length; i++) {
       const pw = await bcrypt.hash(birthDateToPassword(birthDates2[i]), 10);
-      await prisma.user.create({
-        data: {
+      const u2 = await prisma.user.upsert({
+        where: { username: `reservist${i + 6}` },
+        update: {},
+        create: {
           name: reservistNames2[i],
           username: `reservist${i + 6}`,
           email: `reservist${i + 6}@reserve.mil`,
@@ -143,78 +158,96 @@ async function main() {
           position: "상비예비군",
           birthDate: new Date(birthDates2[i]),
           phone: `010-5678-${String(i + 1).padStart(4, "0")}`,
-          batchId: batch2.id,
         },
+      });
+      // M:N 조인 테이블에 차수 배정
+      await prisma.batchUser.upsert({
+        where: { userId_batchId: { userId: u2.id, batchId: batch2.id } },
+        update: {},
+        create: { userId: u2.id, batchId: batch2.id },
       });
     }
 
-    // 훈련 일정 (1차수)
-    const trainingData = [
-      { title: "입영 및 편성", type: "기타", date: "2026-03-02", start: "09:00", end: "12:00" },
-      { title: "사격 훈련", type: "사격", date: "2026-03-03", start: "08:00", end: "17:00" },
-      { title: "화생방 훈련", type: "화생방", date: "2026-03-04", start: "09:00", end: "16:00" },
-      { title: "전술 훈련", type: "전술", date: "2026-03-05", start: "08:00", end: "17:00" },
-      { title: "체력 측정 및 퇴영", type: "체력", date: "2026-03-06", start: "08:00", end: "12:00" },
-    ];
+    // 훈련 일정 (1차수) - 이미 있으면 스킵
+    const existingTrainings = await prisma.training.count({ where: { batchId: batch1.id } });
+    if (existingTrainings === 0) {
+      const trainingData = [
+        { title: "입영 및 편성", type: "기타", date: "2026-03-02", start: "09:00", end: "12:00" },
+        { title: "사격 훈련", type: "사격", date: "2026-03-03", start: "08:00", end: "17:00" },
+        { title: "화생방 훈련", type: "화생방", date: "2026-03-04", start: "09:00", end: "16:00" },
+        { title: "전술 훈련", type: "전술", date: "2026-03-05", start: "08:00", end: "17:00" },
+        { title: "체력 측정 및 퇴영", type: "체력", date: "2026-03-06", start: "08:00", end: "12:00" },
+      ];
 
-    for (const t of trainingData) {
-      await prisma.training.create({
+      for (const t of trainingData) {
+        await prisma.training.create({
+          data: {
+            title: t.title,
+            type: t.type,
+            date: new Date(t.date),
+            startTime: t.start,
+            endTime: t.end,
+            location: "00사단 훈련장",
+            batchId: batch1.id,
+            instructorId: manager.id,
+          },
+        });
+      }
+    }
+
+    // GPS 위치 등록 - 이미 있으면 스킵
+    const existingGps = await prisma.gpsLocation.count();
+    if (existingGps === 0) {
+      await prisma.gpsLocation.create({
         data: {
-          title: t.title,
-          type: t.type,
-          date: new Date(t.date),
-          startTime: t.start,
-          endTime: t.end,
-          location: "00사단 훈련장",
-          batchId: batch1.id,
-          instructorId: manager.id,
+          name: "00사단 위병소",
+          latitude: 37.5665,
+          longitude: 126.978,
+          radius: 200,
+          isActive: true,
         },
       });
     }
 
-    // GPS 위치 등록 (샘플)
-    await prisma.gpsLocation.create({
-      data: {
-        name: "00사단 위병소",
-        latitude: 37.5665,
-        longitude: 126.978,
-        radius: 200,
-        isActive: true,
-      },
-    });
+    // 공지사항 - 이미 있으면 스킵
+    const existingNotices = await prisma.notice.count();
+    if (existingNotices === 0) {
+      await prisma.notice.create({
+        data: {
+          title: "2026년 상비예비군 소집훈련 안내",
+          content: "2026년 상비예비군 소집훈련 일정을 안내드립니다.\n\n1차수: 3월 2일 ~ 3월 6일\n2차수: 3월 16일 ~ 3월 20일\n\n준비물: 신분증, 개인 세면도구\n집합장소: 00사단 위병소 앞",
+          isPinned: true,
+          authorId: admin.id,
+        },
+      });
+    }
 
-    // 공지사항
-    await prisma.notice.create({
-      data: {
-        title: "2026년 상비예비군 소집훈련 안내",
-        content: "2026년 상비예비군 소집훈련 일정을 안내드립니다.\n\n1차수: 3월 2일 ~ 3월 6일\n2차수: 3월 16일 ~ 3월 20일\n\n준비물: 신분증, 개인 세면도구\n집합장소: 00사단 위병소 앞",
-        isPinned: true,
-        authorId: admin.id,
-      },
-    });
+    // 모바일 신분증 - 이미 있으면 스킵
+    const existingIdCards = await prisma.mobileIdCard.count();
+    if (existingIdCards === 0) {
+      // 1차수 1번 대상자 - 승인됨
+      await prisma.mobileIdCard.create({
+        data: {
+          userId: batch1Users[0].id,
+          uniqueNumber: "RES-2026-00001",
+          validFrom: batch1.startDate,
+          validUntil: batch1.endDate,
+          isApproved: true,
+          approvedAt: new Date(),
+          approvedById: admin.id,
+        },
+      });
 
-    // 모바일 신분증 샘플 (1차수 1번 대상자 - 승인됨)
-    await prisma.mobileIdCard.create({
-      data: {
-        userId: batch1Users[0].id,
-        uniqueNumber: "RES-2026-00001",
-        validFrom: batch1.startDate,
-        validUntil: batch1.endDate,
-        isApproved: true,
-        approvedAt: new Date(),
-        approvedById: admin.id,
-      },
-    });
-
-    // 모바일 신분증 샘플 (1차수 2번 대상자 - 승인 대기)
-    await prisma.mobileIdCard.create({
-      data: {
-        userId: batch1Users[1].id,
-        uniqueNumber: "RES-2026-00002",
-        validFrom: batch1.startDate,
-        validUntil: batch1.endDate,
-      },
-    });
+      // 1차수 2번 대상자 - 승인 대기
+      await prisma.mobileIdCard.create({
+        data: {
+          userId: batch1Users[1].id,
+          uniqueNumber: "RES-2026-00002",
+          validFrom: batch1.startDate,
+          validUntil: batch1.endDate,
+        },
+      });
+    }
 
     console.log("시드 데이터 생성 완료");
     console.log("─────────────────────────");

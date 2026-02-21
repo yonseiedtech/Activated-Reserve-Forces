@@ -26,9 +26,18 @@ export async function POST(req: NextRequest) {
   const { title, content, type, targetRole, targetBatchId } = body;
 
   // 대상자 조회
+  let userIds: string[] = [];
+  if (targetBatchId) {
+    const batchUserRecords = await prisma.batchUser.findMany({
+      where: { batchId: targetBatchId },
+      select: { userId: true },
+    });
+    userIds = batchUserRecords.map((bu) => bu.userId);
+  }
+
   const where: Record<string, unknown> = {};
   if (targetRole) where.role = targetRole;
-  if (targetBatchId) where.batchId = targetBatchId;
+  if (targetBatchId) where.id = { in: userIds };
 
   const users = await prisma.user.findMany({
     where,

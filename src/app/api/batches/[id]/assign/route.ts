@@ -14,9 +14,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return badRequest("userIds 배열이 필요합니다.");
   }
 
-  await prisma.user.updateMany({
-    where: { id: { in: body.userIds } },
-    data: { batchId: id },
+  await prisma.batchUser.createMany({
+    data: body.userIds.map((uid: string) => ({ userId: uid, batchId: id })),
+    skipDuplicates: true,
   });
 
   return json({ success: true, count: body.userIds.length });

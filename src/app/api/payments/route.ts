@@ -11,11 +11,15 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   let batchId = searchParams.get("batchId");
 
-  // RESERVIST는 자기 차수만
+  // RESERVIST는 자기 차수만 (가장 최근)
   if (session.user.role === "RESERVIST") {
-    const user = await prisma.user.findUnique({ where: { id: session.user.id } });
-    if (!user?.batchId) return json({ process: null, compensations: [], transport: null, batches: [] });
-    batchId = user.batchId;
+    const latestBatchUser = await prisma.batchUser.findFirst({
+      where: { userId: session.user.id },
+      orderBy: { createdAt: "desc" },
+      select: { batchId: true },
+    });
+    if (!latestBatchUser) return json({ process: null, compensations: [], transport: null, batches: [] });
+    batchId = latestBatchUser.batchId;
   }
 
   // 차수 목록 (관리자용)

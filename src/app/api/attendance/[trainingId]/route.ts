@@ -10,7 +10,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tra
 
   const training = await prisma.training.findUnique({
     where: { id: trainingId },
-    include: { batch: { include: { users: { select: { id: true, name: true, rank: true, serviceNumber: true } } } } },
+    include: {
+      batch: {
+        include: {
+          batchUsers: { select: { user: { select: { id: true, name: true, rank: true, serviceNumber: true } } } },
+        },
+      },
+    },
   });
 
   const attendances = await prisma.attendance.findMany({
@@ -18,5 +24,14 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tra
     include: { user: { select: { id: true, name: true, rank: true, serviceNumber: true } } },
   });
 
-  return json({ training, attendances });
+  // Transform batchUsers to users for frontend compatibility
+  const transformedTraining = training ? {
+    ...training,
+    batch: {
+      ...training.batch,
+      users: training.batch.batchUsers.map((bu) => bu.user),
+    },
+  } : null;
+
+  return json({ training: transformedTraining, attendances });
 }

@@ -7,16 +7,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!session) return unauthorized();
   if (!["ADMIN", "MANAGER"].includes(session.user.role)) return forbidden();
 
-  await params; // ensure params is resolved
   const body = await req.json();
 
   if (!body.userIds || !Array.isArray(body.userIds) || body.userIds.length === 0) {
     return badRequest("userIds 배열이 필요합니다.");
   }
 
-  await prisma.user.updateMany({
-    where: { id: { in: body.userIds } },
-    data: { batchId: null },
+  const { id } = await params;
+  await prisma.batchUser.deleteMany({
+    where: { batchId: id, userId: { in: body.userIds } },
   });
 
   return json({ success: true, count: body.userIds.length });

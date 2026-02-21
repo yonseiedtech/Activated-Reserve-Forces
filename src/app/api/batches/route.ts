@@ -20,13 +20,17 @@ export async function GET() {
 
   const batches = await prisma.batch.findMany({
     orderBy: { startDate: "desc" },
-    include: { _count: { select: { users: true, trainings: true } } },
+    include: { _count: { select: { batchUsers: true, trainings: true } } },
   });
 
-  const batchesWithStatus = batches.map((b) => ({
-    ...b,
-    status: computeBatchStatus(b.startDate, b.endDate),
-  }));
+  const batchesWithStatus = batches.map((b) => {
+    const { _count, ...rest } = b;
+    return {
+      ...rest,
+      _count: { users: _count.batchUsers, trainings: _count.trainings },
+      status: computeBatchStatus(b.startDate, b.endDate),
+    };
+  });
 
   return json(batchesWithStatus);
 }
