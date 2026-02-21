@@ -12,6 +12,7 @@ interface User {
   role: string;
   rank: string | null;
   serviceNumber: string | null;
+  uniqueNumber: string | null;
   phone: string | null;
   unit: string | null;
   birthDate: string | null;
@@ -33,6 +34,9 @@ interface Unit {
   name: string;
 }
 
+type SortKey = "name" | "username" | "role" | "rank" | "serviceNumber" | "phone";
+type SortDir = "asc" | "desc";
+
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [batches, setBatches] = useState<Batch[]>([]);
@@ -44,6 +48,10 @@ export default function AdminUsersPage() {
     rank: "", serviceNumber: "", phone: "", unit: "", batchId: "",
   });
 
+  // 정렬
+  const [sortKey, setSortKey] = useState<SortKey>("name");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+
   // 비밀번호 초기화 모달 상태
   const [resetTarget, setResetTarget] = useState<User | null>(null);
   const [resetPassword, setResetPassword] = useState("");
@@ -53,9 +61,10 @@ export default function AdminUsersPage() {
   // 편집 모달 상태
   const [editTarget, setEditTarget] = useState<User | null>(null);
   const [editForm, setEditForm] = useState({
-    name: "", rank: "", serviceNumber: "", unit: "", phone: "", batchId: "", birthDate: "",
+    username: "", name: "", rank: "", serviceNumber: "", uniqueNumber: "", unit: "", phone: "", birthDate: "",
     branch: "", warBattalion: "", warCompany: "", warPlatoon: "", warPosition: "",
   });
+  const [editError, setEditError] = useState("");
   const [editLoading, setEditLoading] = useState(false);
 
   // CSV 일괄 등록 모달 상태
@@ -113,13 +122,15 @@ export default function AdminUsersPage() {
 
   const handleEditOpen = (user: User) => {
     setEditTarget(user);
+    setEditError("");
     setEditForm({
+      username: user.username,
       name: user.name,
       rank: user.rank || "",
       serviceNumber: user.serviceNumber || "",
+      uniqueNumber: user.uniqueNumber || "",
       unit: user.unit || "",
       phone: user.phone || "",
-      batchId: user.batches?.[0]?.id || "",
       birthDate: user.birthDate ? user.birthDate.split("T")[0] : "",
       branch: user.branch || "",
       warBattalion: user.warBattalion || "",
@@ -132,6 +143,7 @@ export default function AdminUsersPage() {
   const handleEditSave = async () => {
     if (!editTarget) return;
     setEditLoading(true);
+    setEditError("");
 
     const res = await fetch(`/api/users/${editTarget.id}`, {
       method: "PUT",
@@ -144,6 +156,9 @@ export default function AdminUsersPage() {
     if (res.ok) {
       setEditTarget(null);
       fetchUsers();
+    } else {
+      const err = await res.json();
+      setEditError(err.error || "저장에 실패했습니다.");
     }
   };
 
@@ -215,6 +230,39 @@ export default function AdminUsersPage() {
     return matchesRole && matchesSearch;
   });
 
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir(sortDir === "asc" ? "desc" : "asc");
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  };
+
+  const getSortValue = (u: User, key: SortKey): string => {
+    switch (key) {
+      case "name": return u.name;
+      case "username": return u.username;
+      case "role": return u.role;
+      case "rank": return u.rank || "";
+      case "serviceNumber": return u.serviceNumber || "";
+      case "phone": return u.phone || "";
+      default: return "";
+    }
+  };
+
+  const sorted = [...filtered].sort((a, b) => {
+    const av = getSortValue(a, sortKey);
+    const bv = getSortValue(b, sortKey);
+    const cmp = av.localeCompare(bv, "ko-KR");
+    return sortDir === "asc" ? cmp : -cmp;
+  });
+
+  const SortArrow = ({ col }: { col: SortKey }) => {
+    if (sortKey !== col) return null;
+    return <span className="ml-1">{sortDir === "asc" ? "▲" : "▼"}</span>;
+  };
+
   return (
     <div>
       <PageTitle
@@ -254,18 +302,17 @@ export default function AdminUsersPage() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50">
             <tr>
-              <th className="text-left px-4 py-3 font-medium">이름</th>
-              <th className="text-left px-4 py-3 font-medium">아이디</th>
-              <th className="text-left px-4 py-3 font-medium">역할</th>
-              <th className="text-left px-4 py-3 font-medium">계급</th>
-              <th className="text-left px-4 py-3 font-medium">군번</th>
-              <th className="text-left px-4 py-3 font-medium">차수</th>
-              <th className="text-left px-4 py-3 font-medium">연락처</th>
+              <th onClick={() => handleSort("name")} className="text-left px-4 py-3 font-medium cursor-pointer hover:bg-gray-100 select-none">이름<SortArrow col="name" /></th>
+              <th onClick={() => handleSort("username")} className="text-left px-4 py-3 font-medium cursor-pointer hover:bg-gray-100 select-none">아이디<SortArrow col="username" /></th>
+              <th onClick={() => handleSort("role")} className="text-left px-4 py-3 font-medium cursor-pointer hover:bg-gray-100 select-none">역할<SortArrow col="role" /></th>
+              <th onClick={() => handleSort("rank")} className="text-left px-4 py-3 font-medium cursor-pointer hover:bg-gray-100 select-none">계급<SortArrow col="rank" /></th>
+              <th onClick={() => handleSort("serviceNumber")} className="text-left px-4 py-3 font-medium cursor-pointer hover:bg-gray-100 select-none">군번<SortArrow col="serviceNumber" /></th>
+              <th onClick={() => handleSort("phone")} className="text-left px-4 py-3 font-medium cursor-pointer hover:bg-gray-100 select-none">연락처<SortArrow col="phone" /></th>
               <th className="text-left px-4 py-3 font-medium">관리</th>
             </tr>
           </thead>
           <tbody className="divide-y">
-            {filtered.map((u) => (
+            {sorted.map((u) => (
               <tr key={u.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3 font-medium">{u.name}</td>
                 <td className="px-4 py-3 text-gray-500">{u.username}</td>
@@ -274,7 +321,6 @@ export default function AdminUsersPage() {
                 </td>
                 <td className="px-4 py-3">{u.rank || "-"}</td>
                 <td className="px-4 py-3">{u.serviceNumber || "-"}</td>
-                <td className="px-4 py-3">{u.batches?.map((b) => b.name).join(", ") || "-"}</td>
                 <td className="px-4 py-3">{u.phone || "-"}</td>
                 <td className="px-4 py-3">
                   <div className="flex gap-1">
@@ -339,8 +385,13 @@ export default function AdminUsersPage() {
       {editTarget && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl w-full max-w-md p-6 space-y-3 max-h-[80vh] overflow-y-auto">
-            <h3 className="text-lg font-semibold">사용자 편집</h3>
-            <p className="text-sm text-gray-500">{editTarget.username} ({ROLE_LABELS[editTarget.role] || editTarget.role})</p>
+            <h3 className="text-lg font-semibold">{editTarget.name} 편집</h3>
+            <p className="text-sm text-gray-500">{ROLE_LABELS[editTarget.role] || editTarget.role}</p>
+            {editError && <p className="text-sm text-red-600">{editError}</p>}
+            <div>
+              <label className="text-sm font-medium">아이디</label>
+              <input value={editForm.username} onChange={(e) => setEditForm({ ...editForm, username: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+            </div>
             <div>
               <label className="text-sm font-medium">이름</label>
               <input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
@@ -357,7 +408,15 @@ export default function AdminUsersPage() {
               <input value={editForm.serviceNumber} onChange={(e) => setEditForm({ ...editForm, serviceNumber: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
             </div>
             <div>
-              <label className="text-sm font-medium">소속부대</label>
+              <label className="text-sm font-medium">고유번호</label>
+              <input placeholder="예: RES-2026-00001" value={editForm.uniqueNumber} onChange={(e) => setEditForm({ ...editForm, uniqueNumber: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+            </div>
+            <div>
+              <label className="text-sm font-medium">병과</label>
+              <input placeholder="예: 보병, 포병, 공병" value={editForm.branch} onChange={(e) => setEditForm({ ...editForm, branch: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+            </div>
+            <div>
+              <label className="text-sm font-medium">훈련부대</label>
               <select value={editForm.unit} onChange={(e) => setEditForm({ ...editForm, unit: e.target.value })} className="w-full px-3 py-2 border rounded-lg">
                 <option value="">선택 안함</option>
                 {units.map((u) => <option key={u.id} value={u.name}>{u.name}</option>)}
@@ -368,24 +427,13 @@ export default function AdminUsersPage() {
               <input value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
             </div>
             <div>
-              <label className="text-sm font-medium">차수</label>
-              <select value={editForm.batchId} onChange={(e) => setEditForm({ ...editForm, batchId: e.target.value })} className="w-full px-3 py-2 border rounded-lg">
-                <option value="">선택 안함</option>
-                {batches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-              </select>
-            </div>
-            <div>
               <label className="text-sm font-medium">생년월일</label>
               <input type="date" value={editForm.birthDate} onChange={(e) => setEditForm({ ...editForm, birthDate: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
             </div>
 
-            {/* 새 필드들 */}
+            {/* 전시편성 */}
             <div className="border-t pt-3 mt-3">
-              <p className="text-sm font-semibold text-gray-700 mb-2">추가 정보</p>
-            </div>
-            <div>
-              <label className="text-sm font-medium">병과</label>
-              <input placeholder="예: 보병, 포병, 공병" value={editForm.branch} onChange={(e) => setEditForm({ ...editForm, branch: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+              <p className="text-sm font-semibold text-gray-700 mb-2">전시편성</p>
             </div>
             <div>
               <label className="text-sm font-medium">전시부대 (대대)</label>

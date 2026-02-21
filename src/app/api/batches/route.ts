@@ -49,6 +49,7 @@ export async function POST(req: NextRequest) {
       startDate: new Date(body.startDate),
       endDate: new Date(body.endDate),
       status: body.status || "PLANNED",
+      location: body.location || null,
     },
   });
 

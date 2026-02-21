@@ -11,6 +11,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const date = searchParams.get("date");
   const userId = searchParams.get("userId");
+  const batchId = searchParams.get("batchId");
 
   const where: Record<string, unknown> = {};
 
@@ -24,6 +25,13 @@ export async function GET(req: NextRequest) {
     where.userId = session.user.id;
   } else if (userId) {
     where.userId = userId;
+  } else if (batchId) {
+    // 차수별 대상자 필터링
+    const batchUsers = await prisma.batchUser.findMany({
+      where: { batchId },
+      select: { userId: true },
+    });
+    where.userId = { in: batchUsers.map((bu) => bu.userId) };
   }
 
   const records = await prisma.commutingRecord.findMany({

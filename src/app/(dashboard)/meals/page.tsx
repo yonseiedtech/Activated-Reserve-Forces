@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import PageTitle from "@/components/ui/PageTitle";
 import { MEAL_TYPE_LABELS } from "@/lib/constants";
@@ -20,6 +20,12 @@ interface Batch {
   name: string;
 }
 
+interface AttendanceInfo {
+  presentCount: number;
+  pendingCount: number;
+  totalBatchUsers: number;
+}
+
 export default function MealsPage() {
   const { data: session } = useSession();
   const [meals, setMeals] = useState<Meal[]>([]);
@@ -32,6 +38,9 @@ export default function MealsPage() {
   const [editingMeal, setEditingMeal] = useState<Meal | null>(null);
   const [editForm, setEditForm] = useState({ menuInfo: "", headcount: 0 });
 
+  // Attendance info per date
+  const [attendanceByDate, setAttendanceByDate] = useState<Record<string, AttendanceInfo>>({});
+
   const canEdit = session?.user?.role === "ADMIN" || session?.user?.role === "MANAGER" || session?.user?.role === "COOK";
 
   useEffect(() => {
@@ -41,15 +50,37 @@ export default function MealsPage() {
     });
   }, []);
 
-  const fetchMeals = () => {
+  const fetchMeals = useCallback(() => {
     if (selectedBatch) {
       fetch(`/api/meals?batchId=${selectedBatch}`).then((r) => r.json()).then(setMeals);
     }
-  };
+  }, [selectedBatch]);
 
   useEffect(() => {
     fetchMeals();
-  }, [selectedBatch]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [fetchMeals]);
+
+  // Fetch attendance info for each unique date
+  useEffect(() => {
+    if (!selectedBatch || meals.length === 0) return;
+
+    const dates = [...new Set(meals.map((m) => new Date(m.date).toISOString().split("T")[0]))];
+    const fetchAll = async () => {
+      const results: Record<string, AttendanceInfo> = {};
+      await Promise.all(
+        dates.map(async (date) => {
+          try {
+            const res = await fetch(`/api/meals/attendance-count?batchId=${selectedBatch}&date=${date}`);
+            if (res.ok) {
+              results[date] = await res.json();
+            }
+          } catch { /* ignore */ }
+        })
+      );
+      setAttendanceByDate(results);
+    };
+    fetchAll();
+  }, [selectedBatch, meals]);
 
   const handleSubmit = async () => {
     const res = await fetch("/api/meals", {
@@ -87,6 +118,30 @@ export default function MealsPage() {
     if (res.ok) fetchMeals();
   };
 
+  const handleApplyAttendance = (dateKey: string) => {
+    const info = attendanceByDate[dateKey];
+    if (!info) return;
+    setEditForm((prev) => ({ ...prev, headcount: info.presentCount }));
+  };
+
+  const handleFormApplyAttendance = () => {
+    if (!form.date) return;
+    const dateKey = form.date;
+    const info = attendanceByDate[dateKey];
+    if (info) {
+      setForm((prev) => ({ ...prev, headcount: info.presentCount }));
+    } else {
+      // Fetch on demand
+      fetch(`/api/meals/attendance-count?batchId=${selectedBatch}&date=${dateKey}`)
+        .then((r) => r.json())
+        .then((data: AttendanceInfo) => {
+          setForm((prev) => ({ ...prev, headcount: data.presentCount }));
+          setAttendanceByDate((prev) => ({ ...prev, [dateKey]: data }));
+        })
+        .catch(() => {});
+    }
+  };
+
   // 날짜별 그룹핑
   const grouped = meals.reduce<Record<string, Meal[]>>((acc, m) => {
     const d = new Date(m.date).toLocaleDateString("ko-KR");
@@ -94,6 +149,14 @@ export default function MealsPage() {
     acc[d].push(m);
     return acc;
   }, {});
+
+  // date display -> ISO date key mapping
+  const dateKeyMap: Record<string, string> = {};
+  for (const m of meals) {
+    const display = new Date(m.date).toLocaleDateString("ko-KR");
+    const isoKey = new Date(m.date).toISOString().split("T")[0];
+    dateKeyMap[display] = isoKey;
+  }
 
   return (
     <div>
@@ -124,45 +187,59 @@ export default function MealsPage() {
 
       {/* 날짜별 식사 목록 */}
       <div className="space-y-4">
-        {Object.entries(grouped).map(([date, dayMeals]) => (
-          <div key={date} className="bg-white rounded-xl border p-4">
-            <h3 className="font-semibold mb-3">{date}</h3>
-            <div className="grid sm:grid-cols-3 gap-3">
-              {["BREAKFAST", "LUNCH", "DINNER"].map((type) => {
-                const meal = dayMeals.find((m) => m.type === type);
-                return (
-                  <div key={type} className={`p-3 rounded-lg ${meal ? "bg-green-50 border border-green-200" : "bg-gray-50 border border-gray-200"}`}>
-                    <p className="text-xs font-medium text-gray-500 mb-1">{MEAL_TYPE_LABELS[type]}</p>
-                    {meal ? (
-                      <>
-                        <p className="text-sm">{meal.menuInfo || "메뉴 미등록"}</p>
-                        <p className="text-xs text-gray-400 mt-1">{meal.headcount}명</p>
-                        {canEdit && (
-                          <div className="flex gap-2 mt-2">
-                            <button
-                              onClick={() => handleEditOpen(meal)}
-                              className="text-xs text-blue-600 hover:underline"
-                            >
-                              수정
-                            </button>
-                            <button
-                              onClick={() => handleDelete(meal.id)}
-                              className="text-xs text-red-600 hover:underline"
-                            >
-                              삭제
-                            </button>
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <p className="text-sm text-gray-400">미등록</p>
+        {Object.entries(grouped).map(([date, dayMeals]) => {
+          const isoDate = dateKeyMap[date];
+          const attInfo = isoDate ? attendanceByDate[isoDate] : undefined;
+          return (
+            <div key={date} className="bg-white rounded-xl border p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-semibold">{date}</h3>
+                {attInfo && (
+                  <span className="text-xs text-gray-500">
+                    참석 확정: <span className="font-medium text-green-600">{attInfo.presentCount}명</span>
+                    {attInfo.pendingCount > 0 && (
+                      <> | 미정: <span className="font-medium text-yellow-600">{attInfo.pendingCount}명</span></>
                     )}
-                  </div>
-                );
-              })}
+                  </span>
+                )}
+              </div>
+              <div className="grid sm:grid-cols-3 gap-3">
+                {["BREAKFAST", "LUNCH", "DINNER"].map((type) => {
+                  const meal = dayMeals.find((m) => m.type === type);
+                  return (
+                    <div key={type} className={`p-3 rounded-lg ${meal ? "bg-green-50 border border-green-200" : "bg-gray-50 border border-gray-200"}`}>
+                      <p className="text-xs font-medium text-gray-500 mb-1">{MEAL_TYPE_LABELS[type]}</p>
+                      {meal ? (
+                        <>
+                          <p className="text-sm">{meal.menuInfo || "메뉴 미등록"}</p>
+                          <p className="text-xs text-gray-400 mt-1">{meal.headcount}명</p>
+                          {canEdit && (
+                            <div className="flex gap-2 mt-2">
+                              <button
+                                onClick={() => handleEditOpen(meal)}
+                                className="text-xs text-blue-600 hover:underline"
+                              >
+                                수정
+                              </button>
+                              <button
+                                onClick={() => handleDelete(meal.id)}
+                                className="text-xs text-red-600 hover:underline"
+                              >
+                                삭제
+                              </button>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <p className="text-sm text-gray-400">미등록</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
         {Object.keys(grouped).length === 0 && (
           <p className="text-center py-8 text-gray-400">등록된 식사 정보가 없습니다.</p>
         )}
@@ -191,7 +268,17 @@ export default function MealsPage() {
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">인원</label>
-              <input type="number" value={form.headcount} onChange={(e) => setForm({ ...form, headcount: parseInt(e.target.value) || 0 })} className="w-full px-3 py-2 border rounded-lg" />
+              <div className="flex gap-2">
+                <input type="number" value={form.headcount} onChange={(e) => setForm({ ...form, headcount: parseInt(e.target.value) || 0 })} className="flex-1 px-3 py-2 border rounded-lg" />
+                <button
+                  type="button"
+                  onClick={handleFormApplyAttendance}
+                  disabled={!form.date}
+                  className="px-3 py-2 text-xs bg-green-100 text-green-700 rounded-lg hover:bg-green-200 disabled:opacity-50 whitespace-nowrap"
+                >
+                  참석인원 적용
+                </button>
+              </div>
             </div>
             <div className="flex gap-3 pt-2">
               <button onClick={handleSubmit} className="flex-1 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700">저장</button>
@@ -213,7 +300,16 @@ export default function MealsPage() {
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">인원</label>
-              <input type="number" value={editForm.headcount} onChange={(e) => setEditForm({ ...editForm, headcount: parseInt(e.target.value) || 0 })} className="w-full px-3 py-2 border rounded-lg" />
+              <div className="flex gap-2">
+                <input type="number" value={editForm.headcount} onChange={(e) => setEditForm({ ...editForm, headcount: parseInt(e.target.value) || 0 })} className="flex-1 px-3 py-2 border rounded-lg" />
+                <button
+                  type="button"
+                  onClick={() => handleApplyAttendance(new Date(editingMeal.date).toISOString().split("T")[0])}
+                  className="px-3 py-2 text-xs bg-green-100 text-green-700 rounded-lg hover:bg-green-200 whitespace-nowrap"
+                >
+                  참석인원 적용
+                </button>
+              </div>
             </div>
             <div className="flex gap-3 pt-2">
               <button onClick={handleEditSave} className="flex-1 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700">저장</button>

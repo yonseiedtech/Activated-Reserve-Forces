@@ -57,6 +57,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       number: body.number,
       startDate: body.startDate ? new Date(body.startDate) : undefined,
       endDate: body.endDate ? new Date(body.endDate) : undefined,
+      location: body.location,
     },
   });
 
@@ -72,6 +73,11 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   if (session.user.role !== "ADMIN") return forbidden();
 
   const { id } = await params;
-  await prisma.batch.delete({ where: { id } });
-  return json({ success: true });
+  try {
+    await prisma.batch.delete({ where: { id } });
+    return json({ success: true });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : "삭제에 실패했습니다.";
+    return json({ error: message }, 500);
+  }
 }

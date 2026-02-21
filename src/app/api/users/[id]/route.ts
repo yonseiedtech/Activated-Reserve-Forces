@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { getSession, json, unauthorized, forbidden, notFound } from "@/lib/api-utils";
+import { getSession, json, unauthorized, forbidden, notFound, badRequest } from "@/lib/api-utils";
 import { NextRequest } from "next/server";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -13,10 +13,24 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const existing = await prisma.user.findUnique({ where: { id } });
   if (!existing) return notFound("사용자를 찾을 수 없습니다.");
 
+  // username unique 체크
+  if (body.username !== undefined && body.username !== existing.username) {
+    const dup = await prisma.user.findUnique({ where: { username: body.username } });
+    if (dup) return badRequest("이미 사용 중인 아이디입니다.");
+  }
+
+  // uniqueNumber unique 체크
+  if (body.uniqueNumber !== undefined && body.uniqueNumber && body.uniqueNumber !== existing.uniqueNumber) {
+    const dup = await prisma.user.findFirst({ where: { uniqueNumber: body.uniqueNumber } });
+    if (dup) return badRequest("이미 사용 중인 고유번호입니다.");
+  }
+
   const user = await prisma.user.update({
     where: { id },
     data: {
+      username: body.username !== undefined ? body.username : undefined,
       name: body.name !== undefined ? body.name : undefined,
+      uniqueNumber: body.uniqueNumber !== undefined ? (body.uniqueNumber || null) : undefined,
       rank: body.rank !== undefined ? (body.rank || null) : undefined,
       serviceNumber: body.serviceNumber !== undefined ? (body.serviceNumber || null) : undefined,
       unit: body.unit !== undefined ? (body.unit || null) : undefined,
@@ -36,6 +50,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       role: true,
       rank: true,
       serviceNumber: true,
+      uniqueNumber: true,
       phone: true,
       unit: true,
       birthDate: true,
@@ -49,6 +64,17 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       },
     },
   });
+
+  // MobileIdCard 연동: uniqueNumber 변경 시 동기화
+  if (body.uniqueNumber !== undefined) {
+    const card = await prisma.mobileIdCard.findUnique({ where: { userId: id } });
+    if (card && body.uniqueNumber) {
+      await prisma.mobileIdCard.update({
+        where: { userId: id },
+        data: { uniqueNumber: body.uniqueNumber },
+      });
+    }
+  }
 
   // Handle batchId update (single batch assignment via edit modal)
   if (body.batchId !== undefined) {
@@ -82,6 +108,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       role: true,
       rank: true,
       serviceNumber: true,
+      uniqueNumber: true,
       phone: true,
       unit: true,
       birthDate: true,

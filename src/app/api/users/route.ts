@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
       role: true,
       rank: true,
       serviceNumber: true,
+      uniqueNumber: true,
       phone: true,
       unit: true,
       birthDate: true,

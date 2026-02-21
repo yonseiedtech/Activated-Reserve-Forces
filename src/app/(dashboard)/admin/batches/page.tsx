@@ -13,6 +13,7 @@ interface Batch {
   startDate: string;
   endDate: string;
   status: string;
+  location: string | null;
   _count: { users: number; trainings: number };
 }
 
@@ -25,11 +26,11 @@ const STATUS_COLORS: Record<string, string> = {
 export default function AdminBatchesPage() {
   const [batches, setBatches] = useState<Batch[]>([]);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: "", year: 2026, number: 1, startDate: "", endDate: "" });
+  const [form, setForm] = useState({ name: "", year: 2026, number: 1, startDate: "", endDate: "", location: "" });
 
   // Duplicate state
   const [duplicateTarget, setDuplicateTarget] = useState<Batch | null>(null);
-  const [dupForm, setDupForm] = useState({ name: "", year: 2026, number: 1, startDate: "", endDate: "" });
+  const [dupForm, setDupForm] = useState({ name: "", year: 2026, number: 1, startDate: "", endDate: "", location: "" });
   const [dupLoading, setDupLoading] = useState(false);
 
   useEffect(() => {
@@ -49,13 +50,19 @@ export default function AdminBatchesPage() {
 
   const handleDelete = async (id: string) => {
     if (!confirm("차수를 삭제하시겠습니까?")) return;
-    await fetch(`/api/batches/${id}`, { method: "DELETE" });
-    fetchBatches();
+    const res = await fetch(`/api/batches/${id}`, { method: "DELETE" });
+    if (res.ok) {
+      alert("삭제 완료되었습니다.");
+      fetchBatches();
+    } else {
+      const data = await res.json();
+      alert(data.error || "삭제에 실패했습니다.");
+    }
   };
 
   const handleDuplicateOpen = (batch: Batch) => {
     setDuplicateTarget(batch);
-    setDupForm({ name: `${batch.name} (복제)`, year: batch.year, number: batch.number + 1, startDate: "", endDate: "" });
+    setDupForm({ name: `${batch.name} (복제)`, year: batch.year, number: batch.number + 1, startDate: "", endDate: "", location: batch.location || "" });
   };
 
   const handleDuplicate = async () => {
@@ -92,6 +99,9 @@ export default function AdminBatchesPage() {
               <p className="text-sm text-gray-500">
                 {new Date(b.startDate).toLocaleDateString("ko-KR")} ~ {new Date(b.endDate).toLocaleDateString("ko-KR")} | {b._count.users}명 | {b._count.trainings}개 훈련
               </p>
+              {b.location && (
+                <p className="text-xs text-gray-400 mt-0.5">{b.location}</p>
+              )}
             </Link>
             <div className="flex items-center gap-2">
               <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[b.status] || "bg-gray-100"}`}>
@@ -123,6 +133,7 @@ export default function AdminBatchesPage() {
                 <input type="date" value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
               </div>
             </div>
+            <input placeholder="훈련 장소" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
             <div className="flex gap-3">
               <button onClick={handleCreate} className="flex-1 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700">생성</button>
               <button onClick={() => setShowForm(false)} className="flex-1 py-2 border rounded-lg text-gray-700 hover:bg-gray-50">취소</button>
@@ -154,6 +165,7 @@ export default function AdminBatchesPage() {
                 <input type="date" value={dupForm.endDate} onChange={(e) => setDupForm({ ...dupForm, endDate: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
               </div>
             </div>
+            <input placeholder="훈련 장소" value={dupForm.location} onChange={(e) => setDupForm({ ...dupForm, location: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
             <div className="flex gap-3">
               <button onClick={handleDuplicate} disabled={dupLoading} className="flex-1 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50">
                 {dupLoading ? "복제 중..." : "복제"}

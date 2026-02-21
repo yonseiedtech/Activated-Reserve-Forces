@@ -60,12 +60,17 @@ export async function POST(req: NextRequest) {
 
   const batch = latestBatchUser.batch;
 
-  // 고유번호 생성: RES-{년도}-{순번5자리}
-  const year = batch.year;
-  const count = await prisma.mobileIdCard.count({
-    where: { uniqueNumber: { startsWith: `RES-${year}-` } },
-  });
-  const uniqueNumber = `RES-${year}-${String(count + 1).padStart(5, "0")}`;
+  // User.uniqueNumber가 있으면 그 값 사용, 없으면 자동생성
+  const user = await prisma.user.findUnique({ where: { id: session.user.id }, select: { uniqueNumber: true } });
+  let uniqueNumber = user?.uniqueNumber;
+
+  if (!uniqueNumber) {
+    const year = batch.year;
+    const count = await prisma.mobileIdCard.count({
+      where: { uniqueNumber: { startsWith: `RES-${year}-` } },
+    });
+    uniqueNumber = `RES-${year}-${String(count + 1).padStart(5, "0")}`;
+  }
 
   const card = await prisma.mobileIdCard.create({
     data: {

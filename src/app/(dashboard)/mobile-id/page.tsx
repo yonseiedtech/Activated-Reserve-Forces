@@ -25,6 +25,126 @@ interface IdCardData {
   approvedBy: { name: string } | null;
 }
 
+// ──────────────────────────────────────────────
+// 신분증 카드 뷰 컴포넌트 (재사용 가능)
+// ──────────────────────────────────────────────
+function MobileIdCardView({ card }: { card: IdCardData }) {
+  const now = new Date();
+  const validUntil = new Date(card.validUntil);
+  const isExpired = now > validUntil;
+
+  const formatDate = (d: string) =>
+    new Date(d).toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" });
+
+  return (
+    <div className="max-w-sm mx-auto">
+      <div className={`relative rounded-2xl overflow-hidden shadow-xl ${isExpired ? "opacity-60" : ""}`}>
+        {/* 상단 헤더 */}
+        <div className="bg-gradient-to-r from-green-800 via-green-700 to-green-800 px-5 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-green-200 text-[10px] tracking-widest uppercase">Republic of Korea Army</p>
+              <h2 className="text-white text-lg font-bold tracking-wide">상비예비군 모바일 신분증</h2>
+            </div>
+            <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        {/* 고유번호 바 */}
+        <div className="bg-green-700/90 px-5 py-1.5 text-right">
+          <span className="text-green-100 text-xs font-mono tracking-wide">{card.uniqueNumber}</span>
+        </div>
+
+        {/* 카드 바디 */}
+        <div className="bg-gradient-to-b from-white to-gray-50 px-5 py-5">
+          <div className="flex gap-4 mb-5">
+            <div className="w-20 h-24 rounded-lg bg-gray-200 border-2 border-gray-300 flex items-center justify-center shrink-0">
+              <span className="text-2xl font-bold text-gray-500">
+                {card.user.name?.slice(-2)}
+              </span>
+            </div>
+            <div className="flex-1 pt-1">
+              <div className="mb-1.5">
+                <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                  isExpired
+                    ? "bg-red-100 text-red-700"
+                    : "bg-green-100 text-green-700"
+                }`}>
+                  {isExpired ? "기간 만료" : "26년 상비예비군"}
+                </span>
+              </div>
+              <p className="text-sm text-gray-600">{card.user.rank}</p>
+              <p className="text-xl font-bold text-gray-900 tracking-wide">{card.user.name}</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+            <IdField label="소속" value={card.user.unit || "-"} full />
+            <IdField label="군번" value={card.user.serviceNumber || "-"} />
+            <IdField
+              label="생년월일"
+              value={card.user.birthDate ? formatDate(card.user.birthDate) : "-"}
+            />
+          </div>
+        </div>
+
+        {/* 유효기간 바 */}
+        <div className="bg-white border-t border-gray-200 px-5 py-2">
+          <p className="text-xs text-gray-600 text-center">
+            유효기간: {formatDate(card.validFrom)} ~ {formatDate(card.validUntil)}
+          </p>
+        </div>
+
+        {/* 하단 고지문 */}
+        <div className="bg-gray-100 border-t border-gray-200 px-5 py-3">
+          <p className="text-[11px] text-gray-500 leading-relaxed text-center">
+            본 모바일 신분증은 상비예비군 소집훈련을 위한<br />
+            601수송대대 입/퇴영시에만 효력이 있습니다.
+          </p>
+        </div>
+
+        {/* 만료 도장 오버레이 */}
+        {isExpired && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="border-4 border-red-500/60 rounded-xl px-6 py-3 rotate-[-20deg]">
+              <span className="text-red-500/60 text-3xl font-black tracking-widest">만 료</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="mt-4 text-center">
+        <p className="text-xs text-gray-400">
+          승인일: {card.approvedAt ? formatDate(card.approvedAt) : "-"} |
+          승인자: {card.approvedBy?.name || "-"}
+        </p>
+        <p className="text-xs text-gray-400 mt-1">
+          문의 : 1군수지원여단 601수송대대 재정동원담당 7급 김대경(010-5822-2359)
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// 신분증 필드 컴포넌트
+// ──────────────────────────────────────────────
+function IdField({ label, value, full, mono }: { label: string; value: string; full?: boolean; mono?: boolean }) {
+  return (
+    <div className={full ? "col-span-2" : ""}>
+      <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-0.5">{label}</p>
+      <p className={`text-gray-800 font-medium ${mono ? "font-mono" : ""}`}>{value}</p>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// 메인 페이지
+// ──────────────────────────────────────────────
 export default function MobileIdPage() {
   const { data: session } = useSession();
   const [card, setCard] = useState<IdCardData | null>(null);
@@ -47,8 +167,6 @@ export default function MobileIdPage() {
     setRequesting(true);
     const res = await fetch("/api/mobile-id", { method: "POST" });
     if (res.ok) {
-      const data = await res.json();
-      // 다시 상세 조회
       const detail = await fetch("/api/mobile-id").then((r) => r.json());
       setCard(detail);
     }
@@ -63,7 +181,7 @@ export default function MobileIdPage() {
     );
   }
 
-  // 관리자에게는 관리 페이지 안내
+  // 관리자
   if (isAdmin) {
     return (
       <div>
@@ -73,7 +191,7 @@ export default function MobileIdPage() {
     );
   }
 
-  // 신분증 미발급 상태
+  // 미발급
   if (!card) {
     return (
       <div>
@@ -96,7 +214,7 @@ export default function MobileIdPage() {
     );
   }
 
-  // 반려된 경우
+  // 반려
   if (card.rejectedAt && !card.isApproved) {
     return (
       <div>
@@ -115,7 +233,7 @@ export default function MobileIdPage() {
     );
   }
 
-  // 승인 대기 중
+  // 승인 대기
   if (!card.isApproved) {
     return (
       <div>
@@ -132,134 +250,27 @@ export default function MobileIdPage() {
     );
   }
 
-  // 유효기간 체크
-  const now = new Date();
-  const validUntil = new Date(card.validUntil);
-  const isExpired = now > validUntil;
-
-  const formatDate = (d: string) =>
-    new Date(d).toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" });
-
-  const formatBirthDate = (d: string) =>
-    new Date(d).toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" });
-
-  // 승인된 신분증 카드 UI
+  // 승인된 신분증
   return (
     <div>
       <PageTitle title="모바일 신분증" />
-
-      <div className="max-w-sm mx-auto">
-        {/* === 신분증 카드 === */}
-        <div className={`relative rounded-2xl overflow-hidden shadow-xl ${isExpired ? "opacity-60" : ""}`}>
-          {/* 상단 헤더 */}
-          <div className="bg-gradient-to-r from-green-800 via-green-700 to-green-800 px-5 py-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-green-200 text-[10px] tracking-widest uppercase">Republic of Korea Army</p>
-                <h2 className="text-white text-lg font-bold tracking-wide">모바일 신분증</h2>
-              </div>
-              <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
-                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                </svg>
-              </div>
-            </div>
-          </div>
-
-          {/* 카드 바디 */}
-          <div className="bg-gradient-to-b from-white to-gray-50 px-5 py-5">
-            {/* 프로필 영역 */}
-            <div className="flex gap-4 mb-5">
-              {/* 사진 자리 (이니셜) */}
-              <div className="w-20 h-24 rounded-lg bg-gray-200 border-2 border-gray-300 flex items-center justify-center shrink-0">
-                <span className="text-2xl font-bold text-gray-500">
-                  {card.user.name?.slice(-2)}
-                </span>
-              </div>
-
-              {/* 이름 + 계급 */}
-              <div className="flex-1 pt-1">
-                <p className="text-xl font-bold text-gray-900 tracking-wide">{card.user.name}</p>
-                <p className="text-sm text-gray-600 mt-0.5">{card.user.rank}</p>
-                <div className="mt-2">
-                  <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                    isExpired
-                      ? "bg-red-100 text-red-700"
-                      : "bg-green-100 text-green-700"
-                  }`}>
-                    {isExpired ? "기간 만료" : "승인됨"}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* 정보 그리드 */}
-            <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-              <IdField label="소속 및 직책" value={`${card.user.unit || "-"} / ${card.user.position || "상비예비군"}`} full />
-              <IdField label="군번" value={card.user.serviceNumber || "-"} />
-              <IdField
-                label="생년월일"
-                value={card.user.birthDate ? formatBirthDate(card.user.birthDate) : "-"}
-              />
-              <IdField label="고유번호" value={card.uniqueNumber} mono />
-              <IdField
-                label="유효기간"
-                value={`${formatDate(card.validFrom)} ~ ${formatDate(card.validUntil)}`}
-              />
-            </div>
-          </div>
-
-          {/* 하단 고지문 */}
-          <div className="bg-gray-100 border-t border-gray-200 px-5 py-3">
-            <p className="text-[11px] text-gray-500 leading-relaxed text-center">
-              본 모바일 신분증은 상비예비군 소집훈련을 위한<br />
-              601수송대 입/퇴영시에만 효력이 있습니다.
-            </p>
-          </div>
-
-          {/* 만료 도장 오버레이 */}
-          {isExpired && (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="border-4 border-red-500/60 rounded-xl px-6 py-3 rotate-[-20deg]">
-                <span className="text-red-500/60 text-3xl font-black tracking-widest">만 료</span>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* 카드 아래 정보 */}
-        <div className="mt-4 text-center">
-          <p className="text-xs text-gray-400">
-            승인일: {card.approvedAt ? formatDate(card.approvedAt) : "-"} |
-            승인자: {card.approvedBy?.name || "-"}
-          </p>
-        </div>
-      </div>
+      <MobileIdCardView card={card} />
     </div>
   );
 }
 
 // ──────────────────────────────────────────────
-// 신분증 필드 컴포넌트
-// ──────────────────────────────────────────────
-function IdField({ label, value, full, mono }: { label: string; value: string; full?: boolean; mono?: boolean }) {
-  return (
-    <div className={full ? "col-span-2" : ""}>
-      <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-0.5">{label}</p>
-      <p className={`text-gray-800 font-medium ${mono ? "font-mono" : ""}`}>{value}</p>
-    </div>
-  );
-}
-
-// ──────────────────────────────────────────────
-// 관리자 신분증 목록 (인라인)
+// 관리자 신분증 목록
 // ──────────────────────────────────────────────
 function AdminIdCardList() {
   const [cards, setCards] = useState<
     Array<{
       id: string;
       uniqueNumber: string;
+      validFrom: string;
+      validUntil: string;
       isApproved: boolean;
+      approvedAt: string | null;
       rejectedAt: string | null;
       rejectReason: string | null;
       createdAt: string;
@@ -268,6 +279,8 @@ function AdminIdCardList() {
         rank: string | null;
         serviceNumber: string | null;
         unit: string | null;
+        position: string | null;
+        birthDate: string | null;
         batch: { name: string } | null;
       };
       approvedBy: { name: string } | null;
@@ -276,6 +289,10 @@ function AdminIdCardList() {
   const [loading, setLoading] = useState(true);
   const [rejectId, setRejectId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
+  const [approveId, setApproveId] = useState<string | null>(null);
+  const [validFrom, setValidFrom] = useState("");
+  const [validUntil, setValidUntil] = useState("");
+  const [previewCard, setPreviewCard] = useState<IdCardData | null>(null);
 
   useEffect(() => {
     fetch("/api/mobile-id/manage")
@@ -290,15 +307,47 @@ function AdminIdCardList() {
     const res = await fetch("/api/mobile-id/manage", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ cardId, action, rejectReason: action === "reject" ? rejectReason : undefined }),
+      body: JSON.stringify({
+        cardId,
+        action,
+        rejectReason: action === "reject" ? rejectReason : undefined,
+        validFrom: action === "approve" && validFrom ? validFrom : undefined,
+        validUntil: action === "approve" && validUntil ? validUntil : undefined,
+      }),
     });
     if (res.ok) {
-      // 새로고침
       const data = await fetch("/api/mobile-id/manage").then((r) => r.json());
       setCards(data);
       setRejectId(null);
       setRejectReason("");
+      setApproveId(null);
+      setValidFrom("");
+      setValidUntil("");
     }
+  };
+
+  const handlePreview = (c: (typeof cards)[0]) => {
+    // Convert admin card data to IdCardData format for preview
+    setPreviewCard({
+      id: c.id,
+      uniqueNumber: c.uniqueNumber,
+      validFrom: c.validFrom,
+      validUntil: c.validUntil,
+      isApproved: c.isApproved,
+      approvedAt: c.approvedAt,
+      rejectedAt: c.rejectedAt,
+      rejectReason: c.rejectReason,
+      user: {
+        name: c.user.name,
+        rank: c.user.rank,
+        serviceNumber: c.user.serviceNumber,
+        unit: c.user.unit,
+        position: c.user.position,
+        birthDate: c.user.birthDate,
+        batch: c.user.batch ? { name: c.user.batch.name, startDate: "", endDate: "" } : null,
+      },
+      approvedBy: c.approvedBy,
+    });
   };
 
   if (loading) {
@@ -318,77 +367,139 @@ function AdminIdCardList() {
   }
 
   return (
-    <div className="space-y-3">
-      {cards.map((c) => {
-        const status = c.isApproved
-          ? "approved"
-          : c.rejectedAt
-          ? "rejected"
-          : "pending";
+    <>
+      <div className="space-y-3">
+        {cards.map((c) => {
+          const status = c.isApproved
+            ? "approved"
+            : c.rejectedAt
+            ? "rejected"
+            : "pending";
 
-        return (
-          <div key={c.id} className="bg-white rounded-xl border p-4">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="font-medium text-sm">
-                  {c.user.rank} {c.user.name}
-                  <span className="text-gray-400 text-xs ml-2">{c.user.serviceNumber}</span>
-                </p>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {c.user.batch?.name} | {c.user.unit} | {c.uniqueNumber}
-                </p>
+          return (
+            <div key={c.id} className="bg-white rounded-xl border p-4">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="font-medium text-sm">
+                    {c.user.rank} {c.user.name}
+                    <span className="text-gray-400 text-xs ml-2">{c.user.serviceNumber}</span>
+                  </p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {c.user.batch?.name} | {c.user.unit} | {c.uniqueNumber}
+                  </p>
+                </div>
+                <div className="shrink-0 flex items-center gap-1">
+                  {status === "approved" && (
+                    <>
+                      <button
+                        onClick={() => handlePreview(c)}
+                        className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                      >
+                        미리보기
+                      </button>
+                      <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-700 font-medium">승인됨</span>
+                    </>
+                  )}
+                  {status === "rejected" && (
+                    <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-700 font-medium">반려</span>
+                  )}
+                  {status === "pending" && (
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => {
+                          setApproveId(approveId === c.id ? null : c.id);
+                          setRejectId(null);
+                        }}
+                        className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700"
+                      >
+                        승인
+                      </button>
+                      <button
+                        onClick={() => {
+                          setRejectId(rejectId === c.id ? null : c.id);
+                          setApproveId(null);
+                        }}
+                        className="px-3 py-1.5 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700"
+                      >
+                        반려
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="shrink-0">
-                {status === "approved" && (
-                  <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-700 font-medium">승인됨</span>
-                )}
-                {status === "rejected" && (
-                  <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-700 font-medium">반려</span>
-                )}
-                {status === "pending" && (
-                  <div className="flex gap-1">
+
+              {approveId === c.id && (
+                <div className="mt-3 space-y-2">
+                  <div className="flex gap-2 items-center">
+                    <label className="text-xs text-gray-500 shrink-0 w-16">시작일</label>
+                    <input
+                      type="date"
+                      value={validFrom}
+                      onChange={(e) => setValidFrom(e.target.value)}
+                      className="flex-1 px-3 py-1.5 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
+                  <div className="flex gap-2 items-center">
+                    <label className="text-xs text-gray-500 shrink-0 w-16">종료일</label>
+                    <input
+                      type="date"
+                      value={validUntil}
+                      onChange={(e) => setValidUntil(e.target.value)}
+                      className="flex-1 px-3 py-1.5 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
+                  <div className="flex justify-end">
                     <button
                       onClick={() => handleAction(c.id, "approve")}
-                      className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700"
+                      className="px-4 py-1.5 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700"
                     >
-                      승인
-                    </button>
-                    <button
-                      onClick={() => setRejectId(rejectId === c.id ? null : c.id)}
-                      className="px-3 py-1.5 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700"
-                    >
-                      반려
+                      승인 확인
                     </button>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
+
+              {rejectId === c.id && (
+                <div className="mt-3 flex gap-2">
+                  <input
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value)}
+                    placeholder="반려 사유 입력"
+                    className="flex-1 px-3 py-1.5 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-red-500"
+                  />
+                  <button
+                    onClick={() => handleAction(c.id, "reject")}
+                    className="px-3 py-1.5 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 shrink-0"
+                  >
+                    반려 확인
+                  </button>
+                </div>
+              )}
+
+              {status === "rejected" && c.rejectReason && (
+                <p className="mt-2 text-xs text-red-600">반려 사유: {c.rejectReason}</p>
+              )}
             </div>
+          );
+        })}
+      </div>
 
-            {/* 반려 사유 입력 */}
-            {rejectId === c.id && (
-              <div className="mt-3 flex gap-2">
-                <input
-                  value={rejectReason}
-                  onChange={(e) => setRejectReason(e.target.value)}
-                  placeholder="반려 사유 입력"
-                  className="flex-1 px-3 py-1.5 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-red-500"
-                />
-                <button
-                  onClick={() => handleAction(c.id, "reject")}
-                  className="px-3 py-1.5 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 shrink-0"
-                >
-                  반려 확인
-                </button>
-              </div>
-            )}
-
-            {/* 이미 반려된 건의 사유 표시 */}
-            {status === "rejected" && c.rejectReason && (
-              <p className="mt-2 text-xs text-red-600">반려 사유: {c.rejectReason}</p>
-            )}
+      {/* 미리보기 모달 */}
+      {previewCard && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setPreviewCard(null)}>
+          <div className="max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
+            <MobileIdCardView card={previewCard} />
+            <div className="mt-4 text-center">
+              <button
+                onClick={() => setPreviewCard(null)}
+                className="px-6 py-2 bg-white rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 border"
+              >
+                닫기
+              </button>
+            </div>
           </div>
-        );
-      })}
-    </div>
+        </div>
+      )}
+    </>
   );
 }

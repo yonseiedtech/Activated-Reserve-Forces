@@ -84,6 +84,14 @@ export const PAYMENT_STATUS_ORDER = [
   "CMS_APPROVED",
 ] as const;
 
+// ─── 환수 프로세스 상태 ───
+export const REFUND_STATUS_ORDER = ["REFUND_REQUESTED", "DEPOSIT_CONFIRMED", "REFUND_COMPLETED"] as const;
+export const REFUND_STATUS_LABELS: Record<string, string> = {
+  REFUND_REQUESTED: "환수 요청",
+  DEPOSIT_CONFIRMED: "입금 확인",
+  REFUND_COMPLETED: "환수 종료",
+};
+
 // ─── 알림 유형 ───
 export const NOTIFICATION_TYPES = {
   GENERAL: "GENERAL",

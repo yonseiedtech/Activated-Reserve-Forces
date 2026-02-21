@@ -36,6 +36,7 @@ model User {
   warCompany   String?  // 전시부대 소속2 (중대)
   warPlatoon   String?  // 전시부대 소속3 (소대/지휘부)
   warPosition  String?  // 전시직책
+  uniqueNumber String?  @unique  // 관리자 수동 할당 고유번호
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -76,11 +77,14 @@ model Batch {
   status    String   @default("PLANNED") // PLANNED, ACTIVE, COMPLETED
   createdAt DateTime @default(now())
 
+  location  String?  // 훈련 장소
+
   batchUsers          BatchUser[]
   trainings           Training[]
   meals               Meal[]
   paymentProcesses    PaymentProcess[]
   transportAllowances UserTransportAllowance[]
+  refundProcess       RefundProcess?
 }
 
 // ─── 훈련 일정 ───
@@ -94,7 +98,7 @@ model Training {
   location     String?
   description  String?
   batchId      String
-  batch        Batch    @relation(fields: [batchId], references: [id])
+  batch        Batch    @relation(fields: [batchId], references: [id], onDelete: Cascade)
   instructorId String?
   instructor   User?    @relation("InstructorTrainings", fields: [instructorId], references: [id])
   createdAt    DateTime @default(now())
@@ -154,7 +158,7 @@ model GpsLocation {
 model Meal {
   id        String   @id @default(cuid())
   batchId   String
-  batch     Batch    @relation(fields: [batchId], references: [id])
+  batch     Batch    @relation(fields: [batchId], references: [id], onDelete: Cascade)
   date      DateTime
   type      String   // BREAKFAST, LUNCH, DINNER
   menuInfo  String?  // 메뉴 내용
@@ -170,7 +174,7 @@ model Meal {
 model PaymentProcess {
   id        String   @id @default(cuid())
   batchId   String   @unique
-  batch     Batch    @relation(fields: [batchId], references: [id])
+  batch     Batch    @relation(fields: [batchId], references: [id], onDelete: Cascade)
   title     String   // 예: "2026년 1차수 훈련비"
   bankInfo  String?  // 은행/계좌 정보
   status    String   @default("DOC_DRAFT") // DOC_DRAFT → DOC_APPROVED → CMS_DRAFT → CMS_APPROVED
@@ -291,7 +295,7 @@ model UserTransportAllowance {
   userId    String
   user      User     @relation(fields: [userId], references: [id])
   batchId   String
-  batch     Batch    @relation(fields: [batchId], references: [id])
+  batch     Batch    @relation(fields: [batchId], references: [id], onDelete: Cascade)
   amount    Int      // 교통비 금액 (원)
   address   String?  // 기준 주소 (참고용)
   note      String?
@@ -299,6 +303,23 @@ model UserTransportAllowance {
   updatedAt DateTime @updatedAt
 
   @@unique([userId, batchId])
+}
+
+// ─── 환수 프로세스 ───
+model RefundProcess {
+  id                  String    @id @default(cuid())
+  batchId             String    @unique
+  batch               Batch     @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  status              String    @default("REFUND_REQUESTED")
+  reason              String?
+  compensationRefund  Int       @default(0)
+  transportRefund     Int       @default(0)
+  refundRequestedAt   DateTime?
+  depositConfirmedAt  DateTime?
+  refundCompletedAt   DateTime?
+  note                String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 }
 
 // ─── 모바일 신분증 ───

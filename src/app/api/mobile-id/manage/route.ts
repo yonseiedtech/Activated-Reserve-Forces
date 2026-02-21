@@ -48,10 +48,12 @@ export async function PATCH(req: NextRequest) {
   if (!["ADMIN", "MANAGER"].includes(session.user.role)) return forbidden();
 
   const body = await req.json();
-  const { cardId, action, rejectReason } = body as {
+  const { cardId, action, rejectReason, validFrom, validUntil } = body as {
     cardId: string;
     action: "approve" | "reject";
     rejectReason?: string;
+    validFrom?: string;
+    validUntil?: string;
   };
 
   if (!cardId || !action) return badRequest("cardId와 action이 필요합니다.");
@@ -68,6 +70,8 @@ export async function PATCH(req: NextRequest) {
         approvedById: session.user.id,
         rejectedAt: null,
         rejectReason: null,
+        ...(validFrom ? { validFrom: new Date(validFrom) } : {}),
+        ...(validUntil ? { validUntil: new Date(validUntil) } : {}),
       },
     });
     return json(updated);
