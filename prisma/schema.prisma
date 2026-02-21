@@ -9,6 +9,14 @@ datasource db {
   directUrl = env("DATABASE_URL_UNPOOLED")
 }
 
+// ─── 부대 (참조 테이블) ───
+model Unit {
+  id          String   @id @default(cuid())
+  name        String   @unique  // "00사단 00연대"
+  description String?
+  createdAt   DateTime @default(now())
+}
+
 // ─── 사용자 (관리자/행정담당자/급식담당자/대상자) ───
 model User {
   id        String   @id @default(cuid())

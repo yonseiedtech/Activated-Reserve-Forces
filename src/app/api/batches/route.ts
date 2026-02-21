@@ -2,6 +2,18 @@ import { prisma } from "@/lib/prisma";
 import { getSession, json, unauthorized, forbidden } from "@/lib/api-utils";
 import { NextRequest } from "next/server";
 
+function computeBatchStatus(startDate: Date, endDate: Date): string {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const start = new Date(startDate);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(endDate);
+  end.setHours(0, 0, 0, 0);
+  if (today < start) return "PLANNED";
+  if (today > end) return "COMPLETED";
+  return "ACTIVE";
+}
+
 export async function GET() {
   const session = await getSession();
   if (!session) return unauthorized();
@@ -11,7 +23,12 @@ export async function GET() {
     include: { _count: { select: { users: true, trainings: true } } },
   });
 
-  return json(batches);
+  const batchesWithStatus = batches.map((b) => ({
+    ...b,
+    status: computeBatchStatus(b.startDate, b.endDate),
+  }));
+
+  return json(batchesWithStatus);
 }
 
 export async function POST(req: NextRequest) {

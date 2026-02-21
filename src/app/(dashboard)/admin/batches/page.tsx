@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import PageTitle from "@/components/ui/PageTitle";
 import { BATCH_STATUS_LABELS } from "@/lib/constants";
 
@@ -14,6 +15,12 @@ interface Batch {
   status: string;
   _count: { users: number; trainings: number };
 }
+
+const STATUS_COLORS: Record<string, string> = {
+  PLANNED: "bg-yellow-100 text-yellow-700",
+  ACTIVE: "bg-green-100 text-green-700",
+  COMPLETED: "bg-gray-100 text-gray-600",
+};
 
 export default function AdminBatchesPage() {
   const [batches, setBatches] = useState<Batch[]>([]);
@@ -33,15 +40,6 @@ export default function AdminBatchesPage() {
       body: JSON.stringify(form),
     });
     if (res.ok) { setShowForm(false); fetchBatches(); }
-  };
-
-  const handleStatusChange = async (id: string, status: string) => {
-    await fetch(`/api/batches/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
-    });
-    fetchBatches();
   };
 
   const handleDelete = async (id: string) => {
@@ -64,22 +62,16 @@ export default function AdminBatchesPage() {
       <div className="space-y-3">
         {batches.map((b) => (
           <div key={b.id} className="bg-white rounded-xl border p-4 flex items-center justify-between gap-4">
-            <div>
-              <h3 className="font-semibold">{b.name}</h3>
+            <Link href={`/admin/batches/${b.id}`} className="flex-1 min-w-0">
+              <h3 className="font-semibold hover:text-blue-600">{b.name}</h3>
               <p className="text-sm text-gray-500">
                 {new Date(b.startDate).toLocaleDateString("ko-KR")} ~ {new Date(b.endDate).toLocaleDateString("ko-KR")} | {b._count.users}명 | {b._count.trainings}개 훈련
               </p>
-            </div>
+            </Link>
             <div className="flex items-center gap-2">
-              <select
-                value={b.status}
-                onChange={(e) => handleStatusChange(b.id, e.target.value)}
-                className="px-2 py-1 border rounded text-sm"
-              >
-                {Object.entries(BATCH_STATUS_LABELS).map(([k, v]) => (
-                  <option key={k} value={k}>{v}</option>
-                ))}
-              </select>
+              <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[b.status] || "bg-gray-100"}`}>
+                {BATCH_STATUS_LABELS[b.status] || b.status}
+              </span>
               <button onClick={() => handleDelete(b.id)} className="px-3 py-1 text-red-600 border border-red-200 rounded text-sm hover:bg-red-50">삭제</button>
             </div>
           </div>

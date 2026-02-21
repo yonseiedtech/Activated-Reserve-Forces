@@ -25,6 +25,7 @@ export async function GET(req: NextRequest) {
       phone: true,
       unit: true,
       batchId: true,
+      birthDate: true,
       batch: { select: { name: true } },
     },
     orderBy: { name: "asc" },

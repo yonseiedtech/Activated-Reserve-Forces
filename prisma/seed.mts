@@ -10,6 +10,18 @@ async function main() {
   });
 
   try {
+    // 부대 정보
+    await prisma.unit.upsert({
+      where: { name: "00사단 00연대" },
+      update: {},
+      create: { name: "00사단 00연대", description: "예비군 훈련 주관부대" },
+    });
+    await prisma.unit.upsert({
+      where: { name: "00사단 00대대" },
+      update: {},
+      create: { name: "00사단 00대대", description: "예비군 훈련 지원부대" },
+    });
+
     // 관리자 계정
     const adminPassword = await bcrypt.hash("admin1234", 10);
     const admin = await prisma.user.upsert({
