@@ -11,7 +11,13 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const { trainingId, records } = body as {
     trainingId: string;
-    records: { userId: string; status: string; reason?: string }[];
+    records: {
+      userId: string;
+      status: string;
+      reason?: string;
+      expectedConfirmAt?: string;
+      earlyLeaveTime?: string;
+    }[];
   };
 
   if (!trainingId || !records?.length) return badRequest("훈련ID와 출석 기록이 필요합니다.");
@@ -20,8 +26,20 @@ export async function POST(req: NextRequest) {
     records.map((r) =>
       prisma.attendance.upsert({
         where: { trainingId_userId: { trainingId, userId: r.userId } },
-        create: { trainingId, userId: r.userId, status: r.status, reason: r.reason },
-        update: { status: r.status, reason: r.reason },
+        create: {
+          trainingId,
+          userId: r.userId,
+          status: r.status,
+          reason: r.reason || null,
+          expectedConfirmAt: r.expectedConfirmAt ? new Date(r.expectedConfirmAt) : null,
+          earlyLeaveTime: r.earlyLeaveTime || null,
+        },
+        update: {
+          status: r.status,
+          reason: r.reason || null,
+          expectedConfirmAt: r.expectedConfirmAt ? new Date(r.expectedConfirmAt) : null,
+          earlyLeaveTime: r.earlyLeaveTime || null,
+        },
       })
     )
   );

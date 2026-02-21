@@ -13,13 +13,16 @@ datasource db {
 model User {
   id        String   @id @default(cuid())
   name      String
-  email     String   @unique
+  username  String   @unique
+  email     String?
   password  String
   role      String   @default("RESERVIST") // ADMIN, MANAGER, COOK, RESERVIST
   phone     String?
   rank      String?  // 계급 (대상자용)
   serviceNumber String? // 군번 (대상자용)
   unit      String?  // 소속부대
+  position  String?  // 직책 (예: "상비예비군")
+  birthDate DateTime? // 생년월일
   batchId   String?  // 소속 차수 (대상자용)
   batch     Batch?   @relation(fields: [batchId], references: [id])
   createdAt DateTime @default(now())
@@ -34,6 +37,8 @@ model User {
   notifications        Notification[]
   surveyResponses      SurveyResponse[]
   pushSubscriptions    PushSubscription[]
+  mobileIdCard         MobileIdCard?
+  approvedIdCards      MobileIdCard[]     @relation("ApprovedByUser")
 }
 
 // ─── 차수 (훈련 기수) ───
@@ -79,10 +84,12 @@ model Attendance {
   training    Training @relation(fields: [trainingId], references: [id], onDelete: Cascade)
   userId      String
   user        User     @relation(fields: [userId], references: [id])
-  status      String   @default("PENDING") // PRESENT, ABSENT, PENDING
-  reason      String?  // 불참 사유
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  status            String    @default("PENDING") // PRESENT, ABSENT, PENDING
+  reason            String?   // 불참 사유
+  expectedConfirmAt DateTime? // 미정일 때 확정 예정 시점
+  earlyLeaveTime    String?   // 조기퇴소 시간 (예: "10:30")
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   @@unique([trainingId, userId])
 }
@@ -225,4 +232,22 @@ model SurveyResponse {
   createdAt DateTime @default(now())
 
   @@unique([surveyId, userId])
+}
+
+// ─── 모바일 신분증 ───
+model MobileIdCard {
+  id            String    @id @default(cuid())
+  userId        String    @unique
+  user          User      @relation(fields: [userId], references: [id])
+  uniqueNumber  String    @unique  // 고유번호 (예: "RES-2026-00001")
+  validFrom     DateTime           // 유효기간 시작
+  validUntil    DateTime           // 유효기간 종료
+  isApproved    Boolean   @default(false)
+  approvedAt    DateTime?
+  approvedById  String?
+  approvedBy    User?     @relation("ApprovedByUser", fields: [approvedById], references: [id])
+  rejectedAt    DateTime?
+  rejectReason  String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 }

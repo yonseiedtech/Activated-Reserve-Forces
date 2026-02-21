@@ -8,14 +8,14 @@ export const authOptions: NextAuthOptions = {
     CredentialsProvider({
       name: "credentials",
       credentials: {
-        email: { label: "이메일", type: "email" },
+        username: { label: "아이디", type: "text" },
         password: { label: "비밀번호", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null;
+        if (!credentials?.username || !credentials?.password) return null;
 
         const user = await prisma.user.findUnique({
-          where: { email: credentials.email },
+          where: { username: credentials.username },
         });
 
         if (!user) return null;
@@ -26,7 +26,8 @@ export const authOptions: NextAuthOptions = {
         return {
           id: user.id,
           name: user.name,
-          email: user.email,
+          email: user.email || "",
+          username: user.username,
           role: user.role,
         };
       },
@@ -37,6 +38,7 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.role = (user as { role: string }).role;
         token.id = user.id;
+        token.username = (user as { username: string }).username;
       }
       return token;
     },
@@ -44,6 +46,7 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         (session.user as { role: string }).role = token.role as string;
         (session.user as { id: string }).id = token.id as string;
+        (session.user as { username: string }).username = token.username as string;
       }
       return session;
     },

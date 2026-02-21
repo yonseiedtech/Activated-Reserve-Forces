@@ -3,27 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { ROLES } from "@/lib/constants";
-
-const navItems = [
-  { href: "/", label: "대시보드", icon: "📊", roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.COOK, ROLES.RESERVIST] },
-  { href: "/trainings", label: "훈련 일정", icon: "📅", roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.RESERVIST] },
-  { href: "/attendance", label: "참석 관리", icon: "✅", roles: [ROLES.ADMIN, ROLES.MANAGER] },
-  { href: "/commuting", label: "출퇴근 기록", icon: "🕐", roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.RESERVIST] },
-  { href: "/meals", label: "식사 관리", icon: "🍽️", roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.COOK] },
-  { href: "/payments", label: "훈련비 관리", icon: "💰", roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.RESERVIST] },
-  { href: "/notices", label: "공지사항", icon: "📢", roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.COOK, ROLES.RESERVIST] },
-  { href: "/messages", label: "쪽지", icon: "✉️", roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.COOK, ROLES.RESERVIST] },
-  { href: "/surveys", label: "설문조사", icon: "📝", roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.RESERVIST] },
-  { href: "/admin", label: "관리자", icon: "⚙️", roles: [ROLES.ADMIN] },
-];
+import { getFilteredNav } from "@/lib/navigation";
 
 export default function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const role = session?.user?.role || "";
 
-  const filteredNav = navItems.filter((item) => (item.roles as string[]).includes(role));
+  const filteredNav = getFilteredNav(role);
 
   return (
     <>

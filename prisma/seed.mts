@@ -13,39 +13,45 @@ async function main() {
     // 관리자 계정
     const adminPassword = await bcrypt.hash("admin1234", 10);
     const admin = await prisma.user.upsert({
-      where: { email: "admin@reserve.mil" },
+      where: { username: "admin" },
       update: {},
       create: {
         name: "시스템관리자",
+        username: "admin",
         email: "admin@reserve.mil",
         password: adminPassword,
         role: "ADMIN",
+        position: "체계관리자",
       },
     });
 
     // 행정담당자 계정
     const managerPassword = await bcrypt.hash("manager1234", 10);
     const manager = await prisma.user.upsert({
-      where: { email: "manager@reserve.mil" },
+      where: { username: "manager" },
       update: {},
       create: {
         name: "김행정",
+        username: "manager",
         email: "manager@reserve.mil",
         password: managerPassword,
         role: "MANAGER",
+        position: "행정담당자",
       },
     });
 
     // 급식담당자 계정
     const cookPassword = await bcrypt.hash("cook1234", 10);
     await prisma.user.upsert({
-      where: { email: "cook@reserve.mil" },
+      where: { username: "cook" },
       update: {},
       create: {
         name: "박급식",
+        username: "cook",
         email: "cook@reserve.mil",
         password: cookPassword,
         role: "COOK",
+        position: "급식담당자",
       },
     });
 
@@ -75,34 +81,45 @@ async function main() {
     // 대상자 계정 (1차수)
     const reservistPassword = await bcrypt.hash("reservist1234", 10);
     const reservistNames = ["이준호", "박민수", "최영철", "정태웅", "한성민"];
+    const birthDates = ["1998-03-15", "1997-07-22", "1999-01-08", "1998-11-30", "1997-05-12"];
+
+    const batch1Users = [];
     for (let i = 0; i < reservistNames.length; i++) {
-      await prisma.user.create({
+      const u = await prisma.user.create({
         data: {
           name: reservistNames[i],
+          username: `reservist${i + 1}`,
           email: `reservist${i + 1}@reserve.mil`,
           password: reservistPassword,
           role: "RESERVIST",
           rank: "병장",
           serviceNumber: `22-7600${i + 1}`,
           unit: "00사단 00연대",
+          position: "상비예비군",
+          birthDate: new Date(birthDates[i]),
           phone: `010-1234-${String(i + 1).padStart(4, "0")}`,
           batchId: batch1.id,
         },
       });
+      batch1Users.push(u);
     }
 
     // 2차수 대상자
     const reservistNames2 = ["송재현", "유승호", "오지훈"];
+    const birthDates2 = ["2000-02-14", "1999-08-25", "2000-06-03"];
     for (let i = 0; i < reservistNames2.length; i++) {
       await prisma.user.create({
         data: {
           name: reservistNames2[i],
+          username: `reservist${i + 6}`,
           email: `reservist${i + 6}@reserve.mil`,
           password: reservistPassword,
           role: "RESERVIST",
           rank: "상병",
           serviceNumber: `23-7600${i + 1}`,
           unit: "00사단 00연대",
+          position: "상비예비군",
+          birthDate: new Date(birthDates2[i]),
           phone: `010-5678-${String(i + 1).padStart(4, "0")}`,
           batchId: batch2.id,
         },
@@ -154,12 +171,37 @@ async function main() {
       },
     });
 
+    // 모바일 신분증 샘플 (1차수 1번 대상자 - 승인됨)
+    await prisma.mobileIdCard.create({
+      data: {
+        userId: batch1Users[0].id,
+        uniqueNumber: "RES-2026-00001",
+        validFrom: batch1.startDate,
+        validUntil: batch1.endDate,
+        isApproved: true,
+        approvedAt: new Date(),
+        approvedById: admin.id,
+      },
+    });
+
+    // 모바일 신분증 샘플 (1차수 2번 대상자 - 승인 대기)
+    await prisma.mobileIdCard.create({
+      data: {
+        userId: batch1Users[1].id,
+        uniqueNumber: "RES-2026-00002",
+        validFrom: batch1.startDate,
+        validUntil: batch1.endDate,
+      },
+    });
+
     console.log("시드 데이터 생성 완료");
     console.log("─────────────────────────");
-    console.log("관리자: admin@reserve.mil / admin1234");
-    console.log("행정담당자: manager@reserve.mil / manager1234");
-    console.log("급식담당자: cook@reserve.mil / cook1234");
-    console.log("대상자: reservist1@reserve.mil ~ reservist8@reserve.mil / reservist1234");
+    console.log("관리자: admin / admin1234");
+    console.log("행정담당자: manager / manager1234");
+    console.log("급식담당자: cook / cook1234");
+    console.log("대상자: reservist1 ~ reservist8 / reservist1234");
+    console.log("  - reservist1: 모바일 신분증 승인됨");
+    console.log("  - reservist2: 모바일 신분증 승인 대기");
   } finally {
     await prisma.$disconnect();
   }

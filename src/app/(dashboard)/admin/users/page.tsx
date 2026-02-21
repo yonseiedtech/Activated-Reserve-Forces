@@ -7,7 +7,8 @@ import { ROLE_LABELS, RANKS } from "@/lib/constants";
 interface User {
   id: string;
   name: string;
-  email: string;
+  username: string;
+  email: string | null;
   role: string;
   rank: string | null;
   serviceNumber: string | null;
@@ -28,9 +29,15 @@ export default function AdminUsersPage() {
   const [showForm, setShowForm] = useState(false);
   const [filter, setFilter] = useState("");
   const [form, setForm] = useState({
-    name: "", email: "", password: "", role: "RESERVIST",
+    name: "", username: "", password: "", role: "RESERVIST",
     rank: "", serviceNumber: "", phone: "", unit: "", batchId: "",
   });
+
+  // 비밀번호 초기화 모달 상태
+  const [resetTarget, setResetTarget] = useState<User | null>(null);
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetMessage, setResetMessage] = useState("");
 
   useEffect(() => {
     fetch("/api/users").then((r) => r.json()).then(setUsers);
@@ -45,7 +52,33 @@ export default function AdminUsersPage() {
     });
     if (res.ok) {
       setShowForm(false);
+      setForm({ name: "", username: "", password: "", role: "RESERVIST", rank: "", serviceNumber: "", phone: "", unit: "", batchId: "" });
       fetch("/api/users").then((r) => r.json()).then(setUsers);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetTarget || !resetPassword) return;
+    setResetLoading(true);
+    setResetMessage("");
+
+    const res = await fetch(`/api/users/${resetTarget.id}/reset-password`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ newPassword: resetPassword }),
+    });
+
+    setResetLoading(false);
+
+    if (res.ok) {
+      setResetMessage("비밀번호가 초기화되었습니다.");
+      setTimeout(() => {
+        setResetTarget(null);
+        setResetPassword("");
+        setResetMessage("");
+      }, 1500);
+    } else {
+      setResetMessage("비밀번호 초기화에 실패했습니다.");
     }
   };
 
@@ -77,19 +110,20 @@ export default function AdminUsersPage() {
           <thead className="bg-gray-50">
             <tr>
               <th className="text-left px-4 py-3 font-medium">이름</th>
-              <th className="text-left px-4 py-3 font-medium">이메일</th>
+              <th className="text-left px-4 py-3 font-medium">아이디</th>
               <th className="text-left px-4 py-3 font-medium">역할</th>
               <th className="text-left px-4 py-3 font-medium">계급</th>
               <th className="text-left px-4 py-3 font-medium">군번</th>
               <th className="text-left px-4 py-3 font-medium">차수</th>
               <th className="text-left px-4 py-3 font-medium">연락처</th>
+              <th className="text-left px-4 py-3 font-medium">관리</th>
             </tr>
           </thead>
           <tbody className="divide-y">
             {filtered.map((u) => (
               <tr key={u.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3 font-medium">{u.name}</td>
-                <td className="px-4 py-3 text-gray-500">{u.email}</td>
+                <td className="px-4 py-3 text-gray-500">{u.username}</td>
                 <td className="px-4 py-3">
                   <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs">{ROLE_LABELS[u.role] || u.role}</span>
                 </td>
@@ -97,18 +131,27 @@ export default function AdminUsersPage() {
                 <td className="px-4 py-3">{u.serviceNumber || "-"}</td>
                 <td className="px-4 py-3">{u.batch?.name || "-"}</td>
                 <td className="px-4 py-3">{u.phone || "-"}</td>
+                <td className="px-4 py-3">
+                  <button
+                    onClick={() => setResetTarget(u)}
+                    className="px-2 py-1 text-xs bg-orange-100 text-orange-700 rounded hover:bg-orange-200"
+                  >
+                    비밀번호 초기화
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
 
+      {/* 사용자 추가 모달 */}
       {showForm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl w-full max-w-md p-6 space-y-3 max-h-[80vh] overflow-y-auto">
             <h3 className="text-lg font-semibold">사용자 추가</h3>
             <input placeholder="이름" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
-            <input placeholder="이메일" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+            <input placeholder="아이디" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
             <input placeholder="비밀번호" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
             <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} className="w-full px-3 py-2 border rounded-lg">
               {Object.entries(ROLE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
@@ -131,6 +174,45 @@ export default function AdminUsersPage() {
             <div className="flex gap-3 pt-2">
               <button onClick={handleCreate} className="flex-1 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700">생성</button>
               <button onClick={() => setShowForm(false)} className="flex-1 py-2 border rounded-lg text-gray-700 hover:bg-gray-50">취소</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 비밀번호 초기화 모달 */}
+      {resetTarget && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl w-full max-w-sm p-6 space-y-4">
+            <h3 className="text-lg font-semibold">비밀번호 초기화</h3>
+            <p className="text-sm text-gray-600">
+              <span className="font-medium">{resetTarget.name}</span> ({resetTarget.username}) 계정의 비밀번호를 초기화합니다.
+            </p>
+            <input
+              placeholder="새 비밀번호"
+              type="password"
+              value={resetPassword}
+              onChange={(e) => setResetPassword(e.target.value)}
+              className="w-full px-3 py-2 border rounded-lg"
+            />
+            {resetMessage && (
+              <p className={`text-sm ${resetMessage.includes("실패") ? "text-red-600" : "text-green-600"}`}>
+                {resetMessage}
+              </p>
+            )}
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={handleResetPassword}
+                disabled={resetLoading || !resetPassword}
+                className="flex-1 py-2 bg-orange-600 text-white rounded-lg font-medium hover:bg-orange-700 disabled:opacity-50"
+              >
+                {resetLoading ? "처리 중..." : "초기화"}
+              </button>
+              <button
+                onClick={() => { setResetTarget(null); setResetPassword(""); setResetMessage(""); }}
+                className="flex-1 py-2 border rounded-lg text-gray-700 hover:bg-gray-50"
+              >
+                취소
+              </button>
             </div>
           </div>
         </div>

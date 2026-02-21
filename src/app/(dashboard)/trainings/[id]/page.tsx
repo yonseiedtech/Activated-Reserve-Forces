@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { ATTENDANCE_STATUS_LABELS } from "@/lib/constants";
 import PageTitle from "@/components/ui/PageTitle";
 import Link from "next/link";
+import SelfAttendanceForm from "@/components/attendance/SelfAttendanceForm";
 
 export default async function TrainingDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions);
@@ -26,8 +27,14 @@ export default async function TrainingDetailPage({ params }: { params: Promise<{
   if (!training) return notFound();
 
   const isAdmin = ["ADMIN", "MANAGER"].includes(session.user.role);
+  const isReservist = session.user.role === "RESERVIST";
   const date = new Date(training.date);
   const dateStr = date.toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "long" });
+
+  // RESERVIST 본인의 출석 기록
+  const myAttendance = isReservist
+    ? training.attendances.find((a) => a.user.id === session.user.id)
+    : null;
 
   return (
     <div className="max-w-3xl">
@@ -61,28 +68,45 @@ export default async function TrainingDetailPage({ params }: { params: Promise<{
             <p className="text-sm text-gray-600 whitespace-pre-wrap">{training.description}</p>
           </div>
         )}
-
-        {/* 출석 현황 */}
-        {training.attendances.length > 0 && (
-          <div className="pt-4 border-t">
-            <h3 className="text-sm font-medium text-gray-700 mb-3">출석 현황</h3>
-            <div className="space-y-2">
-              {training.attendances.map((att) => (
-                <div key={att.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg text-sm">
-                  <span>{att.user.rank} {att.user.name} ({att.user.serviceNumber})</span>
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                    att.status === "PRESENT" ? "bg-green-100 text-green-700" :
-                    att.status === "ABSENT" ? "bg-red-100 text-red-700" :
-                    "bg-gray-100 text-gray-600"
-                  }`}>
-                    {ATTENDANCE_STATUS_LABELS[att.status]}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* RESERVIST 자가 참석 관리 */}
+      {isReservist && (
+        <div className="mt-4">
+          <SelfAttendanceForm
+            trainingId={training.id}
+            initialStatus={myAttendance?.status}
+            initialReason={myAttendance?.reason || ""}
+            initialExpectedConfirmAt={
+              myAttendance?.expectedConfirmAt
+                ? new Date(myAttendance.expectedConfirmAt).toISOString().slice(0, 16)
+                : ""
+            }
+            initialEarlyLeaveTime={myAttendance?.earlyLeaveTime || ""}
+          />
+        </div>
+      )}
+
+      {/* 출석 현황 (관리자만) */}
+      {isAdmin && training.attendances.length > 0 && (
+        <div className="mt-4 bg-white rounded-xl border p-6">
+          <h3 className="text-sm font-medium text-gray-700 mb-3">출석 현황</h3>
+          <div className="space-y-2">
+            {training.attendances.map((att) => (
+              <div key={att.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg text-sm">
+                <span>{att.user.rank} {att.user.name} ({att.user.serviceNumber})</span>
+                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                  att.status === "PRESENT" ? "bg-green-100 text-green-700" :
+                  att.status === "ABSENT" ? "bg-red-100 text-red-700" :
+                  "bg-gray-100 text-gray-600"
+                }`}>
+                  {ATTENDANCE_STATUS_LABELS[att.status]}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

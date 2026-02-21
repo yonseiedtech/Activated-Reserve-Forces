@@ -17,6 +17,7 @@ export async function GET(req: NextRequest) {
     select: {
       id: true,
       name: true,
+      username: true,
       email: true,
       role: true,
       rank: true,
@@ -43,7 +44,8 @@ export async function POST(req: NextRequest) {
   const user = await prisma.user.create({
     data: {
       name: body.name,
-      email: body.email,
+      username: body.username,
+      email: body.email || null,
       password: hashedPassword,
       role: body.role,
       rank: body.rank || null,
@@ -54,5 +56,5 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  return json({ id: user.id, name: user.name, email: user.email }, 201);
+  return json({ id: user.id, name: user.name, username: user.username }, 201);
 }

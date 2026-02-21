@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { ROLES, ATTENDANCE_STATUS_LABELS } from "@/lib/constants";
+import { ATTENDANCE_STATUS_LABELS } from "@/lib/constants";
 import Link from "next/link";
 import PageTitle from "@/components/ui/PageTitle";
 
@@ -10,9 +10,10 @@ export default async function TrainingsPage() {
   if (!session) return null;
 
   const isAdmin = ["ADMIN", "MANAGER"].includes(session.user.role);
+  const isReservist = session.user.role === "RESERVIST";
 
   let batchFilter = {};
-  if (session.user.role === "RESERVIST") {
+  if (isReservist) {
     const user = await prisma.user.findUnique({ where: { id: session.user.id } });
     if (user?.batchId) batchFilter = { batchId: user.batchId };
   }
@@ -21,9 +22,9 @@ export default async function TrainingsPage() {
     where: batchFilter,
     orderBy: { date: "asc" },
     include: {
-      batch: { select: { name: true } },
+      batch: { select: { id: true, name: true } },
       instructor: { select: { name: true } },
-      attendances: session.user.role === "RESERVIST"
+      attendances: isReservist
         ? { where: { userId: session.user.id } }
         : { select: { status: true } },
     },
@@ -32,6 +33,15 @@ export default async function TrainingsPage() {
   const batches = isAdmin
     ? await prisma.batch.findMany({ orderBy: { startDate: "desc" } })
     : [];
+
+  // 날짜별 그룹핑
+  const grouped: Record<string, typeof trainings> = {};
+  for (const t of trainings) {
+    const dateKey = new Date(t.date).toISOString().split("T")[0];
+    if (!grouped[dateKey]) grouped[dateKey] = [];
+    grouped[dateKey].push(t);
+  }
+  const dateKeys = Object.keys(grouped).sort();
 
   return (
     <div>
@@ -50,60 +60,91 @@ export default async function TrainingsPage() {
         }
       />
 
-      <div className="space-y-3">
-        {trainings.map((training) => {
-          const date = new Date(training.date);
-          const dateStr = date.toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" });
-          const totalAttendances = training.attendances.length;
-          const presentCount = training.attendances.filter((a) => a.status === "PRESENT").length;
-
-          // 대상자 본인의 출석 상태
-          const myAttendance = session.user.role === "RESERVIST" && training.attendances.length > 0
-            ? training.attendances[0]
-            : null;
+      <div className="space-y-6">
+        {dateKeys.map((dateKey) => {
+          const dayTrainings = grouped[dateKey];
+          const d = new Date(dateKey + "T00:00:00");
+          const headerStr = d.toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "long" });
+          const firstBatchId = dayTrainings[0]?.batch?.id;
 
           return (
-            <Link
-              key={training.id}
-              href={isAdmin ? `/attendance/${training.id}` : `/trainings/${training.id}`}
-              className="block bg-white rounded-xl border p-4 hover:shadow-md transition-shadow"
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="inline-block px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full font-medium">
-                      {training.type}
-                    </span>
-                    <span className="text-xs text-gray-400">{training.batch.name}</span>
-                  </div>
-                  <h3 className="font-semibold text-gray-900">{training.title}</h3>
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-sm text-gray-500">
-                    <span>{dateStr}</span>
-                    {training.startTime && <span>{training.startTime} ~ {training.endTime}</span>}
-                    {training.location && <span>{training.location}</span>}
-                    {training.instructor && <span>교관: {training.instructor.name}</span>}
-                  </div>
-                </div>
-                <div className="text-right shrink-0">
-                  {isAdmin ? (
-                    <div>
-                      <p className="text-sm font-medium">{presentCount}/{totalAttendances}</p>
-                      <p className="text-xs text-gray-400">참석</p>
-                    </div>
-                  ) : myAttendance ? (
-                    <span className={`px-2 py-1 text-xs rounded-full font-medium ${
-                      myAttendance.status === "PRESENT" ? "bg-green-100 text-green-700" :
-                      myAttendance.status === "ABSENT" ? "bg-red-100 text-red-700" :
-                      "bg-gray-100 text-gray-600"
-                    }`}>
-                      {ATTENDANCE_STATUS_LABELS[myAttendance.status]}
-                    </span>
-                  ) : (
-                    <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-500">미정</span>
-                  )}
-                </div>
+            <div key={dateKey}>
+              {/* 날짜 헤더 */}
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold text-gray-700">{headerStr}</h3>
+                <Link
+                  href={`/trainings/schedule/${dateKey}${firstBatchId ? `?batchId=${firstBatchId}` : ""}`}
+                  className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                >
+                  일일 일정 보기 &rarr;
+                </Link>
               </div>
-            </Link>
+
+              <div className="space-y-3">
+                {dayTrainings.map((training) => {
+                  const totalAttendances = training.attendances.length;
+                  const presentCount = training.attendances.filter((a) => a.status === "PRESENT").length;
+
+                  const myAttendance = isReservist && training.attendances.length > 0
+                    ? (training.attendances[0] as { status: string; earlyLeaveTime?: string | null; expectedConfirmAt?: Date | string | null })
+                    : null;
+
+                  return (
+                    <Link
+                      key={training.id}
+                      href={isAdmin ? `/attendance/${training.id}` : `/trainings/${training.id}`}
+                      className="block bg-white rounded-xl border p-4 hover:shadow-md transition-shadow"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="inline-block px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full font-medium">
+                              {training.type}
+                            </span>
+                            <span className="text-xs text-gray-400">{training.batch.name}</span>
+                          </div>
+                          <h3 className="font-semibold text-gray-900">{training.title}</h3>
+                          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-sm text-gray-500">
+                            {training.startTime && <span>{training.startTime} ~ {training.endTime}</span>}
+                            {training.location && <span>{training.location}</span>}
+                            {training.instructor && <span>교관: {training.instructor.name}</span>}
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          {isAdmin ? (
+                            <div>
+                              <p className="text-sm font-medium">{presentCount}/{totalAttendances}</p>
+                              <p className="text-xs text-gray-400">참석</p>
+                            </div>
+                          ) : myAttendance ? (
+                            <div className="text-right">
+                              <span className={`px-2 py-1 text-xs rounded-full font-medium ${
+                                myAttendance.status === "PRESENT" ? "bg-green-100 text-green-700" :
+                                myAttendance.status === "ABSENT" ? "bg-red-100 text-red-700" :
+                                "bg-gray-100 text-gray-600"
+                              }`}>
+                                {ATTENDANCE_STATUS_LABELS[myAttendance.status]}
+                              </span>
+                              {myAttendance.status === "PRESENT" && myAttendance.earlyLeaveTime && (
+                                <p className="text-xs text-orange-600 mt-1">(조기퇴소 {myAttendance.earlyLeaveTime})</p>
+                              )}
+                              {myAttendance.status === "PENDING" && myAttendance.expectedConfirmAt && (
+                                <p className="text-xs text-gray-500 mt-1">
+                                  확정 예정: {new Date(myAttendance.expectedConfirmAt).toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" })}{" "}
+                                  {new Date(myAttendance.expectedConfirmAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}
+                                </p>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-500">미정</span>
+                          )}
+                        </div>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
           );
         })}
 

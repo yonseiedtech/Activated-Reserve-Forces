@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import PageTitle from "@/components/ui/PageTitle";
 import { ATTENDANCE_STATUS, ATTENDANCE_STATUS_LABELS } from "@/lib/constants";
 
@@ -16,6 +16,8 @@ interface AttendanceRecord {
   userId: string;
   status: string;
   reason: string;
+  earlyLeaveTime?: string | null;
+  expectedConfirmAt?: string | null;
   user: User;
 }
 
@@ -28,9 +30,8 @@ interface TrainingData {
 
 export default function AttendancePage() {
   const { trainingId } = useParams<{ trainingId: string }>();
-  const router = useRouter();
   const [training, setTraining] = useState<TrainingData | null>(null);
-  const [records, setRecords] = useState<Record<string, { status: string; reason: string }>>({});
+  const [records, setRecords] = useState<Record<string, { status: string; reason: string; earlyLeaveTime?: string; expectedConfirmAt?: string }>>({});
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -39,14 +40,19 @@ export default function AttendancePage() {
       .then((r) => r.json())
       .then((data) => {
         setTraining(data.training);
-        const rec: Record<string, { status: string; reason: string }> = {};
+        const rec: Record<string, { status: string; reason: string; earlyLeaveTime?: string; expectedConfirmAt?: string }> = {};
         // 차수 소속 모든 대상자 기본값 설정
         data.training?.batch?.users?.forEach((u: User) => {
           rec[u.id] = { status: "PENDING", reason: "" };
         });
         // 기존 출석 기록 덮어쓰기
         data.attendances?.forEach((a: AttendanceRecord) => {
-          rec[a.userId] = { status: a.status, reason: a.reason || "" };
+          rec[a.userId] = {
+            status: a.status,
+            reason: a.reason || "",
+            earlyLeaveTime: a.earlyLeaveTime || "",
+            expectedConfirmAt: a.expectedConfirmAt || "",
+          };
         });
         setRecords(rec);
       });
@@ -58,6 +64,8 @@ export default function AttendancePage() {
       userId,
       status: r.status,
       reason: r.reason || undefined,
+      earlyLeaveTime: r.earlyLeaveTime || undefined,
+      expectedConfirmAt: r.expectedConfirmAt || undefined,
     }));
 
     const res = await fetch("/api/attendance", {
@@ -153,6 +161,23 @@ export default function AttendancePage() {
                   ))}
                 </div>
               </div>
+
+              {/* 상태별 추가 정보 표시 */}
+              {rec.status === "PRESENT" && rec.earlyLeaveTime && (
+                <div className="mt-2 px-2 py-1 bg-orange-50 border border-orange-200 rounded-lg">
+                  <span className="text-xs text-orange-700">조기퇴소: {rec.earlyLeaveTime}</span>
+                </div>
+              )}
+
+              {rec.status === "PENDING" && rec.expectedConfirmAt && (
+                <div className="mt-2 px-2 py-1 bg-blue-50 border border-blue-200 rounded-lg">
+                  <span className="text-xs text-blue-700">
+                    확정 예정: {new Date(rec.expectedConfirmAt).toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" })}{" "}
+                    {new Date(rec.expectedConfirmAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                </div>
+              )}
+
               {rec.status === "ABSENT" && (
                 <input
                   placeholder="불참 사유"
@@ -169,7 +194,7 @@ export default function AttendancePage() {
       </div>
 
       {/* 저장 버튼 */}
-      <div className="sticky bottom-4 mt-4">
+      <div className="sticky bottom-20 lg:bottom-4 mt-4">
         <button
           onClick={handleSave}
           disabled={saving}
