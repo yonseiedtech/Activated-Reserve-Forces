@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { signIn } from "next-auth/react";
 import PageTitle from "@/components/ui/PageTitle";
 import { ROLE_LABELS, RANKS } from "@/lib/constants";
 
@@ -41,6 +42,8 @@ export default function AdminUsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [batches, setBatches] = useState<Batch[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [filter, setFilter] = useState("");
   const [form, setForm] = useState({
@@ -74,15 +77,45 @@ export default function AdminUsersPage() {
   const [csvLoading, setCsvLoading] = useState(false);
   const [csvResult, setCsvResult] = useState("");
 
-  const fetchUsers = () => fetch("/api/users").then((r) => r.json()).then(setUsers);
+  const safeFetch = async (url: string) => {
+    const res = await fetch(url);
+    if (!res.ok) {
+      if (res.status === 401) {
+        signIn();
+        throw new Error("인증이 만료되었습니다. 로그인 페이지로 이동합니다.");
+      }
+      throw new Error(`요청 실패 (${res.status})`);
+    }
+    return res.json();
+  };
+
+  const fetchAll = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const [usersData, batchesData, unitsData] = await Promise.all([
+        safeFetch("/api/users"),
+        safeFetch("/api/batches"),
+        safeFetch("/api/units"),
+      ]);
+      setUsers(usersData);
+      setBatches(batchesData);
+      setUnits(unitsData);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "데이터를 불러오는 데 실패했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    fetchUsers();
-    fetch("/api/batches").then((r) => r.json()).then(setBatches);
-    fetch("/api/units").then((r) => r.json()).then(setUnits);
+    fetchAll();
   }, []);
 
+  const [createError, setCreateError] = useState("");
+
   const handleCreate = async () => {
+    setCreateError("");
     const res = await fetch("/api/users", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -91,7 +124,10 @@ export default function AdminUsersPage() {
     if (res.ok) {
       setShowForm(false);
       setForm({ name: "", username: "", password: "", role: "RESERVIST", rank: "", serviceNumber: "", phone: "", unit: "", batchId: "" });
-      fetchUsers();
+      fetchAll();
+    } else {
+      const err = await res.json();
+      setCreateError(err.error || "사용자 추가에 실패했습니다.");
     }
   };
 
@@ -155,7 +191,7 @@ export default function AdminUsersPage() {
 
     if (res.ok) {
       setEditTarget(null);
-      fetchUsers();
+      fetchAll();
     } else {
       const err = await res.json();
       setEditError(err.error || "저장에 실패했습니다.");
@@ -210,7 +246,7 @@ export default function AdminUsersPage() {
     if (res.ok) {
       const data = await res.json();
       setCsvResult(`${data.created}명이 등록되었습니다.`);
-      fetchUsers();
+      fetchAll();
       setCsvData([]);
     } else {
       const err = await res.json();
@@ -298,57 +334,80 @@ export default function AdminUsersPage() {
         ))}
       </div>
 
-      <div className="bg-white rounded-xl border overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50">
-            <tr>
-              <th onClick={() => handleSort("name")} className="text-left px-4 py-3 font-medium cursor-pointer hover:bg-gray-100 select-none">이름<SortArrow col="name" /></th>
-              <th onClick={() => handleSort("username")} className="text-left px-4 py-3 font-medium cursor-pointer hover:bg-gray-100 select-none">아이디<SortArrow col="username" /></th>
-              <th onClick={() => handleSort("role")} className="text-left px-4 py-3 font-medium cursor-pointer hover:bg-gray-100 select-none">역할<SortArrow col="role" /></th>
-              <th onClick={() => handleSort("rank")} className="text-left px-4 py-3 font-medium cursor-pointer hover:bg-gray-100 select-none">계급<SortArrow col="rank" /></th>
-              <th onClick={() => handleSort("serviceNumber")} className="text-left px-4 py-3 font-medium cursor-pointer hover:bg-gray-100 select-none">군번<SortArrow col="serviceNumber" /></th>
-              <th onClick={() => handleSort("phone")} className="text-left px-4 py-3 font-medium cursor-pointer hover:bg-gray-100 select-none">연락처<SortArrow col="phone" /></th>
-              <th className="text-left px-4 py-3 font-medium">관리</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y">
-            {sorted.map((u) => (
-              <tr key={u.id} className="hover:bg-gray-50">
-                <td className="px-4 py-3 font-medium">{u.name}</td>
-                <td className="px-4 py-3 text-gray-500">{u.username}</td>
-                <td className="px-4 py-3">
-                  <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs">{ROLE_LABELS[u.role] || u.role}</span>
-                </td>
-                <td className="px-4 py-3">{u.rank || "-"}</td>
-                <td className="px-4 py-3">{u.serviceNumber || "-"}</td>
-                <td className="px-4 py-3">{u.phone || "-"}</td>
-                <td className="px-4 py-3">
-                  <div className="flex gap-1">
-                    <button
-                      onClick={() => handleEditOpen(u)}
-                      className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
-                    >
-                      편집
-                    </button>
-                    <button
-                      onClick={() => setResetTarget(u)}
-                      className="px-2 py-1 text-xs bg-orange-100 text-orange-700 rounded hover:bg-orange-200"
-                    >
-                      비밀번호
-                    </button>
-                  </div>
-                </td>
+      {loading ? (
+        <div className="bg-white rounded-xl border p-12 text-center text-gray-500">
+          데이터를 불러오는 중...
+        </div>
+      ) : error ? (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
+          <p className="text-red-700 mb-3">{error}</p>
+          <button
+            onClick={fetchAll}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700"
+          >
+            다시 시도
+          </button>
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl border overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                <th onClick={() => handleSort("name")} className="text-left px-4 py-3 font-medium cursor-pointer hover:bg-gray-100 select-none">이름<SortArrow col="name" /></th>
+                <th onClick={() => handleSort("username")} className="text-left px-4 py-3 font-medium cursor-pointer hover:bg-gray-100 select-none">아이디<SortArrow col="username" /></th>
+                <th onClick={() => handleSort("role")} className="text-left px-4 py-3 font-medium cursor-pointer hover:bg-gray-100 select-none">역할<SortArrow col="role" /></th>
+                <th onClick={() => handleSort("rank")} className="text-left px-4 py-3 font-medium cursor-pointer hover:bg-gray-100 select-none">계급<SortArrow col="rank" /></th>
+                <th onClick={() => handleSort("serviceNumber")} className="text-left px-4 py-3 font-medium cursor-pointer hover:bg-gray-100 select-none">군번<SortArrow col="serviceNumber" /></th>
+                <th onClick={() => handleSort("phone")} className="text-left px-4 py-3 font-medium cursor-pointer hover:bg-gray-100 select-none">연락처<SortArrow col="phone" /></th>
+                <th className="text-left px-4 py-3 font-medium">관리</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody className="divide-y">
+              {sorted.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-12 text-center text-gray-400">
+                    {searchQuery || filter ? "검색 결과가 없습니다." : "등록된 사용자가 없습니다."}
+                  </td>
+                </tr>
+              ) : sorted.map((u) => (
+                <tr key={u.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 font-medium">{u.name}</td>
+                  <td className="px-4 py-3 text-gray-500">{u.username}</td>
+                  <td className="px-4 py-3">
+                    <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs">{ROLE_LABELS[u.role] || u.role}</span>
+                  </td>
+                  <td className="px-4 py-3">{u.rank || "-"}</td>
+                  <td className="px-4 py-3">{u.serviceNumber || "-"}</td>
+                  <td className="px-4 py-3">{u.phone || "-"}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => handleEditOpen(u)}
+                        className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                      >
+                        편집
+                      </button>
+                      <button
+                        onClick={() => setResetTarget(u)}
+                        className="px-2 py-1 text-xs bg-orange-100 text-orange-700 rounded hover:bg-orange-200"
+                      >
+                        비밀번호
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* 사용자 추가 모달 */}
       {showForm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl w-full max-w-md p-6 space-y-3 max-h-[80vh] overflow-y-auto">
             <h3 className="text-lg font-semibold">사용자 추가</h3>
+            {createError && <p className="text-sm text-red-600">{createError}</p>}
             <input placeholder="이름" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
             <input placeholder="아이디" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
             <input placeholder="비밀번호" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
