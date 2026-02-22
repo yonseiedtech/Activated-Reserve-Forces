@@ -54,7 +54,7 @@ export default function ResetPasswordPage() {
         identifier,
         name,
         serviceNumber: userType === "admin" && verifyType === "serviceNumber" ? serviceNumber : undefined,
-        phone: verifyType === "phone" ? phone : undefined,
+        phone: userType === "reservist" || verifyType === "phone" ? phone : undefined,
         newPassword,
       }),
     });
