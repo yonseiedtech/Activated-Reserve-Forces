@@ -20,6 +20,13 @@ interface CompensationRow {
   finalRate: number;
 }
 
+interface CompensationByUserRow extends CompensationRow {
+  userId: string;
+  userName: string;
+  rank: string;
+  serviceNumber: string;
+}
+
 interface TransportRecord {
   id?: string;
   userId: string;
@@ -58,6 +65,7 @@ interface RefundProcess {
 interface PaymentData {
   process: PaymentProcess | null;
   compensations: CompensationRow[];
+  compensationsByUser?: CompensationByUserRow[];
   transport: TransportRecord | TransportRecord[] | null;
   batches: { id: string; name: string }[];
   batchId: string;
@@ -130,7 +138,9 @@ export default function PaymentDetailPage() {
     );
   }
 
-  const totalCompensation = data.compensations.reduce((sum, c) => sum + c.finalRate, 0);
+  const totalCompensation = data.compensationsByUser
+    ? data.compensationsByUser.reduce((sum, c) => sum + c.finalRate, 0)
+    : data.compensations.reduce((sum, c) => sum + c.finalRate, 0);
 
   let myTransport = 0;
   let myTransportAddress = "";
@@ -192,6 +202,7 @@ export default function PaymentDetailPage() {
 
           <CompensationSection
             compensations={data.compensations}
+            compensationsByUser={data.compensationsByUser}
             total={totalCompensation}
             isAdmin={isAdmin}
             batchId={batchId}
@@ -393,6 +404,7 @@ function PaymentProcessSection({
 // ═══════════════════════════════════════════════
 function CompensationSection({
   compensations,
+  compensationsByUser,
   total,
   isAdmin,
   batchId,
@@ -401,6 +413,7 @@ function CompensationSection({
   requiredHours,
 }: {
   compensations: CompensationRow[];
+  compensationsByUser?: CompensationByUserRow[];
   total: number;
   isAdmin: boolean;
   batchId: string;
@@ -441,10 +454,11 @@ function CompensationSection({
       </p>
 
       <div className="overflow-x-auto">
-        {isAdmin ? (
+        {isAdmin && compensationsByUser ? (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b text-left text-xs text-gray-500">
+                <th className="pb-2 pr-3 font-medium">대상자</th>
                 <th className="pb-2 pr-3 font-medium">유형</th>
                 <th className="pb-2 pr-3 font-medium">차수</th>
                 <th className="pb-2 pr-3 font-medium">날짜</th>
@@ -456,12 +470,13 @@ function CompensationSection({
               </tr>
             </thead>
             <tbody>
-              {compensations.map((c) => {
+              {compensationsByUser.map((c, i) => {
                 const d = new Date(c.date);
                 const dateStr = d.toLocaleDateString("ko-KR", { month: "numeric", day: "numeric", weekday: "short" });
                 const deduction = c.dailyRate - c.finalRate;
                 return (
-                  <tr key={c.trainingId} className="border-b border-gray-50">
+                  <tr key={`${c.trainingId}-${c.userId}-${i}`} className="border-b border-gray-50">
+                    <td className="py-2.5 pr-3 text-gray-800 whitespace-nowrap text-xs">{c.rank} {c.userName}</td>
                     <td className="py-2.5 pr-3">
                       <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold ${
                         c.isWeekend ? "bg-orange-100 text-orange-700" : "bg-blue-50 text-blue-700"
@@ -472,10 +487,10 @@ function CompensationSection({
                     <td className="py-2.5 pr-3 text-gray-600 text-xs whitespace-nowrap">{batchName}</td>
                     <td className="py-2.5 pr-3 text-gray-600 whitespace-nowrap">{dateStr}</td>
                     <td className="py-2.5 pr-3 text-right text-gray-600 whitespace-nowrap">
-                      {requiredHours != null ? `${requiredHours}h` : "-"}
+                      {requiredHours != null ? fmtHours(requiredHours) : "-"}
                     </td>
                     <td className="py-2.5 pr-3 text-right text-gray-600 whitespace-nowrap">{c.dailyRate.toLocaleString()}원</td>
-                    <td className="py-2.5 pr-3 text-right text-gray-600 whitespace-nowrap">{c.trainingHours}h</td>
+                    <td className="py-2.5 pr-3 text-right text-gray-600 whitespace-nowrap">{fmtHours(c.trainingHours)}</td>
                     <td className="py-2.5 pr-3 text-right whitespace-nowrap">
                       {deduction > 0 ? (
                         <span className="text-red-500">-{deduction.toLocaleString()}원</span>
@@ -496,7 +511,7 @@ function CompensationSection({
             </tbody>
             <tfoot>
               <tr className="border-t-2 border-gray-200">
-                <td colSpan={7} className="py-3 text-right font-semibold text-gray-700">보상비 합계</td>
+                <td colSpan={8} className="py-3 text-right font-semibold text-gray-700">보상비 합계</td>
                 <td className="py-3 text-right font-bold text-blue-700 text-base">
                   {total.toLocaleString()}원
                 </td>
@@ -560,7 +575,7 @@ function CompensationSection({
         )}
       </div>
 
-      {compensations.length === 0 && (
+      {((compensationsByUser ? compensationsByUser.length : compensations.length) === 0) && (
         <p className="text-center py-6 text-gray-400 text-sm">등록된 훈련이 없습니다.</p>
       )}
     </section>
@@ -1085,6 +1100,13 @@ function RefundSection({
 // ──────────────────────────────────────
 // 유틸
 // ──────────────────────────────────────
+function fmtHours(h: number): string {
+  const hours = Math.floor(h);
+  const minutes = Math.round((h - hours) * 60);
+  if (minutes === 0) return `${hours}시`;
+  return `${hours}시 ${minutes}분`;
+}
+
 function fmtDate(d: string) {
   return new Date(d).toLocaleDateString("ko-KR");
 }

@@ -53,7 +53,13 @@ export async function GET(req: NextRequest) {
   const trainings = await prisma.training.findMany({
     where: { batchId },
     orderBy: { date: "asc" },
-    include: { compensation: true },
+    include: {
+      compensation: true,
+      attendances: {
+        where: { status: "PRESENT" },
+        include: { user: { select: { id: true, name: true, rank: true, serviceNumber: true } } },
+      },
+    },
   });
 
   const compensations = trainings.map((t) => {
@@ -74,6 +80,32 @@ export async function GET(req: NextRequest) {
     };
   });
 
+  // 관리자용: 대상자별 보상비 행
+  const compensationsByUser = ["ADMIN", "MANAGER"].includes(session.user.role)
+    ? trainings.flatMap((t) => {
+        const calc = calcCompensation(t);
+        const baseRate = t.compensation?.dailyRate ?? calc.dailyRate;
+        const finalRate = t.compensation?.overrideRate ?? baseRate;
+        return t.attendances.map((att) => ({
+          trainingId: t.id,
+          title: t.title,
+          type: t.type,
+          date: t.date,
+          startTime: t.startTime,
+          endTime: t.endTime,
+          trainingHours: t.compensation?.trainingHours ?? calc.trainingHours,
+          isWeekend: t.compensation?.isWeekend ?? calc.isWeekend,
+          dailyRate: baseRate,
+          overrideRate: t.compensation?.overrideRate ?? null,
+          finalRate,
+          userId: att.user.id,
+          userName: att.user.name,
+          rank: att.user.rank,
+          serviceNumber: att.user.serviceNumber,
+        }));
+      })
+    : undefined;
+
   // 교통비 (RESERVIST: 본인만, ADMIN: 전체)
   let transport;
   if (session.user.role === "RESERVIST") {
@@ -88,5 +120,5 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  return json({ process, compensations, transport, batches, batchId, batchName: batch.name, requiredHours: batch.requiredHours });
+  return json({ process, compensations, compensationsByUser, transport, batches, batchId, batchName: batch.name, requiredHours: batch.requiredHours });
 }

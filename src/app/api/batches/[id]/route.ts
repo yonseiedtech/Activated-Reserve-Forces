@@ -19,13 +19,20 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   if (!session) return unauthorized();
 
   const { id } = await params;
+  const isReservist = session.user.role === "RESERVIST";
+
   const batch = await prisma.batch.findUnique({
     where: { id },
     include: {
       batchUsers: { select: { user: { select: { id: true, name: true, rank: true, serviceNumber: true, phone: true, unit: true } } } },
       trainings: {
         orderBy: { date: "asc" },
-        include: { instructor: { select: { id: true, name: true } } },
+        include: {
+          instructor: { select: { id: true, name: true } },
+          ...(isReservist
+            ? { attendances: { where: { userId: session.user.id } } }
+            : {}),
+        },
       },
       _count: { select: { batchUsers: true, trainings: true } },
     },

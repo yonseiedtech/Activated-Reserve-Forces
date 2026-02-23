@@ -37,6 +37,23 @@ model User {
   warPlatoon   String?  // 전시부대 소속3 (소대/지휘부)
   warPosition  String?  // 전시직책
   uniqueNumber String?  @unique  // 관리자 수동 할당 고유번호
+
+  // 사진
+  photoUrl          String?   // 승인된 사진 URL
+  pendingPhotoUrl   String?   // 승인 대기 사진 URL
+  photoRejectedAt   DateTime?
+  photoRejectReason String?
+
+  // 주소
+  zipCode           String?   // 우편번호
+  address           String?   // 기본 주소
+  addressDetail     String?   // 상세 주소
+
+  // 차량
+  vehicleType        String?  // 차량종류
+  vehiclePlateNumber String?  // 차량번호
+  vehicleColor       String?  // 차량 색상
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

@@ -13,7 +13,7 @@ export async function GET() {
       user: {
         select: {
           name: true, rank: true, serviceNumber: true,
-          unit: true, position: true, birthDate: true,
+          unit: true, position: true, birthDate: true, photoUrl: true,
           batchUsers: {
             select: { batch: { select: { name: true, startDate: true, endDate: true } } },
             orderBy: { createdAt: "desc" },

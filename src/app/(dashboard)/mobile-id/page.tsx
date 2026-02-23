@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
+import Image from "next/image";
 import PageTitle from "@/components/ui/PageTitle";
 
 interface IdCardData {
@@ -20,13 +21,14 @@ interface IdCardData {
     unit: string | null;
     position: string | null;
     birthDate: string | null;
+    photoUrl: string | null;
     batch: { name: string; startDate: string; endDate: string } | null;
   };
   approvedBy: { name: string } | null;
 }
 
 // ──────────────────────────────────────────────
-// 신분증 카드 뷰 컴포넌트 (재사용 가능)
+// 신분증 카드 뷰 컴포넌트
 // ──────────────────────────────────────────────
 function MobileIdCardView({ card }: { card: IdCardData }) {
   const now = new Date();
@@ -62,10 +64,20 @@ function MobileIdCardView({ card }: { card: IdCardData }) {
         {/* 카드 바디 */}
         <div className="bg-gradient-to-b from-white to-gray-50 px-5 py-5">
           <div className="flex gap-4 mb-5">
-            <div className="w-20 h-24 rounded-lg bg-gray-200 border-2 border-gray-300 flex items-center justify-center shrink-0">
-              <span className="text-2xl font-bold text-gray-500">
-                {card.user.name?.slice(-2)}
-              </span>
+            <div className="w-20 h-24 rounded-lg bg-gray-200 border-2 border-gray-300 flex items-center justify-center shrink-0 overflow-hidden">
+              {card.user.photoUrl ? (
+                <Image
+                  src={card.user.photoUrl}
+                  alt={card.user.name}
+                  width={80}
+                  height={96}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span className="text-2xl font-bold text-gray-500">
+                  {card.user.name?.slice(-2)}
+                </span>
+              )}
             </div>
             <div className="flex-1 pt-1">
               <div className="mb-1.5">
@@ -186,7 +198,7 @@ export default function MobileIdPage() {
     return (
       <div>
         <PageTitle title="모바일 신분증" description="신분증 발급 승인을 관리합니다." />
-        <AdminIdCardList />
+        <AdminView />
       </div>
     );
   }
@@ -260,6 +272,54 @@ export default function MobileIdPage() {
 }
 
 // ──────────────────────────────────────────────
+// 관리자 뷰 (탭: 신분증 관리 / 사진 승인)
+// ──────────────────────────────────────────────
+function AdminView() {
+  const [tab, setTab] = useState<"cards" | "photos">("cards");
+  const [photoPendingCount, setPhotoPendingCount] = useState(0);
+
+  useEffect(() => {
+    fetch("/api/profile/photo/manage")
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data)) setPhotoPendingCount(data.length);
+      })
+      .catch(() => {});
+  }, [tab]);
+
+  return (
+    <div>
+      {/* 탭 */}
+      <div className="flex gap-1 mb-4 bg-gray-100 rounded-lg p-1">
+        <button
+          onClick={() => setTab("cards")}
+          className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+            tab === "cards" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          신분증 관리
+        </button>
+        <button
+          onClick={() => setTab("photos")}
+          className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors relative ${
+            tab === "photos" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          사진 승인
+          {photoPendingCount > 0 && (
+            <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 text-[10px] font-bold bg-red-500 text-white rounded-full">
+              {photoPendingCount}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {tab === "cards" ? <AdminIdCardList /> : <AdminPhotoApproval />}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
 // 관리자 신분증 목록
 // ──────────────────────────────────────────────
 function AdminIdCardList() {
@@ -281,6 +341,7 @@ function AdminIdCardList() {
         unit: string | null;
         position: string | null;
         birthDate: string | null;
+        photoUrl: string | null;
         batch: { name: string } | null;
       };
       approvedBy: { name: string } | null;
@@ -327,7 +388,6 @@ function AdminIdCardList() {
   };
 
   const handlePreview = (c: (typeof cards)[0]) => {
-    // Convert admin card data to IdCardData format for preview
     setPreviewCard({
       id: c.id,
       uniqueNumber: c.uniqueNumber,
@@ -344,6 +404,7 @@ function AdminIdCardList() {
         unit: c.user.unit,
         position: c.user.position,
         birthDate: c.user.birthDate,
+        photoUrl: c.user.photoUrl,
         batch: c.user.batch ? { name: c.user.batch.name, startDate: "", endDate: "" } : null,
       },
       approvedBy: c.approvedBy,
@@ -501,5 +562,152 @@ function AdminIdCardList() {
         </div>
       )}
     </>
+  );
+}
+
+// ──────────────────────────────────────────────
+// 관리자 사진 승인 탭
+// ──────────────────────────────────────────────
+interface PendingPhotoUser {
+  id: string;
+  name: string;
+  rank: string | null;
+  serviceNumber: string | null;
+  unit: string | null;
+  photoUrl: string | null;
+  pendingPhotoUrl: string | null;
+}
+
+function AdminPhotoApproval() {
+  const [users, setUsers] = useState<PendingPhotoUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+
+  const fetchList = () => {
+    fetch("/api/profile/photo/manage")
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data)) setUsers(data);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchList();
+  }, []);
+
+  const handleAction = async (userId: string, action: "approve" | "reject") => {
+    const res = await fetch("/api/profile/photo/manage", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId,
+        action,
+        rejectReason: action === "reject" ? rejectReason : undefined,
+      }),
+    });
+    if (res.ok) {
+      setRejectingId(null);
+      setRejectReason("");
+      fetchList();
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+      </div>
+    );
+  }
+
+  if (users.length === 0) {
+    return (
+      <div className="text-center py-12 text-gray-400">
+        <p>승인 대기 중인 사진이 없습니다.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {users.map((u) => (
+        <div key={u.id} className="bg-white rounded-xl border p-4">
+          <div className="flex items-center gap-3 mb-3">
+            <p className="font-medium text-sm">
+              {u.rank} {u.name}
+              <span className="text-gray-400 text-xs ml-2">{u.serviceNumber}</span>
+            </p>
+            <span className="text-xs text-gray-400">{u.unit}</span>
+          </div>
+
+          {/* 사진 비교 */}
+          <div className="flex gap-4 mb-3">
+            <div className="flex-1 text-center">
+              <p className="text-xs text-gray-500 mb-2">현재 사진</p>
+              <div className="w-24 h-28 mx-auto rounded-lg bg-gray-100 border-2 border-gray-200 flex items-center justify-center overflow-hidden">
+                {u.photoUrl ? (
+                  <Image src={u.photoUrl} alt="현재" width={96} height={112} className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-gray-400 text-sm">없음</span>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center text-gray-300 text-2xl pt-5">→</div>
+            <div className="flex-1 text-center">
+              <p className="text-xs text-blue-600 mb-2 font-medium">신규 사진</p>
+              <div className="w-24 h-28 mx-auto rounded-lg bg-blue-50 border-2 border-blue-200 flex items-center justify-center overflow-hidden">
+                {u.pendingPhotoUrl ? (
+                  <Image src={u.pendingPhotoUrl} alt="신규" width={96} height={112} className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-gray-400 text-sm">-</span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* 액션 버튼 */}
+          {rejectingId === u.id ? (
+            <div className="flex gap-2">
+              <input
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="반려 사유 입력"
+                className="flex-1 px-3 py-1.5 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-red-500"
+              />
+              <button
+                onClick={() => handleAction(u.id, "reject")}
+                className="px-3 py-1.5 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 shrink-0"
+              >
+                반려 확인
+              </button>
+              <button
+                onClick={() => { setRejectingId(null); setRejectReason(""); }}
+                className="px-3 py-1.5 text-xs bg-gray-200 text-gray-600 rounded-lg hover:bg-gray-300 shrink-0"
+              >
+                취소
+              </button>
+            </div>
+          ) : (
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => handleAction(u.id, "approve")}
+                className="px-4 py-1.5 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700"
+              >
+                승인
+              </button>
+              <button
+                onClick={() => setRejectingId(u.id)}
+                className="px-4 py-1.5 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700"
+              >
+                반려
+              </button>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
   );
 }

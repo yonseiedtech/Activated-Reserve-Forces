@@ -18,7 +18,12 @@ export async function GET() {
   const session = await getSession();
   if (!session) return unauthorized();
 
+  const isReservist = session.user.role === "RESERVIST";
+
   const batches = await prisma.batch.findMany({
+    where: isReservist
+      ? { batchUsers: { some: { userId: session.user.id } } }
+      : undefined,
     orderBy: { startDate: "desc" },
     include: { _count: { select: { batchUsers: true, trainings: true } } },
   });
