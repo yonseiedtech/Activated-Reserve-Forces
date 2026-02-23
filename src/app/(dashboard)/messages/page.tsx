@@ -29,6 +29,7 @@ export default function MessagesPage() {
   const [showCompose, setShowCompose] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
   const [form, setForm] = useState({ receiverIds: [] as string[], title: "", content: "" });
+  const [receiverSearch, setReceiverSearch] = useState("");
 
   useEffect(() => {
     fetchMessages();
@@ -110,7 +111,17 @@ export default function MessagesPage() {
             </div>
           </button>
         ))}
-        {messages.length === 0 && <p className="text-center py-8 text-gray-400">쪽지가 없습니다.</p>}
+        {messages.length === 0 && (
+          <div className="text-center py-8">
+            <p className="text-gray-400 mb-3">쪽지가 없습니다.</p>
+            <button
+              onClick={() => setShowCompose(true)}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
+            >
+              쪽지 보내기
+            </button>
+          </div>
+        )}
       </div>
 
       {/* 상세 모달 */}
@@ -154,17 +165,38 @@ export default function MessagesPage() {
           <div className="bg-white rounded-xl w-full max-w-lg p-6 space-y-4">
             <h3 className="text-lg font-semibold">쪽지 보내기</h3>
             <div>
-              <label className="block text-sm font-medium mb-1">받는 사람 (복수 선택 가능)</label>
-              <select
-                multiple
-                value={form.receiverIds}
-                onChange={(e) => setForm({ ...form, receiverIds: Array.from(e.target.selectedOptions, (o) => o.value) })}
-                className="w-full px-3 py-2 border rounded-lg h-32"
-              >
-                {users.filter((u) => u.id !== session?.user?.id).map((u) => (
-                  <option key={u.id} value={u.id}>{u.rank ? `${u.rank} ` : ""}{u.name}</option>
-                ))}
-              </select>
+              <label className="block text-sm font-medium mb-1">
+                받는 사람 {form.receiverIds.length > 0 && <span className="text-blue-600 font-normal">({form.receiverIds.length}명 선택됨)</span>}
+              </label>
+              <input
+                type="text"
+                value={receiverSearch}
+                onChange={(e) => setReceiverSearch(e.target.value)}
+                placeholder="이름으로 검색..."
+                className="w-full px-3 py-2 border rounded-lg text-sm mb-2"
+              />
+              <div className="border rounded-lg max-h-40 overflow-y-auto divide-y">
+                {users
+                  .filter((u) => u.id !== session?.user?.id)
+                  .filter((u) => !receiverSearch || u.name.includes(receiverSearch) || (u.rank && u.rank.includes(receiverSearch)))
+                  .map((u) => (
+                    <label key={u.id} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm">
+                      <input
+                        type="checkbox"
+                        checked={form.receiverIds.includes(u.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setForm({ ...form, receiverIds: [...form.receiverIds, u.id] });
+                          } else {
+                            setForm({ ...form, receiverIds: form.receiverIds.filter((id) => id !== u.id) });
+                          }
+                        }}
+                        className="rounded"
+                      />
+                      <span>{u.rank ? `${u.rank} ` : ""}{u.name}</span>
+                    </label>
+                  ))}
+              </div>
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">제목</label>

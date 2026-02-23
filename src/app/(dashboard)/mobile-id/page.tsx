@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import Image from "next/image";
+import Link from "next/link";
 import PageTitle from "@/components/ui/PageTitle";
 
 interface IdCardData {
@@ -128,6 +129,17 @@ function MobileIdCardView({ card }: { card: IdCardData }) {
           </div>
         )}
       </div>
+
+      {!card.user.photoUrl && (
+        <Link
+          href="/profile"
+          className="mt-4 block bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-center hover:bg-yellow-100 transition-colors"
+        >
+          <p className="text-sm text-yellow-800 font-medium">
+            프로필에서 사진을 등록하면 신분증에 표시됩니다 &rarr;
+          </p>
+        </Link>
+      )}
 
       <div className="mt-4 text-center">
         <p className="text-xs text-gray-400">

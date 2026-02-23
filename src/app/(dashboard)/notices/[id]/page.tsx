@@ -39,6 +39,12 @@ export default async function NoticeDetailPage({ params }: { params: Promise<{ i
         actions={
           isAdmin ? (
             <div className="flex gap-2">
+              <Link
+                href={`/notices/${notice.id}/edit`}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
+              >
+                수정
+              </Link>
               <DeleteNoticeButton id={notice.id} />
             </div>
           ) : undefined

@@ -48,6 +48,12 @@ export default function NewTrainingPage() {
 
   return (
     <div className="max-w-2xl">
+      <button
+        onClick={() => router.back()}
+        className="mb-4 text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
+      >
+        &larr; 뒤로
+      </button>
       <PageTitle title="훈련 추가" />
       <form onSubmit={handleSubmit} className="bg-white rounded-xl border p-6 space-y-4">
         <div>

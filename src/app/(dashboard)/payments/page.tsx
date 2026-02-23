@@ -76,8 +76,8 @@ export default function PaymentsPage() {
     <div>
       <PageTitle title="훈련비 관리" description="전체 차수별 훈련비 현황을 확인합니다." />
 
-      {/* 리스트 테이블 */}
-      <div className="bg-white rounded-xl border overflow-x-auto">
+      {/* Desktop: 테이블 */}
+      <div className="hidden lg:block bg-white rounded-xl border overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50">
             <tr>
@@ -129,6 +129,56 @@ export default function PaymentsPage() {
         {data.rows.length === 0 && (
           <p className="text-center py-8 text-gray-400">등록된 차수가 없습니다.</p>
         )}
+      </div>
+
+      {/* Mobile: 카드 리스트 */}
+      <div className="lg:hidden space-y-3">
+        {data.rows.length === 0 && (
+          <p className="text-center py-8 text-gray-400">등록된 차수가 없습니다.</p>
+        )}
+        {data.rows.map((row) => (
+          <div
+            key={row.batchId}
+            onClick={() => router.push(`/payments/${row.batchId}`)}
+            className="bg-white rounded-xl border p-4 hover:shadow-sm cursor-pointer transition-shadow"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-medium text-sm">{row.batchName}</span>
+              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                row.status === "CMS_APPROVED"
+                  ? "bg-green-100 text-green-700"
+                  : "bg-blue-100 text-blue-700"
+              }`}>
+                {PAYMENT_STATUS_LABELS[row.status] || row.status}
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-xs text-gray-500">
+              <div>
+                <p className="text-gray-400">보상비</p>
+                <p className="font-medium text-gray-700">{row.compensationTotal.toLocaleString()}원</p>
+              </div>
+              <div>
+                <p className="text-gray-400">교통비</p>
+                <p className="font-medium text-gray-700">{row.transportTotal.toLocaleString()}원</p>
+              </div>
+              <div>
+                <p className="text-gray-400">총액</p>
+                <p className="font-semibold text-gray-900">{row.grandTotal.toLocaleString()}원</p>
+              </div>
+            </div>
+            {row.refundStatus && (
+              <div className="mt-2">
+                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                  row.refundStatus === "REFUND_COMPLETED"
+                    ? "bg-green-100 text-green-700"
+                    : "bg-orange-100 text-orange-700"
+                }`}>
+                  {REFUND_STATUS_LABELS[row.refundStatus] || row.refundStatus}
+                </span>
+              </div>
+            )}
+          </div>
+        ))}
       </div>
 
       {/* 하단 합계 */}

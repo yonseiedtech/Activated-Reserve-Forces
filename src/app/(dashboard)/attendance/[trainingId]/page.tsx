@@ -194,7 +194,7 @@ export default function AttendancePage() {
       </div>
 
       {/* 저장 버튼 */}
-      <div className="sticky bottom-20 lg:bottom-4 mt-4">
+      <div className="sticky bottom-20 lg:bottom-4 mt-4 z-30 bg-white/80 backdrop-blur-sm py-2 rounded-xl">
         <button
           onClick={handleSave}
           disabled={saving}
