@@ -11,6 +11,7 @@ export async function GET() {
     orderBy: { startDate: "desc" },
     include: {
       paymentProcesses: true,
+      refundProcess: true,
       trainings: {
         include: {
           compensation: true,
@@ -24,6 +25,7 @@ export async function GET() {
 
   const rows = batches.map((batch) => {
     const process = batch.paymentProcesses[0] || null;
+    const rp = batch.refundProcess;
     const totalUsers = batch.batchUsers.length;
 
     // 참석 현황: 전체 훈련 중 PRESENT 수
@@ -52,6 +54,8 @@ export async function GET() {
       compensationTotal,
       transportTotal,
       grandTotal: compensationTotal + transportTotal,
+      refundStatus: rp?.status || null,
+      refundTotal: (rp?.compensationRefund || 0) + (rp?.transportRefund || 0),
     };
   });
 

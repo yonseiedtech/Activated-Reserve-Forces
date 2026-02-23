@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { getSession, json, unauthorized, forbidden, badRequest } from "@/lib/api-utils";
 import { NextRequest } from "next/server";
 
-// GET: 차수별 환수 프로세스 조회 (없으면 자동 생성)
+// GET: 차수별 환수 프로세스 조회 (없으면 null 반환)
 export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session) return unauthorized();
@@ -12,16 +12,7 @@ export async function GET(req: NextRequest) {
   const batchId = searchParams.get("batchId");
   if (!batchId) return badRequest("batchId가 필요합니다.");
 
-  let refund = await prisma.refundProcess.findUnique({ where: { batchId } });
-
-  if (!refund) {
-    refund = await prisma.refundProcess.create({
-      data: {
-        batchId,
-        status: "REFUND_REQUESTED",
-      },
-    });
-  }
+  const refund = await prisma.refundProcess.findUnique({ where: { batchId } });
 
   return json(refund);
 }
@@ -36,6 +27,12 @@ export async function POST(req: NextRequest) {
   const { batchId, reason, compensationRefund, transportRefund } = body;
 
   if (!batchId) return badRequest("batchId가 필요합니다.");
+
+  // 입금 완료(CMS_APPROVED) 상태인지 확인
+  const paymentProcess = await prisma.paymentProcess.findFirst({ where: { batchId } });
+  if (!paymentProcess || paymentProcess.status !== "CMS_APPROVED") {
+    return badRequest("입금이 완료된 차수만 환수 요청이 가능합니다.");
+  }
 
   const existing = await prisma.refundProcess.findUnique({ where: { batchId } });
   if (existing) return badRequest("이미 환수 프로세스가 존재합니다.");

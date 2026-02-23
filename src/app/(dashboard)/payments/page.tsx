@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import PageTitle from "@/components/ui/PageTitle";
-import { PAYMENT_STATUS_LABELS } from "@/lib/constants";
+import { PAYMENT_STATUS_LABELS, REFUND_STATUS_LABELS } from "@/lib/constants";
 
 interface SummaryRow {
   batchId: string;
@@ -16,6 +16,8 @@ interface SummaryRow {
   compensationTotal: number;
   transportTotal: number;
   grandTotal: number;
+  refundStatus: string | null;
+  refundTotal: number;
 }
 
 interface SummaryData {
@@ -81,6 +83,7 @@ export default function PaymentsPage() {
             <tr>
               <th className="text-left px-4 py-3 font-medium">차수</th>
               <th className="text-left px-4 py-3 font-medium">입금 절차</th>
+              <th className="text-left px-4 py-3 font-medium">환수</th>
               <th className="text-right px-4 py-3 font-medium">보상비</th>
               <th className="text-right px-4 py-3 font-medium">교통비</th>
               <th className="text-right px-4 py-3 font-medium">총액</th>
@@ -102,6 +105,19 @@ export default function PaymentsPage() {
                   }`}>
                     {PAYMENT_STATUS_LABELS[row.status] || row.status}
                   </span>
+                </td>
+                <td className="px-4 py-3">
+                  {row.refundStatus ? (
+                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                      row.refundStatus === "REFUND_COMPLETED"
+                        ? "bg-green-100 text-green-700"
+                        : "bg-orange-100 text-orange-700"
+                    }`}>
+                      {REFUND_STATUS_LABELS[row.refundStatus] || row.refundStatus}
+                    </span>
+                  ) : (
+                    <span className="text-gray-300">-</span>
+                  )}
                 </td>
                 <td className="px-4 py-3 text-right">{row.compensationTotal.toLocaleString()}원</td>
                 <td className="px-4 py-3 text-right">{row.transportTotal.toLocaleString()}원</td>

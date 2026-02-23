@@ -90,6 +90,8 @@ export default function PaymentDetailPage() {
     setLoading(false);
   }, [batchId]);
 
+  const isPaymentCompleted = data?.process?.status === "CMS_APPROVED";
+
   const fetchRefund = useCallback(async () => {
     if (!isAdmin) return;
     setRefundLoading(true);
@@ -105,8 +107,20 @@ export default function PaymentDetailPage() {
 
   useEffect(() => {
     fetchData();
-    fetchRefund();
-  }, [fetchData, fetchRefund]);
+  }, [fetchData]);
+
+  useEffect(() => {
+    if (isPaymentCompleted) {
+      fetchRefund();
+    }
+  }, [isPaymentCompleted, fetchRefund]);
+
+  // 입금 미완료 시 refund 탭에서 자동 전환
+  useEffect(() => {
+    if (tab === "refund" && !isPaymentCompleted) {
+      setTab("payment");
+    }
+  }, [tab, isPaymentCompleted]);
 
   if (loading || !data) {
     return (
@@ -147,8 +161,8 @@ export default function PaymentDetailPage() {
         }
       />
 
-      {/* 탭 (관리자만 환수 탭 표시) */}
-      {isAdmin && (
+      {/* 탭 (관리자 + 입금완료 시에만 환수 탭 표시) */}
+      {isAdmin && isPaymentCompleted && (
         <div className="flex gap-1 mb-6 bg-gray-100 rounded-lg p-1 w-fit">
           <button
             onClick={() => setTab("payment")}
@@ -201,6 +215,7 @@ export default function PaymentDetailPage() {
             transportAmount={isReservist ? myTransport : totalTransports.reduce((s, r) => s + r.amount, 0)}
             isReservist={isReservist}
             personnelCount={isAdmin ? totalTransports.length : undefined}
+            refund={refund}
           />
         </div>
       )}
@@ -211,6 +226,7 @@ export default function PaymentDetailPage() {
           refund={refund}
           loading={refundLoading}
           onUpdate={fetchRefund}
+          batchId={batchId}
         />
       )}
     </div>
@@ -719,18 +735,22 @@ function SummarySection({
   transportAmount,
   isReservist,
   personnelCount,
+  refund,
 }: {
   totalCompensation: number;
   transportAmount: number;
   isReservist: boolean;
   personnelCount?: number;
+  refund?: RefundProcess | null;
 }) {
-  const grandTotal = totalCompensation + transportAmount;
+  const refundTotal = refund ? refund.compensationRefund + refund.transportRefund : 0;
+  const grandTotal = totalCompensation + transportAmount - refundTotal;
+  const hasRefund = refundTotal > 0;
 
   return (
     <section className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl p-5 text-white">
       <h2 className="font-semibold mb-3 text-blue-100">
-        {isReservist ? "내 예상 수령액" : "차수 합계"}
+        {isReservist ? "내 예상 수령액" : hasRefund ? "정산 합계" : "총 합계"}
       </h2>
       <div className="space-y-2">
         <div className="flex justify-between text-sm">
@@ -744,8 +764,24 @@ function SummarySection({
           </span>
           <span className="font-medium">{transportAmount.toLocaleString()}원</span>
         </div>
+        {hasRefund && refund && (
+          <>
+            {refund.compensationRefund > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-orange-300">보상비 환수</span>
+                <span className="font-medium text-orange-300">-{refund.compensationRefund.toLocaleString()}원</span>
+              </div>
+            )}
+            {refund.transportRefund > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-orange-300">교통비 환수</span>
+                <span className="font-medium text-orange-300">-{refund.transportRefund.toLocaleString()}원</span>
+              </div>
+            )}
+          </>
+        )}
         <div className="border-t border-blue-400 pt-2 flex justify-between">
-          <span className="font-semibold">{isReservist ? "총 예상 수령액" : "총 합계"}</span>
+          <span className="font-semibold">{isReservist ? "총 예상 수령액" : hasRefund ? "정산 합계" : "총 합계"}</span>
           <span className="text-xl font-bold">{grandTotal.toLocaleString()}원</span>
         </div>
       </div>
@@ -760,10 +796,12 @@ function RefundSection({
   refund,
   loading,
   onUpdate,
+  batchId,
 }: {
   refund: RefundProcess | null;
   loading: boolean;
   onUpdate: () => void;
+  batchId: string;
 }) {
   const [advancing, setAdvancing] = useState(false);
   const [reverting, setReverting] = useState(false);
@@ -773,6 +811,7 @@ function RefundSection({
   const [transRefund, setTransRefund] = useState(refund?.transportRefund || 0);
   const [note, setNote] = useState(refund?.note || "");
   const [saving, setSaving] = useState(false);
+  const [requesting, setRequesting] = useState(false);
 
   useEffect(() => {
     if (refund) {
@@ -791,7 +830,40 @@ function RefundSection({
     );
   }
 
-  if (!refund) return null;
+  if (!refund) {
+    const handleRequest = async () => {
+      setRequesting(true);
+      try {
+        const res = await fetch("/api/refunds", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ batchId }),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          alert(err.error || "환수 요청에 실패했습니다.");
+        } else {
+          onUpdate();
+        }
+      } catch {
+        alert("환수 요청에 실패했습니다.");
+      }
+      setRequesting(false);
+    };
+
+    return (
+      <div className="flex flex-col items-center justify-center py-12 space-y-4">
+        <p className="text-gray-500 text-sm">등록된 환수 내역이 없습니다.</p>
+        <button
+          onClick={handleRequest}
+          disabled={requesting}
+          className="px-6 py-2.5 bg-orange-600 text-white rounded-lg text-sm font-medium hover:bg-orange-700 disabled:opacity-50"
+        >
+          {requesting ? "요청 중..." : "환수 요청"}
+        </button>
+      </div>
+    );
+  }
 
   const currentIndex = REFUND_STATUS_ORDER.indexOf(refund.status as typeof REFUND_STATUS_ORDER[number]);
   const isLast = currentIndex >= REFUND_STATUS_ORDER.length - 1;
