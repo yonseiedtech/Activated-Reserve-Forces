@@ -12,7 +12,7 @@ export const navItems: NavItem[] = [
   { href: "/trainings", label: "훈련 과목", icon: "📅", roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.INSTRUCTOR, ROLES.RESERVIST] },
   { href: "/batches", label: "훈련차수", icon: "📋", roles: [ROLES.RESERVIST] },
   { href: "/admin/batches", label: "훈련차수", icon: "📋", roles: [ROLES.ADMIN, ROLES.MANAGER] },
-  { href: "/commuting", label: "참석 관리", icon: "✅", roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.INSTRUCTOR, ROLES.RESERVIST] },
+  { href: "/commuting", label: "출석 리포트", icon: "📈", roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.INSTRUCTOR, ROLES.RESERVIST] },
   { href: "/meals", label: "식사 관리", icon: "🍽️", roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.COOK] },
   { href: "/payments", label: "훈련비 관리", icon: "💰", roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.RESERVIST] },
   { href: "/notices", label: "공지사항", icon: "📢", roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.COOK, ROLES.INSTRUCTOR, ROLES.RESERVIST] },
