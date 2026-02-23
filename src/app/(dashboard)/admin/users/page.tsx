@@ -1,10 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { signIn } from "next-auth/react";
 import Script from "next/script";
 import PageTitle from "@/components/ui/PageTitle";
 import { ROLE_LABELS, RANKS } from "@/lib/constants";
+import { formatPhone, formatServiceNumber, formatBirthDate } from "@/lib/formatters";
+
+interface TransportCalcResult {
+  km: number;
+  hasToll: boolean;
+  tollFare: number;
+  total: number;
+  fuel: number;
+  toll: number;
+}
 
 interface User {
   id: string;
@@ -490,14 +500,14 @@ export default function AdminUsersPage() {
                   <option value="">계급 선택</option>
                   {RANKS.map((r) => <option key={r} value={r}>{r}</option>)}
                 </select>
-                <input placeholder="군번" value={form.serviceNumber} onChange={(e) => setForm({ ...form, serviceNumber: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+                <input placeholder="군번 (예: 1212345678)" value={form.serviceNumber} onChange={(e) => setForm({ ...form, serviceNumber: formatServiceNumber(e.target.value) })} className="w-full px-3 py-2 border rounded-lg" />
                 <select value={form.batchId} onChange={(e) => setForm({ ...form, batchId: e.target.value })} className="w-full px-3 py-2 border rounded-lg">
                   <option value="">차수 선택</option>
                   {batches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
                 </select>
               </>
             )}
-            <input placeholder="연락처" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+            <input placeholder="연락처 (예: 01012345678)" value={form.phone} onChange={(e) => setForm({ ...form, phone: formatPhone(e.target.value) })} className="w-full px-3 py-2 border rounded-lg" />
             <select value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} className="w-full px-3 py-2 border rounded-lg">
               <option value="">소속부대 선택</option>
               {units.map((u) => <option key={u.id} value={u.name}>{u.name}</option>)}
@@ -535,7 +545,7 @@ export default function AdminUsersPage() {
             </div>
             <div>
               <label className="text-sm font-medium">군번</label>
-              <input value={editForm.serviceNumber} onChange={(e) => setEditForm({ ...editForm, serviceNumber: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+              <input placeholder="예: 1212345678" value={editForm.serviceNumber} onChange={(e) => setEditForm({ ...editForm, serviceNumber: formatServiceNumber(e.target.value) })} className="w-full px-3 py-2 border rounded-lg" />
             </div>
             <div>
               <label className="text-sm font-medium">고유번호</label>
@@ -554,11 +564,14 @@ export default function AdminUsersPage() {
             </div>
             <div>
               <label className="text-sm font-medium">연락처</label>
-              <input value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+              <input placeholder="예: 01012345678" value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: formatPhone(e.target.value) })} className="w-full px-3 py-2 border rounded-lg" />
             </div>
             <div>
               <label className="text-sm font-medium">생년월일</label>
-              <input type="date" value={editForm.birthDate} onChange={(e) => setEditForm({ ...editForm, birthDate: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+              <input placeholder="예: 950315 또는 19950315" value={editForm.birthDate} onChange={(e) => setEditForm({ ...editForm, birthDate: formatBirthDate(e.target.value) })} className="w-full px-3 py-2 border rounded-lg" />
+              {editForm.birthDate && /^\d{4}-\d{2}-\d{2}$/.test(editForm.birthDate) && (
+                <p className="text-xs text-gray-400 mt-1">{new Date(editForm.birthDate).toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" })}</p>
+              )}
             </div>
 
             {/* 전시편성 */}
@@ -618,6 +631,11 @@ export default function AdminUsersPage() {
                 className="w-full px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
+
+            {/* 교통비 정보 */}
+            {editForm.address && editForm.unit && (
+              <EditTransportInfo address={editForm.address} unitName={editForm.unit} />
+            )}
 
             <div className="flex gap-3 pt-2">
               <button
@@ -719,6 +737,70 @@ export default function AdminUsersPage() {
             </div>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+// ── 편집 모달용 교통비 정보 컴포넌트 ──
+function EditTransportInfo({ address, unitName }: { address: string; unitName: string }) {
+  const [transport, setTransport] = useState<TransportCalcResult | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const fetchTransport = useCallback(async () => {
+    if (!address || !unitName) return;
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/transport-calc?address=${encodeURIComponent(address)}&unitName=${encodeURIComponent(unitName)}`);
+      const data = await res.json();
+      if (res.ok) {
+        setTransport(data);
+      } else {
+        setError(data.error || "교통비 계산 실패");
+        setTransport(null);
+      }
+    } catch {
+      setError("교통비 계산 오류");
+      setTransport(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [address, unitName]);
+
+  useEffect(() => {
+    fetchTransport();
+  }, [fetchTransport]);
+
+  return (
+    <div className="border-t pt-3 mt-3">
+      <p className="text-sm font-semibold text-gray-700 mb-2">교통비 정보</p>
+      {loading && (
+        <div className="flex items-center gap-2 text-xs text-gray-500">
+          <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600" />
+          계산 중...
+        </div>
+      )}
+      {error && <p className="text-xs text-orange-600">{error}</p>}
+      {transport && (
+        <div className="bg-gray-50 rounded-lg p-3 space-y-1">
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-500">이동거리</span>
+            <span className="font-medium">{transport.km} km</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-500">유료도로</span>
+            <span className="font-medium">{transport.hasToll ? "포함" : "미포함"}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-500">교통비</span>
+            <span className="font-bold text-blue-600">{transport.total.toLocaleString()}원</span>
+          </div>
+        </div>
+      )}
+      {!loading && !error && !transport && (
+        <p className="text-xs text-gray-400">부대 좌표 미등록</p>
       )}
     </div>
   );

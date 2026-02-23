@@ -14,6 +14,9 @@ model Unit {
   id          String   @id @default(cuid())
   name        String   @unique  // "00사단 00연대"
   description String?
+  latitude    Float?   // 위도
+  longitude   Float?   // 경도
+  address     String?  // 부대 주소
   createdAt   DateTime @default(now())
 }
 

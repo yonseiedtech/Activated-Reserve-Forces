@@ -18,6 +18,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     data: {
       name: body.name,
       description: body.description ?? existing.description,
+      latitude: body.latitude !== undefined ? (body.latitude ?? null) : existing.latitude,
+      longitude: body.longitude !== undefined ? (body.longitude ?? null) : existing.longitude,
+      address: body.address !== undefined ? (body.address || null) : existing.address,
     },
   });
 
