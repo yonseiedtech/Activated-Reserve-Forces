@@ -58,12 +58,16 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   // Per-training summary
   const byTraining = batch.trainings.map((training) => {
     const present = training.attendances.filter((a) => a.status === "PRESENT").length;
+    const absent = training.attendances.filter((a) => a.status === "ABSENT").length;
+    const pending = training.attendances.filter((a) => a.status === "PENDING").length;
     const total = training.attendances.length;
     return {
       trainingId: training.id,
       title: training.title,
       date: training.date,
       present,
+      absent,
+      pending,
       total,
       rate: total > 0 ? Math.round((present / total) * 100) : 0,
     };

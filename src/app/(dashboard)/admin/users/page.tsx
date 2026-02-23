@@ -69,6 +69,7 @@ export default function AdminUsersPage() {
   });
   const [editError, setEditError] = useState("");
   const [editLoading, setEditLoading] = useState(false);
+  const [editSuccess, setEditSuccess] = useState(false);
 
   // CSV 일괄 등록 모달 상태
   const [showCsvUpload, setShowCsvUpload] = useState(false);
@@ -159,6 +160,7 @@ export default function AdminUsersPage() {
   const handleEditOpen = (user: User) => {
     setEditTarget(user);
     setEditError("");
+    setEditSuccess(false);
     setEditForm({
       username: user.username,
       name: user.name,
@@ -180,6 +182,7 @@ export default function AdminUsersPage() {
     if (!editTarget) return;
     setEditLoading(true);
     setEditError("");
+    setEditSuccess(false);
 
     const res = await fetch(`/api/users/${editTarget.id}`, {
       method: "PUT",
@@ -190,12 +193,19 @@ export default function AdminUsersPage() {
     setEditLoading(false);
 
     if (res.ok) {
-      setEditTarget(null);
+      setEditSuccess(true);
+      // 목록 데이터를 백그라운드에서 갱신 (모달은 열린 상태 유지)
       fetchAll();
     } else {
       const err = await res.json();
       setEditError(err.error || "저장에 실패했습니다.");
     }
+  };
+
+  const handleEditClose = () => {
+    setEditTarget(null);
+    setEditSuccess(false);
+    setEditError("");
   };
 
   const handleCsvFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -349,7 +359,9 @@ export default function AdminUsersPage() {
           </button>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border overflow-x-auto">
+        <>
+        {/* Desktop: 테이블 */}
+        <div className="hidden lg:block bg-white rounded-xl border overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50">
               <tr>
@@ -400,6 +412,42 @@ export default function AdminUsersPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Mobile: 카드 리스트 */}
+        <div className="lg:hidden space-y-3">
+          {sorted.length === 0 ? (
+            <p className="text-center py-12 text-gray-400">
+              {searchQuery || filter ? "검색 결과가 없습니다." : "등록된 사용자가 없습니다."}
+            </p>
+          ) : sorted.map((u) => (
+            <div key={u.id} className="bg-white rounded-xl border p-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="font-medium text-sm">{u.name}</div>
+                <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs">{ROLE_LABELS[u.role] || u.role}</span>
+              </div>
+              <div className="text-xs text-gray-500 space-y-1 mb-3">
+                {u.rank && <p>계급: {u.rank}</p>}
+                {u.serviceNumber && <p>군번: {u.serviceNumber}</p>}
+                {u.phone && <p>연락처: {u.phone}</p>}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleEditOpen(u)}
+                  className="flex-1 px-3 py-1.5 text-xs bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 font-medium"
+                >
+                  편집
+                </button>
+                <button
+                  onClick={() => setResetTarget(u)}
+                  className="flex-1 px-3 py-1.5 text-xs bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 font-medium"
+                >
+                  비밀번호
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+        </>
       )}
 
       {/* 사용자 추가 모달 */}
@@ -447,6 +495,7 @@ export default function AdminUsersPage() {
             <h3 className="text-lg font-semibold">{editTarget.name} 편집</h3>
             <p className="text-sm text-gray-500">{ROLE_LABELS[editTarget.role] || editTarget.role}</p>
             {editError && <p className="text-sm text-red-600">{editError}</p>}
+            {editSuccess && <p className="text-sm text-green-600">저장이 완료되었습니다.</p>}
             <div>
               <label className="text-sm font-medium">아이디</label>
               <input value={editForm.username} onChange={(e) => setEditForm({ ...editForm, username: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
@@ -519,7 +568,7 @@ export default function AdminUsersPage() {
               >
                 {editLoading ? "저장 중..." : "저장"}
               </button>
-              <button onClick={() => setEditTarget(null)} className="flex-1 py-2 border rounded-lg text-gray-700 hover:bg-gray-50">취소</button>
+              <button onClick={handleEditClose} className="flex-1 py-2 border rounded-lg text-gray-700 hover:bg-gray-50">닫기</button>
             </div>
           </div>
         </div>

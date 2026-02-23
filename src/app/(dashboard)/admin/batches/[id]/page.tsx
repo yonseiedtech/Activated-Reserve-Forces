@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import PageTitle from "@/components/ui/PageTitle";
 import { BATCH_STATUS_LABELS, TRAINING_TYPES } from "@/lib/constants";
 
@@ -56,7 +56,7 @@ interface UnassignedUser {
 
 interface AttendanceSummary {
   byUser: { userId: string; name: string; rank: string | null; present: number; absent: number; pending: number; total: number; rate: number }[];
-  byTraining: { trainingId: string; title: string; date: string; present: number; total: number; rate: number }[];
+  byTraining: { trainingId: string; title: string; date: string; present: number; absent: number; pending: number; total: number; rate: number }[];
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -91,6 +91,7 @@ function getDateRange(startDate: string, endDate: string): string[] {
 
 export default function AdminBatchDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const batchId = params.id as string;
 
   const [batch, setBatch] = useState<Batch | null>(null);
@@ -553,100 +554,46 @@ export default function AdminBatchDetailPage() {
 
       {/* Attendance Summary Tab */}
       {tab === "attendance" && (
-        <div className="space-y-6">
+        <div className="space-y-3">
           {attendanceLoading ? (
             <div className="text-center py-8 text-gray-400">로딩 중...</div>
-          ) : attendanceSummary ? (
-            <>
-              {/* Per-person summary */}
-              <div className="bg-white rounded-xl border overflow-hidden">
-                <div className="px-4 py-3 bg-gray-50 border-b">
-                  <h3 className="font-semibold text-sm">인원별 출석률</h3>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-left text-gray-500 text-xs border-b">
-                        <th className="px-4 py-2 font-medium">이름</th>
-                        <th className="px-4 py-2 font-medium text-center">참석</th>
-                        <th className="px-4 py-2 font-medium text-center">불참</th>
-                        <th className="px-4 py-2 font-medium text-center">미정</th>
-                        <th className="px-4 py-2 font-medium text-center">출석률</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                      {attendanceSummary.byUser.map((u) => (
-                        <tr key={u.userId} className="hover:bg-gray-50">
-                          <td className="px-4 py-2.5">
-                            <span className="font-medium">{u.name}</span>
-                            {u.rank && <span className="ml-1 text-xs text-gray-500">{u.rank}</span>}
-                          </td>
-                          <td className="px-4 py-2.5 text-center text-green-600 font-medium">{u.present}</td>
-                          <td className="px-4 py-2.5 text-center text-red-600 font-medium">{u.absent}</td>
-                          <td className="px-4 py-2.5 text-center text-gray-500">{u.pending}</td>
-                          <td className="px-4 py-2.5 text-center">
-                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                              u.rate >= 80 ? "bg-green-100 text-green-700" :
-                              u.rate >= 50 ? "bg-yellow-100 text-yellow-700" :
-                              "bg-red-100 text-red-700"
-                            }`}>
-                              {u.rate}%
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                      {attendanceSummary.byUser.length === 0 && (
-                        <tr><td colSpan={5} className="px-4 py-6 text-center text-gray-400">출석 데이터가 없습니다.</td></tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Per-training summary */}
-              <div className="bg-white rounded-xl border overflow-hidden">
-                <div className="px-4 py-3 bg-gray-50 border-b">
-                  <h3 className="font-semibold text-sm">훈련별 참석률</h3>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-left text-gray-500 text-xs border-b">
-                        <th className="px-4 py-2 font-medium">훈련명</th>
-                        <th className="px-4 py-2 font-medium">날짜</th>
-                        <th className="px-4 py-2 font-medium text-center">참석</th>
-                        <th className="px-4 py-2 font-medium text-center">전체</th>
-                        <th className="px-4 py-2 font-medium text-center">참석률</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                      {attendanceSummary.byTraining.map((t) => (
-                        <tr key={t.trainingId} className="hover:bg-gray-50">
-                          <td className="px-4 py-2.5 font-medium">{t.title}</td>
-                          <td className="px-4 py-2.5 text-gray-500">{new Date(t.date).toLocaleDateString("ko-KR")}</td>
-                          <td className="px-4 py-2.5 text-center text-green-600 font-medium">{t.present}</td>
-                          <td className="px-4 py-2.5 text-center">{t.total}</td>
-                          <td className="px-4 py-2.5 text-center">
-                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                              t.rate >= 80 ? "bg-green-100 text-green-700" :
-                              t.rate >= 50 ? "bg-yellow-100 text-yellow-700" :
-                              "bg-red-100 text-red-700"
-                            }`}>
-                              {t.rate}%
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                      {attendanceSummary.byTraining.length === 0 && (
-                        <tr><td colSpan={5} className="px-4 py-6 text-center text-gray-400">훈련 데이터가 없습니다.</td></tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </>
           ) : (
-            <div className="text-center py-8 text-gray-400">출석 데이터를 불러올 수 없습니다.</div>
+            <>
+              {batch.trainings.length === 0 && (
+                <p className="text-center py-8 text-gray-400">등록된 훈련이 없습니다.</p>
+              )}
+              {batch.trainings.map((t) => {
+                const summary = attendanceSummary?.byTraining.find((s) => s.trainingId === t.id);
+                return (
+                  <div
+                    key={t.id}
+                    onClick={() => router.push(`/attendance/${t.id}`)}
+                    className="bg-white rounded-xl border p-4 hover:border-blue-300 hover:shadow-sm cursor-pointer transition-all"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="font-semibold text-sm">{t.title}</h3>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {new Date(t.date).toLocaleDateString("ko-KR")}
+                          {t.startTime && t.endTime ? ` ${t.startTime}~${t.endTime}` : ""}
+                          {t.location ? ` | ${t.location}` : ""}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <span className="px-2 py-0.5 bg-gray-100 rounded text-xs">{t.type}</span>
+                        {summary && (
+                          <div className="flex gap-2 mt-1 text-xs">
+                            <span className="text-green-600">참석 {summary.present}</span>
+                            <span className="text-red-600">불참 {summary.absent}</span>
+                            <span className="text-yellow-600">미정 {summary.pending}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </>
           )}
         </div>
       )}
