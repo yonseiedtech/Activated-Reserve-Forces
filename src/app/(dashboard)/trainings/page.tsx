@@ -60,7 +60,7 @@ export default async function TrainingsPage({
   // 날짜별 그룹핑
   const grouped: Record<string, typeof trainings> = {};
   for (const t of trainings) {
-    const dateKey = new Date(t.date).toISOString().split("T")[0];
+    const dateKey = t.date.toISOString().split("T")[0];
     if (!grouped[dateKey]) grouped[dateKey] = [];
     grouped[dateKey].push(t);
   }

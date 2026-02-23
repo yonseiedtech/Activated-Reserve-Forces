@@ -104,15 +104,28 @@ function computeDuration(startTime: string | null, endTime: string | null): stri
   return m > 0 ? `${h}시간 ${m}분` : `${h}시간`;
 }
 
+function getToday(): string {
+  const now = new Date();
+  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  return kst.toISOString().split("T")[0];
+}
+
 function getDateRange(startDate: string, endDate: string): string[] {
   const dates: string[] = [];
-  const current = new Date(startDate);
-  current.setHours(0, 0, 0, 0);
-  const end = new Date(endDate);
-  end.setHours(0, 0, 0, 0);
+  // UTC 기준 날짜 문자열만 추출하여 타임존 오프셋 문제 방지
+  const startStr = startDate.split("T")[0];
+  const endStr = endDate.split("T")[0];
+  // yyyy-MM-dd를 직접 파싱하여 UTC 정오로 생성 (타임존 밀림 방지)
+  const [sy, sm, sd] = startStr.split("-").map(Number);
+  const [ey, em, ed] = endStr.split("-").map(Number);
+  const current = new Date(Date.UTC(sy, sm - 1, sd, 12, 0, 0));
+  const end = new Date(Date.UTC(ey, em - 1, ed, 12, 0, 0));
   while (current <= end) {
-    dates.push(current.toISOString().split("T")[0]);
-    current.setDate(current.getDate() + 1);
+    const y = current.getUTCFullYear();
+    const m = String(current.getUTCMonth() + 1).padStart(2, "0");
+    const d = String(current.getUTCDate()).padStart(2, "0");
+    dates.push(`${y}-${m}-${d}`);
+    current.setUTCDate(current.getUTCDate() + 1);
   }
   return dates;
 }
@@ -198,7 +211,7 @@ export default function AdminBatchDetailPage() {
   // Training/Commuting: batch 로드 시 날짜 초기화
   useEffect(() => {
     if (!batch) return;
-    const today = new Date().toISOString().split("T")[0];
+    const today = getToday();
     const range = getDateRange(batch.startDate, batch.endDate);
     const defaultDate = range.includes(today) ? today : range[0] || today;
     if (!trainingDate) setTrainingDate(defaultDate);
@@ -207,7 +220,7 @@ export default function AdminBatchDetailPage() {
   // Commuting: batch 로드 시 날짜 초기화
   useEffect(() => {
     if (!batch || commutingDate) return;
-    const today = new Date().toISOString().split("T")[0];
+    const today = getToday();
     const range = getDateRange(batch.startDate, batch.endDate);
     setCommutingDate(range.includes(today) ? today : range[0] || today);
   }, [batch, commutingDate]);
@@ -224,7 +237,7 @@ export default function AdminBatchDetailPage() {
 
       // Fetch attendance for trainings on this date
       const dateTrainings = (batch.trainings || []).filter((t) => {
-        const tDate = new Date(t.date).toISOString().split("T")[0];
+        const tDate = t.date.split("T")[0];
         return tDate === commutingDate;
       });
 
@@ -422,7 +435,7 @@ export default function AdminBatchDetailPage() {
   const trainingsByDate: Record<string, Training[]> = {};
   for (const d of dateRange) trainingsByDate[d] = [];
   for (const t of batch.trainings) {
-    const dateKey = new Date(t.date).toISOString().split("T")[0];
+    const dateKey = t.date.split("T")[0];
     if (trainingsByDate[dateKey]) trainingsByDate[dateKey].push(t);
     else trainingsByDate[dateKey] = [t];
   }

@@ -79,8 +79,9 @@ export default function CommutingPage() {
   const [batches, setBatches] = useState<Batch[]>([]);
   const [selectedBatchId, setSelectedBatchId] = useState("");
   const [selectedDate, setSelectedDate] = useState(() => {
-    const d = new Date();
-    return d.toISOString().split("T")[0];
+    const now = new Date();
+    const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+    return kst.toISOString().split("T")[0];
   });
   const [batchUsers, setBatchUsers] = useState<BatchUser[]>([]);
   const [rows, setRows] = useState<RowData[]>([]);
@@ -144,7 +145,7 @@ export default function CommutingPage() {
 
       // Fetch attendance for trainings on this date
       const dateTrainings = (batchData.trainings || []).filter((t: Training) => {
-        const tDate = new Date(t.date).toISOString().split("T")[0];
+        const tDate = t.date.split("T")[0];
         return tDate === selectedDate;
       });
 
