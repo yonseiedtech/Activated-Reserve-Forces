@@ -47,6 +47,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       endDate: new Date(body.endDate),
       status: "PLANNED",
       location: body.location ?? sourceBatch.location,
+      requiredHours: body.requiredHours != null && body.requiredHours !== "" ? parseFloat(body.requiredHours) : sourceBatch.requiredHours,
       trainings: {
         create: sourceBatch.trainings.map((t) => ({
           title: t.title,

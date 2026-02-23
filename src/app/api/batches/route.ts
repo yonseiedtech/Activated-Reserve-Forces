@@ -50,6 +50,7 @@ export async function POST(req: NextRequest) {
       endDate: new Date(body.endDate),
       status: body.status || "PLANNED",
       location: body.location || null,
+      requiredHours: body.requiredHours != null && body.requiredHours !== "" ? parseFloat(body.requiredHours) : null,
     },
   });
 

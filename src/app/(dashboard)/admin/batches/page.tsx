@@ -14,6 +14,7 @@ interface Batch {
   endDate: string;
   status: string;
   location: string | null;
+  requiredHours: number | null;
   _count: { users: number; trainings: number };
 }
 
@@ -26,11 +27,11 @@ const STATUS_COLORS: Record<string, string> = {
 export default function AdminBatchesPage() {
   const [batches, setBatches] = useState<Batch[]>([]);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: "", year: 2026, number: 1, startDate: "", endDate: "", location: "" });
+  const [form, setForm] = useState({ name: "", year: 2026, number: 1, startDate: "", endDate: "", location: "", requiredHours: "" });
 
   // Duplicate state
   const [duplicateTarget, setDuplicateTarget] = useState<Batch | null>(null);
-  const [dupForm, setDupForm] = useState({ name: "", year: 2026, number: 1, startDate: "", endDate: "", location: "" });
+  const [dupForm, setDupForm] = useState({ name: "", year: 2026, number: 1, startDate: "", endDate: "", location: "", requiredHours: "" });
   const [dupLoading, setDupLoading] = useState(false);
 
   useEffect(() => {
@@ -62,7 +63,7 @@ export default function AdminBatchesPage() {
 
   const handleDuplicateOpen = (batch: Batch) => {
     setDuplicateTarget(batch);
-    setDupForm({ name: `${batch.name} (복제)`, year: batch.year, number: batch.number + 1, startDate: "", endDate: "", location: batch.location || "" });
+    setDupForm({ name: `${batch.name} (복제)`, year: batch.year, number: batch.number + 1, startDate: "", endDate: "", location: batch.location || "", requiredHours: batch.requiredHours != null ? String(batch.requiredHours) : "" });
   };
 
   const handleDuplicate = async () => {
@@ -99,8 +100,10 @@ export default function AdminBatchesPage() {
               <p className="text-sm text-gray-500">
                 {new Date(b.startDate).toLocaleDateString("ko-KR")} ~ {new Date(b.endDate).toLocaleDateString("ko-KR")} | {b._count.users}명 | {b._count.trainings}개 훈련
               </p>
-              {b.location && (
-                <p className="text-xs text-gray-400 mt-0.5">{b.location}</p>
+              {(b.location || b.requiredHours != null) && (
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {b.location}{b.location && b.requiredHours != null && " · "}{b.requiredHours != null && `부과시간 ${b.requiredHours}시간`}
+                </p>
               )}
             </Link>
             <div className="flex items-center gap-2">
@@ -134,6 +137,7 @@ export default function AdminBatchesPage() {
               </div>
             </div>
             <input placeholder="훈련 장소" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+            <input type="number" placeholder="훈련 부과 시간 (시간)" value={form.requiredHours} onChange={(e) => setForm({ ...form, requiredHours: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
             <div className="flex gap-3">
               <button onClick={handleCreate} className="flex-1 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700">생성</button>
               <button onClick={() => setShowForm(false)} className="flex-1 py-2 border rounded-lg text-gray-700 hover:bg-gray-50">취소</button>
@@ -166,6 +170,7 @@ export default function AdminBatchesPage() {
               </div>
             </div>
             <input placeholder="훈련 장소" value={dupForm.location} onChange={(e) => setDupForm({ ...dupForm, location: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+            <input type="number" placeholder="훈련 부과 시간 (시간)" value={dupForm.requiredHours} onChange={(e) => setDupForm({ ...dupForm, requiredHours: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
             <div className="flex gap-3">
               <button onClick={handleDuplicate} disabled={dupLoading} className="flex-1 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50">
                 {dupLoading ? "복제 중..." : "복제"}

@@ -77,7 +77,8 @@ model Batch {
   status    String   @default("PLANNED") // PLANNED, ACTIVE, COMPLETED
   createdAt DateTime @default(now())
 
-  location  String?  // 훈련 장소
+  location       String?  // 훈련 장소
+  requiredHours  Float?   // 훈련 부과 시간 (예: 40)
 
   batchUsers          BatchUser[]
   trainings           Training[]

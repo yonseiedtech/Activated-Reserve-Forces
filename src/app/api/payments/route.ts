@@ -88,5 +88,5 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  return json({ process, compensations, transport, batches, batchId });
+  return json({ process, compensations, transport, batches, batchId, batchName: batch.name, requiredHours: batch.requiredHours });
 }

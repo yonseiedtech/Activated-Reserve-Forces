@@ -61,6 +61,8 @@ interface PaymentData {
   transport: TransportRecord | TransportRecord[] | null;
   batches: { id: string; name: string }[];
   batchId: string;
+  batchName: string;
+  requiredHours: number | null;
 }
 
 export default function PaymentDetailPage() {
@@ -180,6 +182,8 @@ export default function PaymentDetailPage() {
             isAdmin={isAdmin}
             batchId={batchId}
             onSync={fetchData}
+            batchName={data.batchName || batchName}
+            requiredHours={data.requiredHours}
           />
 
           {isReservist ? (
@@ -377,12 +381,16 @@ function CompensationSection({
   isAdmin,
   batchId,
   onSync,
+  batchName,
+  requiredHours,
 }: {
   compensations: CompensationRow[];
   total: number;
   isAdmin: boolean;
   batchId: string;
   onSync: () => void;
+  batchName: string;
+  requiredHours: number | null;
 }) {
   const [syncing, setSyncing] = useState(false);
 
@@ -417,61 +425,123 @@ function CompensationSection({
       </p>
 
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b text-left text-xs text-gray-500">
-              <th className="pb-2 pr-3 font-medium">유형</th>
-              <th className="pb-2 pr-3 font-medium">날짜</th>
-              <th className="pb-2 pr-3 font-medium">훈련</th>
-              <th className="pb-2 pr-3 font-medium text-right">시간</th>
-              <th className="pb-2 font-medium text-right">보상비</th>
-            </tr>
-          </thead>
-          <tbody>
-            {compensations.map((c) => {
-              const d = new Date(c.date);
-              const dateStr = d.toLocaleDateString("ko-KR", { month: "numeric", day: "numeric", weekday: "short" });
-              return (
-                <tr key={c.trainingId} className="border-b border-gray-50">
-                  <td className="py-2.5 pr-3">
-                    <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold ${
-                      c.isWeekend
-                        ? "bg-orange-100 text-orange-700"
-                        : "bg-blue-50 text-blue-700"
-                    }`}>
-                      {c.isWeekend ? "주말" : "평일"}
-                    </span>
-                  </td>
-                  <td className="py-2.5 pr-3 text-gray-600 whitespace-nowrap">{dateStr}</td>
-                  <td className="py-2.5 pr-3">
-                    <span className="font-medium text-gray-900">{c.title}</span>
-                    {c.startTime && (
-                      <span className="text-xs text-gray-400 ml-1.5">{c.startTime}~{c.endTime}</span>
-                    )}
-                  </td>
-                  <td className="py-2.5 pr-3 text-right text-gray-600 whitespace-nowrap">{c.trainingHours}h</td>
-                  <td className="py-2.5 text-right font-medium whitespace-nowrap">
-                    {c.overrideRate !== null ? (
-                      <span className="text-orange-600" title="관리자 수동 설정">
-                        {c.overrideRate.toLocaleString()}원
+        {isAdmin ? (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b text-left text-xs text-gray-500">
+                <th className="pb-2 pr-3 font-medium">유형</th>
+                <th className="pb-2 pr-3 font-medium">차수</th>
+                <th className="pb-2 pr-3 font-medium">날짜</th>
+                <th className="pb-2 pr-3 font-medium text-right">부여시간</th>
+                <th className="pb-2 pr-3 font-medium text-right">지급기준액</th>
+                <th className="pb-2 pr-3 font-medium text-right">이수시간</th>
+                <th className="pb-2 pr-3 font-medium text-right">감액</th>
+                <th className="pb-2 font-medium text-right">산출액</th>
+              </tr>
+            </thead>
+            <tbody>
+              {compensations.map((c) => {
+                const d = new Date(c.date);
+                const dateStr = d.toLocaleDateString("ko-KR", { month: "numeric", day: "numeric", weekday: "short" });
+                const deduction = c.dailyRate - c.finalRate;
+                return (
+                  <tr key={c.trainingId} className="border-b border-gray-50">
+                    <td className="py-2.5 pr-3">
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                        c.isWeekend ? "bg-orange-100 text-orange-700" : "bg-blue-50 text-blue-700"
+                      }`}>
+                        {c.isWeekend ? "주말" : "평일"}
                       </span>
-                    ) : (
-                      <span>{c.finalRate.toLocaleString()}원</span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-          <tfoot>
-            <tr className="border-t-2 border-gray-200">
-              <td colSpan={4} className="py-3 text-right font-semibold text-gray-700">보상비 합계</td>
-              <td className="py-3 text-right font-bold text-blue-700 text-base">
-                {total.toLocaleString()}원
-              </td>
-            </tr>
-          </tfoot>
-        </table>
+                    </td>
+                    <td className="py-2.5 pr-3 text-gray-600 text-xs whitespace-nowrap">{batchName}</td>
+                    <td className="py-2.5 pr-3 text-gray-600 whitespace-nowrap">{dateStr}</td>
+                    <td className="py-2.5 pr-3 text-right text-gray-600 whitespace-nowrap">
+                      {requiredHours != null ? `${requiredHours}h` : "-"}
+                    </td>
+                    <td className="py-2.5 pr-3 text-right text-gray-600 whitespace-nowrap">{c.dailyRate.toLocaleString()}원</td>
+                    <td className="py-2.5 pr-3 text-right text-gray-600 whitespace-nowrap">{c.trainingHours}h</td>
+                    <td className="py-2.5 pr-3 text-right whitespace-nowrap">
+                      {deduction > 0 ? (
+                        <span className="text-red-500">-{deduction.toLocaleString()}원</span>
+                      ) : "-"}
+                    </td>
+                    <td className="py-2.5 text-right font-medium whitespace-nowrap">
+                      {c.overrideRate !== null ? (
+                        <span className="text-orange-600" title="관리자 수동 설정">
+                          {c.overrideRate.toLocaleString()}원
+                        </span>
+                      ) : (
+                        <span>{c.finalRate.toLocaleString()}원</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr className="border-t-2 border-gray-200">
+                <td colSpan={7} className="py-3 text-right font-semibold text-gray-700">보상비 합계</td>
+                <td className="py-3 text-right font-bold text-blue-700 text-base">
+                  {total.toLocaleString()}원
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b text-left text-xs text-gray-500">
+                <th className="pb-2 pr-3 font-medium">유형</th>
+                <th className="pb-2 pr-3 font-medium">날짜</th>
+                <th className="pb-2 pr-3 font-medium">훈련</th>
+                <th className="pb-2 pr-3 font-medium text-right">시간</th>
+                <th className="pb-2 font-medium text-right">보상비</th>
+              </tr>
+            </thead>
+            <tbody>
+              {compensations.map((c) => {
+                const d = new Date(c.date);
+                const dateStr = d.toLocaleDateString("ko-KR", { month: "numeric", day: "numeric", weekday: "short" });
+                return (
+                  <tr key={c.trainingId} className="border-b border-gray-50">
+                    <td className="py-2.5 pr-3">
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                        c.isWeekend ? "bg-orange-100 text-orange-700" : "bg-blue-50 text-blue-700"
+                      }`}>
+                        {c.isWeekend ? "주말" : "평일"}
+                      </span>
+                    </td>
+                    <td className="py-2.5 pr-3 text-gray-600 whitespace-nowrap">{dateStr}</td>
+                    <td className="py-2.5 pr-3">
+                      <span className="font-medium text-gray-900">{c.title}</span>
+                      {c.startTime && (
+                        <span className="text-xs text-gray-400 ml-1.5">{c.startTime}~{c.endTime}</span>
+                      )}
+                    </td>
+                    <td className="py-2.5 pr-3 text-right text-gray-600 whitespace-nowrap">{c.trainingHours}h</td>
+                    <td className="py-2.5 text-right font-medium whitespace-nowrap">
+                      {c.overrideRate !== null ? (
+                        <span className="text-orange-600" title="관리자 수동 설정">
+                          {c.overrideRate.toLocaleString()}원
+                        </span>
+                      ) : (
+                        <span>{c.finalRate.toLocaleString()}원</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr className="border-t-2 border-gray-200">
+                <td colSpan={4} className="py-3 text-right font-semibold text-gray-700">보상비 합계</td>
+                <td className="py-3 text-right font-bold text-blue-700 text-base">
+                  {total.toLocaleString()}원
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        )}
       </div>
 
       {compensations.length === 0 && (
