@@ -59,14 +59,6 @@ const STATUS_LABELS: Record<string, string> = {
   COMPLETED: "완료",
 };
 
-type Tab = "batch" | "daytype" | "person";
-
-const TABS: { key: Tab; label: string }[] = [
-  { key: "batch", label: "차수별 출석률" },
-  { key: "daytype", label: "평일/주말 출석률" },
-  { key: "person", label: "인원별 출석률" },
-];
-
 function RateBadge({ rate }: { rate: number }) {
   const color =
     rate >= 80 ? "bg-green-100 text-green-700" :
@@ -87,6 +79,10 @@ function RateBar({ rate, size = "md" }: { rate: number; size?: "sm" | "md" }) {
     </div>
   );
 }
+
+// ═══════════════════════════════════════════
+// 관리자/교관용 뷰
+// ═══════════════════════════════════════════
 
 function DayTypeRow({ label, stat, badge }: { label: string; stat: DayTypeStat | null; badge?: string }) {
   if (!stat) return (
@@ -195,26 +191,21 @@ function UserTable({ users, label, count }: { users: UserStat[]; label: string; 
   );
 }
 
-export default function AttendanceReportPage() {
-  const { data: session } = useSession();
-  const [reports, setReports] = useState<BatchReport[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<Tab>("batch");
+type AdminTab = "batch" | "daytype" | "person";
 
-  useEffect(() => {
-    fetch("/api/attendance-report")
-      .then((r) => r.json())
-      .then((data: BatchReport[]) => setReports(data))
-      .catch(() => setReports([]))
-      .finally(() => setLoading(false));
-  }, []);
+const ADMIN_TABS: { key: AdminTab; label: string }[] = [
+  { key: "batch", label: "차수별 출석률" },
+  { key: "daytype", label: "평일/주말 출석률" },
+  { key: "person", label: "인원별 출석률" },
+];
 
-  // 전체 종합 통계
+function AdminReportView({ reports }: { reports: BatchReport[] }) {
+  const [tab, setTab] = useState<AdminTab>("batch");
+
   const totalPresent = reports.reduce((s, r) => s + r.summary.present, 0);
   const totalAtt = reports.reduce((s, r) => s + r.summary.total, 0);
   const totalRate = totalAtt > 0 ? Math.round((totalPresent / totalAtt) * 100) : 0;
 
-  // 전체 종합 평일/주말
   const totalDayType = { weekday: { present: 0, absent: 0, pending: 0, total: 0, count: 0 }, weekend: { present: 0, absent: 0, pending: 0, total: 0, count: 0 } };
   for (const r of reports) {
     for (const dt of r.byDayType) {
@@ -237,7 +228,6 @@ export default function AttendanceReportPage() {
       : null,
   };
 
-  // 전체 종합 인원별 (동일 인원을 차수 간 합산)
   const userMap: Record<string, UserStat> = {};
   for (const r of reports) {
     for (const u of r.byUser) {
@@ -255,6 +245,261 @@ export default function AttendanceReportPage() {
     rate: u.total > 0 ? Math.round((u.present / u.total) * 100) : 0,
   }));
 
+  return (
+    <>
+      {/* 탭 네비게이션 */}
+      <div className="flex gap-1 mb-6 bg-gray-100 rounded-lg p-1 overflow-x-auto">
+        {ADMIN_TABS.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`flex-1 min-w-fit px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+              tab === t.key
+                ? "bg-white shadow text-blue-600"
+                : "text-gray-600 hover:text-gray-800"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* 탭 1: 차수별 출석률 */}
+      {tab === "batch" && (
+        <div className="space-y-6">
+          <div className="bg-white rounded-xl border p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold">전체 종합</h3>
+              <RateBadge rate={totalRate} />
+            </div>
+            <div className="grid grid-cols-3 gap-4 text-center mb-4">
+              <div>
+                <p className="text-xs text-gray-500">총 차수</p>
+                <p className="text-lg font-bold text-gray-800">{reports.length}개</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">총 훈련 과목</p>
+                <p className="text-lg font-bold text-gray-800">{reports.reduce((s, r) => s + r.totalTrainings, 0)}개</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">총 참석</p>
+                <p className="text-lg font-bold text-gray-800">
+                  <span className="text-green-600">{totalPresent}</span>
+                  <span className="text-gray-400 text-sm">/{totalAtt}</span>
+                </p>
+              </div>
+            </div>
+            <RateBar rate={totalRate} />
+          </div>
+
+          <div className="space-y-3">
+            {reports.map((r) => (
+              <div key={r.batchId} className="bg-white rounded-xl border p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-semibold text-sm">{r.batchName}</h4>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${STATUS_COLORS[r.status] || "bg-gray-100"}`}>
+                      {STATUS_LABELS[r.status] || r.status}
+                    </span>
+                  </div>
+                  <RateBadge rate={r.summary.rate} />
+                </div>
+                <div className="grid grid-cols-4 gap-3 text-center text-xs mb-3">
+                  <div>
+                    <p className="text-gray-500">대상 인원</p>
+                    <p className="font-bold text-gray-800">{r.totalUsers}명</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">훈련 과목</p>
+                    <p className="font-bold text-gray-800">{r.totalTrainings}개</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">참석</p>
+                    <p className="font-bold text-green-600">{r.summary.present}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">불참</p>
+                    <p className="font-bold text-red-600">{r.summary.absent}</p>
+                  </div>
+                </div>
+                <RateBar rate={r.summary.rate} />
+                <p className="text-[11px] text-gray-400 mt-2">
+                  {r.startDate.split("T")[0]} ~ {r.endDate.split("T")[0]}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 탭 2: 평일/주말 출석률 */}
+      {tab === "daytype" && (
+        <div className="space-y-8">
+          <div>
+            <h2 className="text-base font-bold mb-3">평일 출석률</h2>
+            <div className="space-y-3">
+              <DayTypeRow label="전체 종합" stat={totalDayTypeData.weekday} />
+              {reports.map((r) => (
+                <DayTypeRow
+                  key={r.batchId}
+                  label={r.batchName}
+                  stat={r.byDayType.find((d) => d.dayType === "weekday") || null}
+                  badge={STATUS_LABELS[r.status] || r.status}
+                />
+              ))}
+            </div>
+          </div>
+          <div>
+            <h2 className="text-base font-bold mb-3">주말 출석률</h2>
+            <div className="space-y-3">
+              <DayTypeRow label="전체 종합" stat={totalDayTypeData.weekend} />
+              {reports.map((r) => (
+                <DayTypeRow
+                  key={r.batchId}
+                  label={r.batchName}
+                  stat={r.byDayType.find((d) => d.dayType === "weekend") || null}
+                  badge={STATUS_LABELS[r.status] || r.status}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 탭 3: 인원별 출석률 */}
+      {tab === "person" && (
+        <div className="space-y-6">
+          <UserTable users={totalUsers} label="전체 종합" count={totalUsers.length} />
+          {reports.map((r) => (
+            <div key={r.batchId}>
+              <div className="flex items-center gap-2 mb-2">
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${STATUS_COLORS[r.status] || "bg-gray-100"}`}>
+                  {STATUS_LABELS[r.status] || r.status}
+                </span>
+              </div>
+              <UserTable users={r.byUser} label={r.batchName} count={r.byUser.length} />
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+// ═══════════════════════════════════════════
+// 예비역(훈련 대상자)용 뷰
+// ═══════════════════════════════════════════
+
+function ReservistReportView({ reports, userId }: { reports: BatchReport[]; userId: string }) {
+  return (
+    <div className="space-y-6">
+      {reports.map((r) => {
+        const myStat = r.byUser.find((u) => u.userId === userId);
+        if (!myStat) return null;
+
+        const totalTrainings = r.totalTrainings;
+
+        return (
+          <div key={r.batchId} className="space-y-4">
+            {/* 차수 헤더 */}
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-bold">{r.batchName}</h2>
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${STATUS_COLORS[r.status] || "bg-gray-100"}`}>
+                {STATUS_LABELS[r.status] || r.status}
+              </span>
+            </div>
+
+            {/* 내 출석 요약 카드 */}
+            <div className="bg-white rounded-xl border p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold">내 출석 현황</h3>
+                <RateBadge rate={myStat.rate} />
+              </div>
+
+              <RateBar rate={myStat.rate} />
+
+              <div className="grid grid-cols-4 gap-3 text-center mt-4">
+                <div>
+                  <p className="text-xs text-gray-500">총 훈련</p>
+                  <p className="text-lg font-bold text-gray-800">{totalTrainings}개</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">참석</p>
+                  <p className="text-lg font-bold text-green-600">{myStat.present}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">불참</p>
+                  <p className="text-lg font-bold text-red-600">{myStat.absent}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">미정</p>
+                  <p className="text-lg font-bold text-gray-500">{myStat.pending}</p>
+                </div>
+              </div>
+
+              {myStat.total < totalTrainings && (
+                <p className="text-xs text-gray-400 mt-3 text-center">
+                  {totalTrainings - myStat.total}개 훈련의 출석이 아직 기록되지 않았습니다.
+                </p>
+              )}
+            </div>
+
+            {/* 평일/주말별 내 출석 */}
+            {r.byDayType.length > 0 && (
+              <div className="grid grid-cols-2 gap-3">
+                {r.byDayType.map((dt) => {
+                  // 해당 dayType의 내 출석 데이터를 다시 계산할 수 없으므로
+                  // 전체 dayType 데이터를 참고로 표시
+                  return (
+                    <div key={dt.dayType} className="bg-white rounded-xl border p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-semibold text-sm">{dt.label} 훈련</h4>
+                      </div>
+                      <p className="text-xs text-gray-500">{dt.count}개 과목</p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* 기간 */}
+            <p className="text-[11px] text-gray-400 text-center">
+              훈련 기간: {r.startDate.split("T")[0]} ~ {r.endDate.split("T")[0]}
+            </p>
+          </div>
+        );
+      })}
+
+      {reports.length === 0 && (
+        <div className="text-center py-16 text-gray-400">배정된 차수가 없습니다.</div>
+      )}
+
+      {reports.length > 0 && reports.every((r) => !r.byUser.find((u) => u.userId === userId)) && (
+        <div className="text-center py-16 text-gray-400">출석 데이터가 없습니다.</div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════
+// 메인 페이지
+// ═══════════════════════════════════════════
+
+export default function AttendanceReportPage() {
+  const { data: session } = useSession();
+  const [reports, setReports] = useState<BatchReport[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const isReservist = session?.user?.role === "RESERVIST";
+
+  useEffect(() => {
+    fetch("/api/attendance-report")
+      .then((r) => r.json())
+      .then((data: BatchReport[]) => setReports(data))
+      .catch(() => setReports([]))
+      .finally(() => setLoading(false));
+  }, []);
+
   if (loading) {
     return (
       <div>
@@ -268,156 +513,17 @@ export default function AttendanceReportPage() {
 
   return (
     <div>
-      <PageTitle title="출석 리포트" description="출석 현황을 확인합니다." />
+      <PageTitle
+        title="출석 리포트"
+        description={isReservist ? "나의 출석 현황을 확인합니다." : "전체 출석 현황을 확인합니다."}
+      />
 
       {reports.length === 0 ? (
         <div className="text-center py-16 text-gray-400">배정된 차수가 없습니다.</div>
+      ) : isReservist && session?.user?.id ? (
+        <ReservistReportView reports={reports} userId={session.user.id} />
       ) : (
-        <>
-          {/* 탭 네비게이션 */}
-          <div className="flex gap-1 mb-6 bg-gray-100 rounded-lg p-1 overflow-x-auto">
-            {TABS.map((t) => (
-              <button
-                key={t.key}
-                onClick={() => setTab(t.key)}
-                className={`flex-1 min-w-fit px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
-                  tab === t.key
-                    ? "bg-white shadow text-blue-600"
-                    : "text-gray-600 hover:text-gray-800"
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-
-          {/* ─── 탭 1: 차수별 출석률 ─── */}
-          {tab === "batch" && (
-            <div className="space-y-6">
-              {/* 전체 종합 */}
-              <div className="bg-white rounded-xl border p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-semibold">전체 종합</h3>
-                  <RateBadge rate={totalRate} />
-                </div>
-                <div className="grid grid-cols-3 gap-4 text-center mb-4">
-                  <div>
-                    <p className="text-xs text-gray-500">총 차수</p>
-                    <p className="text-lg font-bold text-gray-800">{reports.length}개</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500">총 훈련 과목</p>
-                    <p className="text-lg font-bold text-gray-800">{reports.reduce((s, r) => s + r.totalTrainings, 0)}개</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500">총 참석</p>
-                    <p className="text-lg font-bold text-gray-800">
-                      <span className="text-green-600">{totalPresent}</span>
-                      <span className="text-gray-400 text-sm">/{totalAtt}</span>
-                    </p>
-                  </div>
-                </div>
-                <RateBar rate={totalRate} />
-              </div>
-
-              {/* 개별 차수 카드 */}
-              <div className="space-y-3">
-                {reports.map((r) => (
-                  <div key={r.batchId} className="bg-white rounded-xl border p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-semibold text-sm">{r.batchName}</h4>
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${STATUS_COLORS[r.status] || "bg-gray-100"}`}>
-                          {STATUS_LABELS[r.status] || r.status}
-                        </span>
-                      </div>
-                      <RateBadge rate={r.summary.rate} />
-                    </div>
-                    <div className="grid grid-cols-4 gap-3 text-center text-xs mb-3">
-                      <div>
-                        <p className="text-gray-500">대상 인원</p>
-                        <p className="font-bold text-gray-800">{r.totalUsers}명</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500">훈련 과목</p>
-                        <p className="font-bold text-gray-800">{r.totalTrainings}개</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500">참석</p>
-                        <p className="font-bold text-green-600">{r.summary.present}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500">불참</p>
-                        <p className="font-bold text-red-600">{r.summary.absent}</p>
-                      </div>
-                    </div>
-                    <RateBar rate={r.summary.rate} />
-                    <p className="text-[11px] text-gray-400 mt-2">
-                      {r.startDate.split("T")[0]} ~ {r.endDate.split("T")[0]}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* ─── 탭 2: 평일/주말 출석률 ─── */}
-          {tab === "daytype" && (
-            <div className="space-y-8">
-              {/* 평일 출석률 */}
-              <div>
-                <h2 className="text-base font-bold mb-3">평일 출석률</h2>
-                <div className="space-y-3">
-                  <DayTypeRow label="전체 종합" stat={totalDayTypeData.weekday} />
-                  {reports.map((r) => (
-                    <DayTypeRow
-                      key={r.batchId}
-                      label={r.batchName}
-                      stat={r.byDayType.find((d) => d.dayType === "weekday") || null}
-                      badge={STATUS_LABELS[r.status] || r.status}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              {/* 주말 출석률 */}
-              <div>
-                <h2 className="text-base font-bold mb-3">주말 출석률</h2>
-                <div className="space-y-3">
-                  <DayTypeRow label="전체 종합" stat={totalDayTypeData.weekend} />
-                  {reports.map((r) => (
-                    <DayTypeRow
-                      key={r.batchId}
-                      label={r.batchName}
-                      stat={r.byDayType.find((d) => d.dayType === "weekend") || null}
-                      badge={STATUS_LABELS[r.status] || r.status}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ─── 탭 3: 인원별 출석률 ─── */}
-          {tab === "person" && (
-            <div className="space-y-6">
-              {/* 전체 종합 */}
-              <UserTable users={totalUsers} label="전체 종합" count={totalUsers.length} />
-
-              {/* 개별 차수별 */}
-              {reports.map((r) => (
-                <div key={r.batchId}>
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${STATUS_COLORS[r.status] || "bg-gray-100"}`}>
-                      {STATUS_LABELS[r.status] || r.status}
-                    </span>
-                  </div>
-                  <UserTable users={r.byUser} label={r.batchName} count={r.byUser.length} />
-                </div>
-              ))}
-            </div>
-          )}
-        </>
+        <AdminReportView reports={reports} />
       )}
     </div>
   );
