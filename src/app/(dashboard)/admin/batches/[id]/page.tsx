@@ -151,7 +151,7 @@ export default function AdminBatchDetailPage() {
   const [attendanceLoading, setAttendanceLoading] = useState(false);
 
   // Commuting state
-  const [commutingDate, setCommutingDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [commutingDate, setCommutingDate] = useState("");
   const [commutingRows, setCommutingRows] = useState<CommutingRowData[]>([]);
   const [commutingLoading, setCommutingLoading] = useState(false);
   const [commutingSaving, setCommutingSaving] = useState(false);
@@ -194,9 +194,17 @@ export default function AdminBatchDetailPage() {
     if (tab === "attendance") fetchAttendanceSummary();
   }, [tab, fetchAttendanceSummary]);
 
+  // Commuting: 탭 진입 시 오늘 또는 차수 첫 날로 초기화
+  useEffect(() => {
+    if (tab !== "commuting" || !batch || commutingDate) return;
+    const today = new Date().toISOString().split("T")[0];
+    const range = getDateRange(batch.startDate, batch.endDate);
+    setCommutingDate(range.includes(today) ? today : range[0] || today);
+  }, [tab, batch, commutingDate]);
+
   // Commuting tab data fetch
   useEffect(() => {
-    if (tab !== "commuting" || !batch) return;
+    if (tab !== "commuting" || !batch || !commutingDate) return;
 
     const fetchCommuting = async () => {
       setCommutingLoading(true);
@@ -737,13 +745,26 @@ export default function AdminBatchDetailPage() {
       {/* Commuting Tab */}
       {tab === "commuting" && (
         <div>
-          <div className="mb-4">
-            <input
-              type="date"
-              value={commutingDate}
-              onChange={(e) => setCommutingDate(e.target.value)}
-              className="px-3 py-2 border rounded-lg text-sm"
-            />
+          {/* 차수 날짜 선택 */}
+          <div className="flex gap-1.5 mb-4 flex-wrap">
+            {dateRange.map((d) => {
+              const dt = new Date(d);
+              const label = dt.toLocaleDateString("ko-KR", { month: "numeric", day: "numeric", weekday: "short" });
+              const isSelected = commutingDate === d;
+              return (
+                <button
+                  key={d}
+                  onClick={() => setCommutingDate(d)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    isSelected
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
           </div>
 
           {commutingLoading ? (
