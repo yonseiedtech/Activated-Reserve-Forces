@@ -61,6 +61,32 @@ interface AttendanceSummary {
   byTraining: { trainingId: string; title: string; date: string; present: number; absent: number; pending: number; total: number; rate: number }[];
 }
 
+interface CommutingRecord {
+  id: string;
+  userId: string;
+  date: string;
+  checkInAt: string | null;
+  checkOutAt: string | null;
+  isManual: boolean;
+  note: string | null;
+}
+
+interface AttendanceRecord {
+  userId: string;
+  status: string;
+}
+
+interface CommutingRowData {
+  userId: string;
+  name: string;
+  rank: string | null;
+  serviceNumber: string | null;
+  checkIn: string;
+  checkOut: string;
+  note: string;
+  attendanceStatus: string;
+}
+
 const STATUS_COLORS: Record<string, string> = {
   PLANNED: "bg-yellow-100 text-yellow-700",
   ACTIVE: "bg-green-100 text-green-700",
@@ -97,7 +123,7 @@ export default function AdminBatchDetailPage() {
   const batchId = params.id as string;
 
   const [batch, setBatch] = useState<Batch | null>(null);
-  const [tab, setTab] = useState<"training" | "trainees" | "attendance">("training");
+  const [tab, setTab] = useState<"training" | "trainees" | "attendance" | "commuting">("training");
   const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [showTrainingForm, setShowTrainingForm] = useState(false);
   const [trainingFormDate, setTrainingFormDate] = useState("");
@@ -123,6 +149,12 @@ export default function AdminBatchDetailPage() {
   // Attendance summary state
   const [attendanceSummary, setAttendanceSummary] = useState<AttendanceSummary | null>(null);
   const [attendanceLoading, setAttendanceLoading] = useState(false);
+
+  // Commuting state
+  const [commutingDate, setCommutingDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [commutingRows, setCommutingRows] = useState<CommutingRowData[]>([]);
+  const [commutingLoading, setCommutingLoading] = useState(false);
+  const [commutingSaving, setCommutingSaving] = useState(false);
 
   const fetchBatch = useCallback(() => {
     fetch(`/api/batches/${batchId}`).then((r) => r.json()).then(setBatch);
@@ -161,6 +193,91 @@ export default function AdminBatchDetailPage() {
   useEffect(() => {
     if (tab === "attendance") fetchAttendanceSummary();
   }, [tab, fetchAttendanceSummary]);
+
+  // Commuting tab data fetch
+  useEffect(() => {
+    if (tab !== "commuting" || !batch) return;
+
+    const fetchCommuting = async () => {
+      setCommutingLoading(true);
+
+      const recRes = await fetch(`/api/commuting?batchId=${batchId}&date=${commutingDate}`);
+      const existingRecords: CommutingRecord[] = await recRes.json();
+
+      // Fetch attendance for trainings on this date
+      const dateTrainings = (batch.trainings || []).filter((t) => {
+        const tDate = new Date(t.date).toISOString().split("T")[0];
+        return tDate === commutingDate;
+      });
+
+      let attendanceMap: Record<string, string> = {};
+      if (dateTrainings.length > 0) {
+        try {
+          const attRes = await fetch(`/api/attendance/${dateTrainings[0].id}`);
+          const attData: AttendanceRecord[] = await attRes.json();
+          if (Array.isArray(attData)) {
+            for (const a of attData) {
+              attendanceMap[a.userId] = a.status;
+            }
+          }
+        } catch { /* ignore */ }
+      }
+
+      const rows: CommutingRowData[] = (batch.users || []).map((u) => {
+        const existing = existingRecords.find((r) => r.userId === u.id);
+        return {
+          userId: u.id,
+          name: u.name,
+          rank: u.rank,
+          serviceNumber: u.serviceNumber,
+          checkIn: existing?.checkInAt
+            ? new Date(existing.checkInAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false })
+            : "",
+          checkOut: existing?.checkOutAt
+            ? new Date(existing.checkOutAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false })
+            : "",
+          note: existing?.note || "",
+          attendanceStatus: attendanceMap[u.id] || "",
+        };
+      });
+      setCommutingRows(rows);
+      setCommutingLoading(false);
+    };
+
+    fetchCommuting();
+  }, [tab, batchId, commutingDate, batch]);
+
+  const updateCommutingRow = (idx: number, field: keyof CommutingRowData, value: string) => {
+    setCommutingRows((prev) => prev.map((r, i) => i === idx ? { ...r, [field]: value } : r));
+  };
+
+  const handleCommutingSave = async () => {
+    setCommutingSaving(true);
+    const promises = commutingRows
+      .filter((row) => row.attendanceStatus !== "ABSENT")
+      .map((row) => {
+        const checkInAt = row.checkIn ? `${commutingDate}T${row.checkIn}:00` : "";
+        const checkOutAt = row.checkOut ? `${commutingDate}T${row.checkOut}:00` : "";
+
+        return fetch("/api/commuting", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            isManual: true,
+            userId: row.userId,
+            date: commutingDate,
+            checkInAt: checkInAt || undefined,
+            checkOutAt: checkOutAt || undefined,
+            note: row.note || undefined,
+            batchId,
+          }),
+        });
+      });
+
+    await Promise.all(promises);
+    setCommutingSaving(false);
+    alert("저장 완료되었습니다.");
+  };
 
   const handleAddTraining = (date: string) => {
     setTrainingFormDate(date);
@@ -352,6 +469,12 @@ export default function AdminBatchDetailPage() {
           className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === "attendance" ? "bg-white shadow text-blue-600" : "text-gray-600 hover:text-gray-900"}`}
         >
           출석현황
+        </button>
+        <button
+          onClick={() => setTab("commuting")}
+          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === "commuting" ? "bg-white shadow text-blue-600" : "text-gray-600 hover:text-gray-900"}`}
+        >
+          출퇴근
         </button>
       </div>
 
@@ -606,6 +729,179 @@ export default function AdminBatchDetailPage() {
                   </div>
                 );
               })}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Commuting Tab */}
+      {tab === "commuting" && (
+        <div>
+          <div className="mb-4">
+            <input
+              type="date"
+              value={commutingDate}
+              onChange={(e) => setCommutingDate(e.target.value)}
+              className="px-3 py-2 border rounded-lg text-sm"
+            />
+          </div>
+
+          {commutingLoading ? (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+            </div>
+          ) : (
+            <>
+              {/* Desktop: 테이블 */}
+              <div className="hidden lg:block bg-white rounded-xl border overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="text-left px-4 py-3 font-medium">대상자</th>
+                      <th className="text-left px-4 py-3 font-medium w-20">참석</th>
+                      <th className="text-left px-4 py-3 font-medium w-36">출근시간</th>
+                      <th className="text-left px-4 py-3 font-medium w-36">퇴근시간</th>
+                      <th className="text-left px-4 py-3 font-medium">비고</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {commutingRows.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="text-center py-8 text-gray-400">배정된 대상자가 없습니다.</td>
+                      </tr>
+                    )}
+                    {commutingRows.map((row, idx) => {
+                      const isAbsent = row.attendanceStatus === "ABSENT";
+                      const isPending = row.attendanceStatus === "PENDING";
+                      return (
+                        <tr
+                          key={row.userId}
+                          className={`${isAbsent ? "bg-red-50 opacity-60" : isPending ? "bg-yellow-50" : "hover:bg-gray-50"}`}
+                        >
+                          <td className="px-4 py-2">
+                            <span className="text-gray-500">{row.rank}</span> {row.name}
+                            <span className="text-xs text-gray-400 ml-2">{row.serviceNumber}</span>
+                          </td>
+                          <td className="px-4 py-2">
+                            {row.attendanceStatus ? (
+                              <span className={`text-xs font-medium ${
+                                row.attendanceStatus === "PRESENT" ? "text-green-600" :
+                                row.attendanceStatus === "ABSENT" ? "text-red-600" :
+                                "text-yellow-600"
+                              }`}>
+                                {row.attendanceStatus === "PRESENT" ? "참석" : row.attendanceStatus === "ABSENT" ? "불참" : "미정"}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-gray-300">-</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-2">
+                            <input
+                              type="time"
+                              value={row.checkIn}
+                              onChange={(e) => updateCommutingRow(idx, "checkIn", e.target.value)}
+                              disabled={isAbsent}
+                              className="w-full px-2 py-1 border rounded text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
+                            />
+                          </td>
+                          <td className="px-4 py-2">
+                            <input
+                              type="time"
+                              value={row.checkOut}
+                              onChange={(e) => updateCommutingRow(idx, "checkOut", e.target.value)}
+                              disabled={isAbsent}
+                              className="w-full px-2 py-1 border rounded text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
+                            />
+                          </td>
+                          <td className="px-4 py-2">
+                            <input
+                              value={row.note}
+                              onChange={(e) => updateCommutingRow(idx, "note", e.target.value)}
+                              placeholder="비고"
+                              disabled={isAbsent}
+                              className="w-full px-2 py-1 border rounded text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile: 카드 리스트 */}
+              <div className="lg:hidden space-y-3">
+                {commutingRows.length === 0 && (
+                  <p className="text-center py-8 text-gray-400">배정된 대상자가 없습니다.</p>
+                )}
+                {commutingRows.map((row, idx) => {
+                  const isAbsent = row.attendanceStatus === "ABSENT";
+                  return (
+                    <div
+                      key={row.userId}
+                      className={`bg-white rounded-xl border p-4 ${isAbsent ? "bg-red-50 opacity-60" : ""}`}
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="font-medium text-sm">
+                          <span className="text-gray-500">{row.rank}</span> {row.name}
+                        </div>
+                        {row.attendanceStatus ? (
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                            row.attendanceStatus === "PRESENT" ? "bg-green-100 text-green-700" :
+                            row.attendanceStatus === "ABSENT" ? "bg-red-100 text-red-700" :
+                            "bg-yellow-100 text-yellow-700"
+                          }`}>
+                            {row.attendanceStatus === "PRESENT" ? "참석" : row.attendanceStatus === "ABSENT" ? "불참" : "미정"}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-300">-</span>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 mb-2">
+                        <div>
+                          <label className="text-xs text-gray-500 mb-1 block">출근시간</label>
+                          <input
+                            type="time"
+                            value={row.checkIn}
+                            onChange={(e) => updateCommutingRow(idx, "checkIn", e.target.value)}
+                            disabled={isAbsent}
+                            className="w-full px-2 py-1.5 border rounded text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500 mb-1 block">퇴근시간</label>
+                          <input
+                            type="time"
+                            value={row.checkOut}
+                            onChange={(e) => updateCommutingRow(idx, "checkOut", e.target.value)}
+                            disabled={isAbsent}
+                            className="w-full px-2 py-1.5 border rounded text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
+                          />
+                        </div>
+                      </div>
+                      <input
+                        value={row.note}
+                        onChange={(e) => updateCommutingRow(idx, "note", e.target.value)}
+                        placeholder="비고"
+                        disabled={isAbsent}
+                        className="w-full px-2 py-1.5 border rounded text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+
+              {commutingRows.length > 0 && (
+                <div className="mt-4 flex justify-end">
+                  <button
+                    onClick={handleCommutingSave}
+                    disabled={commutingSaving}
+                    className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {commutingSaving ? "저장 중..." : "일괄 저장"}
+                  </button>
+                </div>
+              )}
             </>
           )}
         </div>
