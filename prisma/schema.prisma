@@ -391,6 +391,7 @@ model TrainingTemplateItem {
   type        String?          // 유형 (선택)
   startTime   String           // "08:00"
   endTime     String           // "09:00"
+  instructor  String?          // 통제관/교관
   location    String?
   description String?
   createdAt   DateTime @default(now())

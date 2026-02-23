@@ -9,6 +9,7 @@ interface TemplateItem {
   type?: string;
   startTime: string;
   endTime: string;
+  instructor: string;
   location: string;
   description: string;
 }
@@ -32,6 +33,7 @@ const EMPTY_ITEM: TemplateItem = {
   title: "",
   startTime: "",
   endTime: "",
+  instructor: "",
   location: "",
   description: "",
 };
@@ -91,6 +93,7 @@ export default function AdminTemplatesPage() {
         title: item.title,
         startTime: item.startTime,
         endTime: item.endTime,
+        instructor: item.instructor || "",
         location: item.location || "",
         description: item.description || "",
       }))
@@ -365,6 +368,12 @@ export default function AdminTemplatesPage() {
                       onChange={(e) => updateItem(idx, "title", e.target.value)}
                       className="w-full px-2 py-1.5 border rounded text-sm"
                     />
+                    <input
+                      placeholder="통제관/교관 (선택)"
+                      value={item.instructor}
+                      onChange={(e) => updateItem(idx, "instructor", e.target.value)}
+                      className="w-full px-2 py-1.5 border rounded text-sm"
+                    />
                     <div className="grid grid-cols-2 gap-2">
                       <input
                         placeholder="장소 (선택)"
@@ -460,6 +469,7 @@ export default function AdminTemplatesPage() {
                     <tr>
                       <th className="px-3 py-2 text-left">시간</th>
                       <th className="px-3 py-2 text-left">훈련명</th>
+                      <th className="px-3 py-2 text-left">통제관/교관</th>
                       <th className="px-3 py-2 text-left">장소</th>
                     </tr>
                   </thead>
@@ -468,6 +478,7 @@ export default function AdminTemplatesPage() {
                       <tr key={i}>
                         <td className="px-3 py-2 whitespace-nowrap">{item.startTime}~{item.endTime}</td>
                         <td className="px-3 py-2">{item.title}</td>
+                        <td className="px-3 py-2 text-gray-500">{item.instructor || "-"}</td>
                         <td className="px-3 py-2 text-gray-500">{item.location || "-"}</td>
                       </tr>
                     ))}
