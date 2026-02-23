@@ -88,50 +88,31 @@ function RateBar({ rate, size = "md" }: { rate: number; size?: "sm" | "md" }) {
   );
 }
 
-function DayTypeCard({ label, data }: { label: string; data: { weekday: DayTypeStat | null; weekend: DayTypeStat | null } }) {
-  return (
-    <div className="bg-white rounded-xl border overflow-hidden">
-      <div className="px-4 py-3 bg-gray-50 border-b">
-        <h3 className="font-semibold text-sm">{label}</h3>
+function DayTypeRow({ label, stat, badge }: { label: string; stat: DayTypeStat | null; badge?: string }) {
+  if (!stat) return (
+    <div className="bg-white rounded-xl border p-4">
+      <div className="flex items-center gap-2 mb-2">
+        <h4 className="font-semibold text-sm">{label}</h4>
+        {badge && <span className="text-[10px] text-gray-400">{badge}</span>}
       </div>
-      <div className="divide-y">
-        {data.weekday && (
-          <div className="px-4 py-4">
-            <div className="flex items-center justify-between mb-2">
-              <div>
-                <span className="font-semibold text-sm">평일</span>
-                <span className="ml-2 text-xs text-gray-500">{data.weekday.count}개 과목</span>
-              </div>
-              <RateBadge rate={data.weekday.rate} />
-            </div>
-            <RateBar rate={data.weekday.rate} />
-            <div className="flex gap-4 mt-2 text-xs text-gray-500">
-              <span>참석 <span className="text-green-600 font-medium">{data.weekday.present}</span></span>
-              <span>불참 <span className="text-red-600 font-medium">{data.weekday.absent}</span></span>
-              <span>미정 <span className="font-medium">{data.weekday.pending}</span></span>
-            </div>
-          </div>
-        )}
-        {data.weekend && (
-          <div className="px-4 py-4">
-            <div className="flex items-center justify-between mb-2">
-              <div>
-                <span className="font-semibold text-sm">주말</span>
-                <span className="ml-2 text-xs text-gray-500">{data.weekend.count}개 과목</span>
-              </div>
-              <RateBadge rate={data.weekend.rate} />
-            </div>
-            <RateBar rate={data.weekend.rate} />
-            <div className="flex gap-4 mt-2 text-xs text-gray-500">
-              <span>참석 <span className="text-green-600 font-medium">{data.weekend.present}</span></span>
-              <span>불참 <span className="text-red-600 font-medium">{data.weekend.absent}</span></span>
-              <span>미정 <span className="font-medium">{data.weekend.pending}</span></span>
-            </div>
-          </div>
-        )}
-        {!data.weekday && !data.weekend && (
-          <div className="px-4 py-6 text-center text-gray-400 text-sm">출석 데이터가 없습니다.</div>
-        )}
+      <p className="text-sm text-gray-400">데이터 없음</p>
+    </div>
+  );
+  return (
+    <div className="bg-white rounded-xl border p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <h4 className="font-semibold text-sm">{label}</h4>
+          {badge && <span className="text-[10px] text-gray-400">{badge}</span>}
+        </div>
+        <RateBadge rate={stat.rate} />
+      </div>
+      <RateBar rate={stat.rate} />
+      <div className="flex gap-4 mt-2 text-xs text-gray-500">
+        <span>{stat.count}개 과목</span>
+        <span>참석 <span className="text-green-600 font-medium">{stat.present}</span></span>
+        <span>불참 <span className="text-red-600 font-medium">{stat.absent}</span></span>
+        <span>미정 <span className="font-medium">{stat.pending}</span></span>
       </div>
     </div>
   );
@@ -382,25 +363,38 @@ export default function AttendanceReportPage() {
 
           {/* ─── 탭 2: 평일/주말 출석률 ─── */}
           {tab === "daytype" && (
-            <div className="space-y-6">
-              {/* 전체 종합 */}
-              <DayTypeCard label="전체 종합" data={totalDayTypeData} />
+            <div className="space-y-8">
+              {/* 평일 출석률 */}
+              <div>
+                <h2 className="text-base font-bold mb-3">평일 출석률</h2>
+                <div className="space-y-3">
+                  <DayTypeRow label="전체 종합" stat={totalDayTypeData.weekday} />
+                  {reports.map((r) => (
+                    <DayTypeRow
+                      key={r.batchId}
+                      label={r.batchName}
+                      stat={r.byDayType.find((d) => d.dayType === "weekday") || null}
+                      badge={STATUS_LABELS[r.status] || r.status}
+                    />
+                  ))}
+                </div>
+              </div>
 
-              {/* 개별 차수별 */}
-              {reports.map((r) => {
-                const weekday = r.byDayType.find((d) => d.dayType === "weekday") || null;
-                const weekend = r.byDayType.find((d) => d.dayType === "weekend") || null;
-                return (
-                  <div key={r.batchId}>
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${STATUS_COLORS[r.status] || "bg-gray-100"}`}>
-                        {STATUS_LABELS[r.status] || r.status}
-                      </span>
-                    </div>
-                    <DayTypeCard label={r.batchName} data={{ weekday, weekend }} />
-                  </div>
-                );
-              })}
+              {/* 주말 출석률 */}
+              <div>
+                <h2 className="text-base font-bold mb-3">주말 출석률</h2>
+                <div className="space-y-3">
+                  <DayTypeRow label="전체 종합" stat={totalDayTypeData.weekend} />
+                  {reports.map((r) => (
+                    <DayTypeRow
+                      key={r.batchId}
+                      label={r.batchName}
+                      stat={r.byDayType.find((d) => d.dayType === "weekend") || null}
+                      badge={STATUS_LABELS[r.status] || r.status}
+                    />
+                  ))}
+                </div>
+              </div>
             </div>
           )}
 
