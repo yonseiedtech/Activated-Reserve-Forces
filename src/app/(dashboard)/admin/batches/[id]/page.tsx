@@ -127,6 +127,7 @@ export default function AdminBatchDetailPage() {
   const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [showTrainingForm, setShowTrainingForm] = useState(false);
   const [trainingFormDate, setTrainingFormDate] = useState("");
+  const [trainingDate, setTrainingDate] = useState("");
   const [trainingForm, setTrainingForm] = useState({
     title: "", type: "기타", startTime: "", endTime: "", location: "", description: "", instructorId: "",
   });
@@ -194,13 +195,22 @@ export default function AdminBatchDetailPage() {
     if (tab === "attendance") fetchAttendanceSummary();
   }, [tab, fetchAttendanceSummary]);
 
-  // Commuting: 탭 진입 시 오늘 또는 차수 첫 날로 초기화
+  // Training/Commuting: batch 로드 시 날짜 초기화
   useEffect(() => {
-    if (tab !== "commuting" || !batch || commutingDate) return;
+    if (!batch) return;
+    const today = new Date().toISOString().split("T")[0];
+    const range = getDateRange(batch.startDate, batch.endDate);
+    const defaultDate = range.includes(today) ? today : range[0] || today;
+    if (!trainingDate) setTrainingDate(defaultDate);
+  }, [batch, trainingDate]);
+
+  // Commuting: batch 로드 시 날짜 초기화
+  useEffect(() => {
+    if (!batch || commutingDate) return;
     const today = new Date().toISOString().split("T")[0];
     const range = getDateRange(batch.startDate, batch.endDate);
     setCommutingDate(range.includes(today) ? today : range[0] || today);
-  }, [tab, batch, commutingDate]);
+  }, [batch, commutingDate]);
 
   // Commuting tab data fetch
   useEffect(() => {
@@ -489,17 +499,42 @@ export default function AdminBatchDetailPage() {
       {/* Training Plan Tab */}
       {tab === "training" && (
         <div className="space-y-4">
-          {dateRange.map((date) => {
-            const dayTrainings = trainingsByDate[date] || [];
-            const d = new Date(date);
-            const dayLabel = d.toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" });
+          {/* 차수 날짜 선택 */}
+          <div className="flex gap-1.5 flex-wrap">
+            {dateRange.map((d) => {
+              const dt = new Date(d);
+              const label = dt.toLocaleDateString("ko-KR", { month: "numeric", day: "numeric", weekday: "short" });
+              const isSelected = trainingDate === d;
+              const hasTraining = (trainingsByDate[d] || []).length > 0;
+              return (
+                <button
+                  key={d}
+                  onClick={() => setTrainingDate(d)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    isSelected
+                      ? "bg-blue-600 text-white"
+                      : hasTraining
+                        ? "bg-blue-50 text-blue-700 hover:bg-blue-100"
+                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
 
+          {/* 선택된 날짜 훈련 내용 */}
+          {(() => {
+            const dayTrainings = trainingsByDate[trainingDate] || [];
             return (
-              <div key={date} className="bg-white rounded-xl border overflow-hidden">
+              <div className="bg-white rounded-xl border overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b">
-                  <h3 className="font-semibold text-sm">{dayLabel}</h3>
+                  <h3 className="font-semibold text-sm">
+                    {new Date(trainingDate).toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "long" })}
+                  </h3>
                   <button
-                    onClick={() => handleAddTraining(date)}
+                    onClick={() => handleAddTraining(trainingDate)}
                     className="px-2.5 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
                   >
                     + 추가
@@ -553,7 +588,7 @@ export default function AdminBatchDetailPage() {
                 )}
               </div>
             );
-          })}
+          })()}
         </div>
       )}
 
