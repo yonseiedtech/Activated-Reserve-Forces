@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import PageTitle from "@/components/ui/PageTitle";
-import SelfAttendanceForm from "@/components/attendance/SelfAttendanceForm";
 import { BATCH_STATUS_LABELS } from "@/lib/constants";
 
 interface Batch {
@@ -16,12 +15,10 @@ interface Batch {
   location: string | null;
 }
 
-interface Attendance {
-  id: string;
+interface BatchUserSelf {
   status: string;
   reason: string | null;
   expectedConfirmAt: string | null;
-  earlyLeaveTime: string | null;
 }
 
 interface Training {
@@ -32,7 +29,6 @@ interface Training {
   startTime: string | null;
   endTime: string | null;
   location: string | null;
-  attendances?: Attendance[];
 }
 
 const TYPE_COLORS: Record<string, string> = {
@@ -73,6 +69,15 @@ export default function ReservistBatchesPage() {
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
 
+  // 차수 참석 신고 상태
+  const [batchAttendance, setBatchAttendance] = useState<BatchUserSelf | null>(null);
+  const [attendanceStatus, setAttendanceStatus] = useState<string>("PENDING");
+  const [reason, setReason] = useState("");
+  const [expectedConfirmAt, setExpectedConfirmAt] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
+
   useEffect(() => {
     fetch("/api/batches")
       .then((r) => r.json())
@@ -92,9 +97,51 @@ export default function ReservistBatchesPage() {
       .then((r) => r.json())
       .then((data) => {
         setTrainings(data.trainings || []);
+        // 본인의 참석 상태 찾기 (users 배열에서 본인 데이터)
+        const me = data.users?.find((u: { batchStatus?: string }) => u.batchStatus !== undefined);
+        if (me) {
+          setBatchAttendance({ status: me.batchStatus, reason: me.batchReason, expectedConfirmAt: me.batchExpectedConfirmAt });
+          setAttendanceStatus(me.batchStatus || "PENDING");
+          setReason(me.batchReason || "");
+          setExpectedConfirmAt(me.batchExpectedConfirmAt ? new Date(me.batchExpectedConfirmAt).toISOString().slice(0, 16) : "");
+        } else {
+          setBatchAttendance(null);
+          setAttendanceStatus("PENDING");
+          setReason("");
+          setExpectedConfirmAt("");
+        }
       })
       .finally(() => setDetailLoading(false));
   }, [selectedBatchId]);
+
+  const handleSaveAttendance = async () => {
+    setSaving(true);
+    setError("");
+
+    const body: Record<string, string | undefined> = { status: attendanceStatus };
+    if (attendanceStatus === "ABSENT") body.reason = reason || undefined;
+    if (attendanceStatus === "PENDING") body.expectedConfirmAt = expectedConfirmAt || undefined;
+
+    try {
+      const res = await fetch(`/api/batches/${selectedBatchId}/self-attendance`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setError(data.error || "저장에 실패했습니다.");
+      } else {
+        setSaved(true);
+        setBatchAttendance({ status: attendanceStatus, reason: reason || null, expectedConfirmAt: expectedConfirmAt || null });
+        setTimeout(() => setSaved(false), 2000);
+      }
+    } catch {
+      setError("네트워크 오류가 발생했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -157,14 +204,97 @@ export default function ReservistBatchesPage() {
         </div>
       )}
 
-      {/* 훈련 목록 */}
+      {/* 차수 참석 신고 폼 */}
+      {!detailLoading && selectedBatch && (
+        <div className="bg-white rounded-xl border p-5 mb-4 space-y-4">
+          <h3 className="text-sm font-semibold text-gray-800">차수 참석 신고</h3>
+
+          {/* 3개 상태 버튼 */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => { setAttendanceStatus("PRESENT"); setSaved(false); setError(""); }}
+              className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                attendanceStatus === "PRESENT"
+                  ? "bg-green-600 text-white"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              }`}
+            >
+              참석
+            </button>
+            <button
+              onClick={() => { setAttendanceStatus("ABSENT"); setSaved(false); setError(""); }}
+              className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                attendanceStatus === "ABSENT"
+                  ? "bg-red-600 text-white"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              }`}
+            >
+              불참
+            </button>
+            <button
+              onClick={() => { setAttendanceStatus("PENDING"); setSaved(false); setError(""); }}
+              className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                attendanceStatus === "PENDING"
+                  ? "bg-gray-600 text-white"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              }`}
+            >
+              미정
+            </button>
+          </div>
+
+          {/* 불참 - 사유 입력 */}
+          {attendanceStatus === "ABSENT" && (
+            <div>
+              <label className="text-xs font-medium text-gray-600">불참 사유</label>
+              <textarea
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="불참 사유를 입력해주세요."
+                rows={2}
+                className="mt-1 w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-red-500 outline-none resize-none"
+              />
+            </div>
+          )}
+
+          {/* 미정 - 확정 예정 시점 */}
+          {attendanceStatus === "PENDING" && (
+            <div>
+              <label className="text-xs font-medium text-gray-600">확정 예정 시점</label>
+              <input
+                type="datetime-local"
+                value={expectedConfirmAt}
+                onChange={(e) => setExpectedConfirmAt(e.target.value)}
+                className="mt-1 w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-gray-500 outline-none"
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                참석 여부가 확정되지 않은 경우, 확정 예정 일시를 입력하세요.
+              </p>
+            </div>
+          )}
+
+          {error && <p className="text-sm text-red-600">{error}</p>}
+
+          <button
+            onClick={handleSaveAttendance}
+            disabled={saving}
+            className={`w-full py-2.5 rounded-lg text-sm font-medium text-white transition-colors ${
+              saved ? "bg-green-600" : "bg-blue-600 hover:bg-blue-700"
+            } disabled:opacity-50`}
+          >
+            {saving ? "저장 중..." : saved ? "저장 완료!" : "저장"}
+          </button>
+        </div>
+      )}
+
+      {/* 훈련 과목 목록 (읽기 전용) */}
       {detailLoading ? (
         <div className="flex justify-center py-10">
           <div className="animate-spin h-6 w-6 border-4 border-blue-600 border-t-transparent rounded-full" />
         </div>
       ) : trainings.length === 0 ? (
         <div className="text-center py-10 text-gray-500">
-          등록된 훈련이 없습니다.
+          등록된 훈련 과목이 없습니다.
         </div>
       ) : (
         <div className="space-y-6">
@@ -174,38 +304,22 @@ export default function ReservistBatchesPage() {
                 {formatDate(dayTrainings[0].date)}
               </h3>
               <div className="space-y-3">
-                {dayTrainings.map((t) => {
-                  const att = t.attendances?.[0];
-                  return (
-                    <div key={t.id} className="bg-white rounded-xl border overflow-hidden">
-                      {/* 훈련 정보 */}
-                      <div className="p-4 border-b">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${TYPE_COLORS[t.type] || TYPE_COLORS["기타"]}`}>
-                            {t.type}
-                          </span>
-                          <h4 className="font-semibold text-gray-900 text-sm">{t.title}</h4>
-                        </div>
-                        <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
-                          {t.startTime && t.endTime && (
-                            <span>{t.startTime} ~ {t.endTime}</span>
-                          )}
-                          {t.location && <span>{t.location}</span>}
-                        </div>
-                      </div>
-                      {/* 참석 폼 */}
-                      <div className="p-4">
-                        <SelfAttendanceForm
-                          trainingId={t.id}
-                          initialStatus={att?.status}
-                          initialReason={att?.reason || ""}
-                          initialExpectedConfirmAt={att?.expectedConfirmAt || ""}
-                          initialEarlyLeaveTime={att?.earlyLeaveTime || ""}
-                        />
-                      </div>
+                {dayTrainings.map((t) => (
+                  <div key={t.id} className="bg-white rounded-xl border p-4">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${TYPE_COLORS[t.type] || TYPE_COLORS["기타"]}`}>
+                        {t.type}
+                      </span>
+                      <h4 className="font-semibold text-gray-900 text-sm">{t.title}</h4>
                     </div>
-                  );
-                })}
+                    <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
+                      {t.startTime && t.endTime && (
+                        <span>{t.startTime} ~ {t.endTime}</span>
+                      )}
+                      {t.location && <span>{t.location}</span>}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           ))}

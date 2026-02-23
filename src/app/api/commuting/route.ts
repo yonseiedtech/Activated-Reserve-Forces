@@ -78,12 +78,14 @@ export async function POST(req: NextRequest) {
         checkOutAt: body.checkOutAt ? new Date(body.checkOutAt) : undefined,
         isManual: true,
         note: body.note,
+        batchId: body.batchId || undefined,
       },
       update: {
         checkInAt: body.checkInAt ? new Date(body.checkInAt) : undefined,
         checkOutAt: body.checkOutAt ? new Date(body.checkOutAt) : undefined,
         isManual: true,
         note: body.note,
+        batchId: body.batchId || undefined,
       },
     });
     return json(record);
@@ -104,6 +106,19 @@ export async function POST(req: NextRequest) {
   const today = new Date(new Date().toDateString());
   const now = new Date();
 
+  // 현재 활성 배치 자동 탐지
+  const activeBatchUser = await prisma.batchUser.findFirst({
+    where: {
+      userId: session.user.id,
+      batch: {
+        startDate: { lte: now },
+        endDate: { gte: today },
+      },
+    },
+    select: { batchId: true },
+  });
+  const autoBatchId = activeBatchUser?.batchId || undefined;
+
   if (type === "checkIn") {
     const record = await prisma.commutingRecord.upsert({
       where: { userId_date: { userId: session.user.id, date: today } },
@@ -113,6 +128,7 @@ export async function POST(req: NextRequest) {
         checkInAt: now,
         checkInLat: latitude,
         checkInLng: longitude,
+        batchId: autoBatchId,
       },
       update: {
         checkInAt: now,
@@ -130,6 +146,7 @@ export async function POST(req: NextRequest) {
         checkOutAt: now,
         checkOutLat: latitude,
         checkOutLng: longitude,
+        batchId: autoBatchId,
       },
       update: {
         checkOutAt: now,

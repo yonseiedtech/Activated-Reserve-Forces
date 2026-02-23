@@ -24,6 +24,8 @@ interface BatchUser {
   serviceNumber: string | null;
   phone: string | null;
   unit: string | null;
+  batchStatus?: string;
+  batchReason?: string | null;
 }
 
 interface Batch {
@@ -127,10 +129,12 @@ export default function AdminBatchDetailPage() {
   }, [batchId]);
 
   const fetchInstructors = useCallback(() => {
-    fetch("/api/users?role=ADMIN").then((r) => r.json()).then((admins: Instructor[]) => {
-      fetch("/api/users?role=MANAGER").then((r) => r.json()).then((managers: Instructor[]) => {
-        setInstructors([...admins, ...managers]);
-      });
+    Promise.all([
+      fetch("/api/users?role=ADMIN").then((r) => r.json()),
+      fetch("/api/users?role=MANAGER").then((r) => r.json()),
+      fetch("/api/users?role=INSTRUCTOR").then((r) => r.json()),
+    ]).then(([admins, managers, instructorUsers]: Instructor[][]) => {
+      setInstructors([...admins, ...managers, ...instructorUsers]);
     });
   }, []);
 
@@ -530,10 +534,19 @@ export default function AdminBatchDetailPage() {
                         onChange={() => toggleAssignedSelect(u.id)}
                         className="rounded"
                       />
-                      <div>
+                      <div className="flex items-center gap-2">
                         <span className="font-medium text-sm">{u.name}</span>
-                        <span className="ml-2 text-xs text-gray-500">{u.rank} | {u.serviceNumber}</span>
-                        {u.unit && <span className="ml-2 text-xs text-gray-400">{u.unit}</span>}
+                        <span className="text-xs text-gray-500">{u.rank} | {u.serviceNumber}</span>
+                        {u.unit && <span className="text-xs text-gray-400">{u.unit}</span>}
+                        {u.batchStatus && (
+                          <span className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${
+                            u.batchStatus === "PRESENT" ? "bg-green-100 text-green-700" :
+                            u.batchStatus === "ABSENT" ? "bg-red-100 text-red-700" :
+                            "bg-yellow-100 text-yellow-700"
+                          }`}>
+                            {u.batchStatus === "PRESENT" ? "참석" : u.batchStatus === "ABSENT" ? "불참" : "미정"}
+                          </span>
+                        )}
                       </div>
                     </label>
                     <button

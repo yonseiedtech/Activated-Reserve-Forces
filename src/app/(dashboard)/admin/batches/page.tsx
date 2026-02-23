@@ -152,7 +152,7 @@ export default function AdminBatchesPage() {
           <div className="bg-white rounded-xl w-full max-w-md p-6 space-y-4">
             <h3 className="text-lg font-semibold">차수 복제</h3>
             <p className="text-sm text-gray-500">
-              &quot;{duplicateTarget.name}&quot;의 훈련 일정을 복제합니다. (대상자 제외)
+              &quot;{duplicateTarget.name}&quot;의 훈련 과목을 복제합니다. (대상자 제외)
             </p>
             <input placeholder="새 차수명" value={dupForm.name} onChange={(e) => setDupForm({ ...dupForm, name: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
             <div className="grid grid-cols-2 gap-4">

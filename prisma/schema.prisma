@@ -74,12 +74,15 @@ model User {
 
 // ─── User-Batch M:N 조인 테이블 ───
 model BatchUser {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  batchId   String
-  batch     Batch    @relation(fields: [batchId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
+  id                String    @id @default(cuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  batchId           String
+  batch             Batch     @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  status            String    @default("PENDING") // PRESENT, ABSENT, PENDING
+  reason            String?   // 불참 사유
+  expectedConfirmAt DateTime? // 미정일 때 확정 예정 시점
+  createdAt         DateTime  @default(now())
   @@unique([userId, batchId])
 }
 
@@ -103,6 +106,7 @@ model Batch {
   paymentProcesses    PaymentProcess[]
   transportAllowances UserTransportAllowance[]
   refundProcess       RefundProcess?
+  commutingRecords    CommutingRecord[]
 }
 
 // ─── 훈련 일정 ───
@@ -147,6 +151,8 @@ model CommutingRecord {
   id          String   @id @default(cuid())
   userId      String
   user        User     @relation(fields: [userId], references: [id])
+  batchId     String?
+  batch       Batch?   @relation(fields: [batchId], references: [id])
   date        DateTime
   checkInAt   DateTime?
   checkOutAt  DateTime?

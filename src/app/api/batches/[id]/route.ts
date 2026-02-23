@@ -24,7 +24,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const batch = await prisma.batch.findUnique({
     where: { id },
     include: {
-      batchUsers: { select: { user: { select: { id: true, name: true, rank: true, serviceNumber: true, phone: true, unit: true } } } },
+      batchUsers: { select: { status: true, reason: true, expectedConfirmAt: true, user: { select: { id: true, name: true, rank: true, serviceNumber: true, phone: true, unit: true } } } },
       trainings: {
         orderBy: { date: "asc" },
         include: {
@@ -43,7 +43,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const { batchUsers, _count, ...rest } = batch;
   return json({
     ...rest,
-    users: batchUsers.map((bu) => bu.user),
+    users: batchUsers.map((bu) => ({ ...bu.user, batchStatus: bu.status, batchReason: bu.reason, batchExpectedConfirmAt: bu.expectedConfirmAt })),
     _count: { users: _count.batchUsers, trainings: _count.trainings },
     status: computeBatchStatus(batch.startDate, batch.endDate),
   });

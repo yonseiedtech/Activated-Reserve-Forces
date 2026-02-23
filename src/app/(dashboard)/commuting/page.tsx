@@ -207,6 +207,7 @@ export default function CommutingPage() {
             checkInAt: checkInAt || undefined,
             checkOutAt: checkOutAt || undefined,
             note: row.note || undefined,
+            batchId: selectedBatchId || undefined,
           }),
         });
       });

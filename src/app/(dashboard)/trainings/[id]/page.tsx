@@ -5,7 +5,6 @@ import { notFound } from "next/navigation";
 import { ATTENDANCE_STATUS_LABELS } from "@/lib/constants";
 import PageTitle from "@/components/ui/PageTitle";
 import Link from "next/link";
-import SelfAttendanceForm from "@/components/attendance/SelfAttendanceForm";
 
 export default async function TrainingDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions);
@@ -26,7 +25,7 @@ export default async function TrainingDetailPage({ params }: { params: Promise<{
 
   if (!training) return notFound();
 
-  const isAdmin = ["ADMIN", "MANAGER"].includes(session.user.role);
+  const isAdmin = ["ADMIN", "MANAGER", "INSTRUCTOR"].includes(session.user.role);
   const isReservist = session.user.role === "RESERVIST";
   const date = new Date(training.date);
   const dateStr = date.toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "long" });
@@ -70,24 +69,39 @@ export default async function TrainingDetailPage({ params }: { params: Promise<{
         )}
       </div>
 
-      {/* RESERVIST 자가 참석 관리 */}
+      {/* RESERVIST 본인 출석 상태 (읽기 전용 배지) */}
       {isReservist && (
-        <div className="mt-4">
-          <SelfAttendanceForm
-            trainingId={training.id}
-            initialStatus={myAttendance?.status}
-            initialReason={myAttendance?.reason || ""}
-            initialExpectedConfirmAt={
-              myAttendance?.expectedConfirmAt
-                ? new Date(myAttendance.expectedConfirmAt).toISOString().slice(0, 16)
-                : ""
-            }
-            initialEarlyLeaveTime={myAttendance?.earlyLeaveTime || ""}
-          />
+        <div className="mt-4 bg-white rounded-xl border p-5">
+          <h3 className="text-sm font-semibold text-gray-800 mb-3">내 출석 상태</h3>
+          {myAttendance ? (
+            <div className="flex items-center gap-3">
+              <span className={`px-3 py-1.5 rounded-full text-sm font-medium ${
+                myAttendance.status === "PRESENT" ? "bg-green-100 text-green-700" :
+                myAttendance.status === "ABSENT" ? "bg-red-100 text-red-700" :
+                "bg-gray-100 text-gray-600"
+              }`}>
+                {ATTENDANCE_STATUS_LABELS[myAttendance.status]}
+              </span>
+              {myAttendance.status === "PRESENT" && myAttendance.earlyLeaveTime && (
+                <span className="text-sm text-orange-600">(조기퇴소 {myAttendance.earlyLeaveTime})</span>
+              )}
+              {myAttendance.status === "ABSENT" && myAttendance.reason && (
+                <span className="text-sm text-gray-500">사유: {myAttendance.reason}</span>
+              )}
+              {myAttendance.status === "PENDING" && myAttendance.expectedConfirmAt && (
+                <span className="text-sm text-gray-500">
+                  확정 예정: {new Date(myAttendance.expectedConfirmAt).toLocaleDateString("ko-KR")}
+                </span>
+              )}
+            </div>
+          ) : (
+            <span className="px-3 py-1.5 rounded-full text-sm font-medium bg-gray-100 text-gray-500">미등록</span>
+          )}
+          <p className="text-xs text-gray-400 mt-3">출석은 교관이 관리합니다. 차수 참석 신고는 훈련차수 페이지에서 하실 수 있습니다.</p>
         </div>
       )}
 
-      {/* 출석 현황 (관리자만) */}
+      {/* 출석 현황 (관리자/교관) */}
       {isAdmin && training.attendances.length > 0 && (
         <div className="mt-4 bg-white rounded-xl border p-6">
           <h3 className="text-sm font-medium text-gray-700 mb-3">출석 현황</h3>

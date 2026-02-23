@@ -10,6 +10,7 @@ export default async function DashboardPage() {
 
   const role = session.user.role;
   const isAdmin = role === ROLES.ADMIN || role === ROLES.MANAGER;
+  const isInstructor = role === ROLES.INSTRUCTOR;
 
   const today = new Date(new Date().toDateString());
   const tomorrow = new Date(today.getTime() + 86400000);
@@ -62,11 +63,30 @@ export default async function DashboardPage() {
     activeBatchNames = abn.map((b) => b.name);
   }
 
+  // Instructor-specific data
+  let instructorTodayTrainings = 0;
+  let instructorActiveBatchNames: string[] = [];
+
+  if (isInstructor) {
+    const [itt, iabn] = await Promise.all([
+      prisma.training.count({
+        where: { date: { gte: today, lt: tomorrow }, instructorId: session.user.id },
+      }),
+      prisma.batch.findMany({
+        where: { status: "ACTIVE" },
+        select: { name: true },
+      }),
+    ]);
+    instructorTodayTrainings = itt;
+    instructorActiveBatchNames = iabn.map((b) => b.name);
+  }
+
   // Reservist-specific data
-  let nextTraining: { title: string; date: Date; dDay: number } | null = null;
+  let nextTraining: { id: string; title: string; date: Date; dDay: number } | null = null;
   let todayCommute: { checkIn: boolean; checkOut: boolean } = { checkIn: false, checkOut: false };
   let attendanceRate = 0;
   let mobileIdExpiringSoon = false;
+  let batchAttendanceInfo: { status: string; batch: { name: string; status: string } }[] = [];
 
   if (role === ROLES.RESERVIST) {
     const batchUserRecords = await prisma.batchUser.findMany({
@@ -80,7 +100,7 @@ export default async function DashboardPage() {
         prisma.training.findFirst({
           where: { batchId: { in: batchIds }, date: { gte: today } },
           orderBy: { date: "asc" },
-          select: { title: true, date: true },
+          select: { id: true, title: true, date: true },
         }),
         prisma.commutingRecord.findFirst({
           where: { userId: session.user.id, date: { gte: today, lt: tomorrow } },
@@ -96,6 +116,7 @@ export default async function DashboardPage() {
       if (nt) {
         const diffMs = nt.date.getTime() - today.getTime();
         nextTraining = {
+          id: nt.id,
           title: nt.title,
           date: nt.date,
           dDay: Math.ceil(diffMs / 86400000),
@@ -107,6 +128,14 @@ export default async function DashboardPage() {
       };
       attendanceRate = totalAtt > 0 ? Math.round((presentAtt / totalAtt) * 100) : 0;
     }
+
+    // Batch attendance status
+    batchAttendanceInfo = await prisma.batchUser.findMany({
+      where: { userId: session.user.id },
+      select: { status: true, batch: { select: { name: true, status: true } } },
+      orderBy: { createdAt: "desc" },
+      take: 3,
+    });
 
     // Mobile ID expiry check (D-3)
     const mobileId = await prisma.mobileIdCard.findUnique({
@@ -129,11 +158,14 @@ export default async function DashboardPage() {
       {/* 통계 카드 */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {isAdmin && (
+          <StatCard label="훈련 대상자" value={totalReservists} icon="👥" color="blue" href="/admin/users" />
+        )}
+        {isInstructor && (
           <StatCard label="훈련 대상자" value={totalReservists} icon="👥" color="blue" />
         )}
-        <StatCard label="진행중 차수" value={activeBatches} icon="📋" color="green" />
-        <StatCard label="오늘 훈련" value={todayTrainings} icon="📅" color="yellow" />
-        <StatCard label="읽지 않은 쪽지" value={unreadMessages} icon="✉️" color="red" />
+        <StatCard label="진행중 차수" value={activeBatches} icon="📋" color="green" href={isAdmin ? "/admin/batches" : "/batches"} />
+        <StatCard label="오늘 훈련" value={todayTrainings} icon="📅" color="yellow" href="/trainings" />
+        <StatCard label="읽지 않은 쪽지" value={unreadMessages} icon="✉️" color="red" href="/messages" />
       </div>
 
       {/* 운영자: 오늘의 할 일 패널 */}
@@ -174,12 +206,50 @@ export default async function DashboardPage() {
         </div>
       )}
 
+      {/* 교관: 오늘의 현황 패널 */}
+      {isInstructor && (
+        <div className="bg-white rounded-xl shadow-sm border p-6">
+          <h2 className="text-lg font-semibold mb-4">교관 현황</h2>
+          <div className="grid sm:grid-cols-3 gap-4">
+            <Link href="/trainings" className="block p-4 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">📅</span>
+                <div>
+                  <p className="text-2xl font-bold text-blue-700">{instructorTodayTrainings}</p>
+                  <p className="text-xs text-gray-600">오늘 담당 훈련</p>
+                </div>
+              </div>
+            </Link>
+            <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">📋</span>
+                <div>
+                  <p className="text-sm font-bold text-green-700">
+                    {instructorActiveBatchNames.length > 0 ? instructorActiveBatchNames.join(", ") : "없음"}
+                  </p>
+                  <p className="text-xs text-gray-600">진행중 차수</p>
+                </div>
+              </div>
+            </div>
+            <Link href="/commuting" className="block p-4 bg-orange-50 border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">✅</span>
+                <div>
+                  <p className="text-sm font-bold text-orange-700">출석 관리</p>
+                  <p className="text-xs text-gray-600">훈련 과목별 출석 체크</p>
+                </div>
+              </div>
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* 대상자: 내 훈련 현황 카드 */}
       {role === ROLES.RESERVIST && (
         <div className="bg-white rounded-xl shadow-sm border p-6">
           <h2 className="text-lg font-semibold mb-4">내 훈련 현황</h2>
           <div className="grid sm:grid-cols-3 gap-4">
-            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <Link href="/trainings" className="block p-4 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors">
               <div className="flex items-center gap-3">
                 <span className="text-2xl">📅</span>
                 <div>
@@ -201,8 +271,8 @@ export default async function DashboardPage() {
                   )}
                 </div>
               </div>
-            </div>
-            <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+            </Link>
+            <Link href="/commuting" className="block p-4 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition-colors">
               <div className="flex items-center gap-3">
                 <span className="text-2xl">🕐</span>
                 <div>
@@ -217,8 +287,8 @@ export default async function DashboardPage() {
                   <p className="text-xs text-gray-600 mt-1">오늘 출퇴근</p>
                 </div>
               </div>
-            </div>
-            <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            </Link>
+            <Link href="/batches" className="block p-4 bg-yellow-50 border border-yellow-200 rounded-lg hover:bg-yellow-100 transition-colors">
               <div className="flex items-center gap-3">
                 <span className="text-2xl">📊</span>
                 <div>
@@ -226,7 +296,28 @@ export default async function DashboardPage() {
                   <p className="text-xs text-gray-600">내 출석률</p>
                 </div>
               </div>
-            </div>
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {/* 대상자: 차수 참석 신고 상태 */}
+      {role === ROLES.RESERVIST && batchAttendanceInfo.length > 0 && (
+        <div className="bg-white rounded-xl shadow-sm border p-6">
+          <h2 className="text-lg font-semibold mb-4">차수 참석 신고 현황</h2>
+          <div className="space-y-2">
+            {batchAttendanceInfo.map((ba, i) => (
+              <div key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <span className="text-sm font-medium">{ba.batch.name}</span>
+                <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                  ba.status === "PRESENT" ? "bg-green-100 text-green-700" :
+                  ba.status === "ABSENT" ? "bg-red-100 text-red-700" :
+                  "bg-yellow-100 text-yellow-700"
+                }`}>
+                  {ba.status === "PRESENT" ? "참석" : ba.status === "ABSENT" ? "불참" : "미정"}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -316,7 +407,7 @@ export default async function DashboardPage() {
   );
 }
 
-function StatCard({ label, value, icon, color }: { label: string; value: number; icon: string; color: string }) {
+function StatCard({ label, value, icon, color, href }: { label: string; value: number; icon: string; color: string; href?: string }) {
   const colorMap: Record<string, string> = {
     blue: "bg-blue-50 border-blue-200",
     green: "bg-green-50 border-green-200",
@@ -324,15 +415,27 @@ function StatCard({ label, value, icon, color }: { label: string; value: number;
     red: "bg-red-50 border-red-200",
   };
 
+  const content = (
+    <div className="flex items-center gap-3">
+      <span className="text-2xl">{icon}</span>
+      <div>
+        <p className="text-2xl font-bold">{value}</p>
+        <p className="text-xs text-gray-600">{label}</p>
+      </div>
+    </div>
+  );
+
+  if (href) {
+    return (
+      <Link href={href} className={`rounded-xl border p-4 ${colorMap[color]} hover:shadow-sm transition-shadow`}>
+        {content}
+      </Link>
+    );
+  }
+
   return (
     <div className={`rounded-xl border p-4 ${colorMap[color]}`}>
-      <div className="flex items-center gap-3">
-        <span className="text-2xl">{icon}</span>
-        <div>
-          <p className="text-2xl font-bold">{value}</p>
-          <p className="text-xs text-gray-600">{label}</p>
-        </div>
-      </div>
+      {content}
     </div>
   );
 }

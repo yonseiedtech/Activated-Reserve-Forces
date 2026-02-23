@@ -5,7 +5,7 @@ import { NextRequest } from "next/server";
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) return unauthorized();
-  if (!["ADMIN", "MANAGER"].includes(session.user.role)) return forbidden();
+  if (!["ADMIN", "MANAGER", "INSTRUCTOR"].includes(session.user.role)) return forbidden();
 
   const { id } = await params;
 

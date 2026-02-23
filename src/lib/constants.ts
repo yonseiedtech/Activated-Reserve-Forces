@@ -3,6 +3,7 @@ export const ROLES = {
   ADMIN: "ADMIN",
   MANAGER: "MANAGER",       // 행정담당자
   COOK: "COOK",             // 급식담당자
+  INSTRUCTOR: "INSTRUCTOR", // 교관
   RESERVIST: "RESERVIST",   // 소집훈련 대상자
 } as const;
 
@@ -10,6 +11,7 @@ export const ROLE_LABELS: Record<string, string> = {
   ADMIN: "관리자",
   MANAGER: "행정담당자",
   COOK: "급식담당자",
+  INSTRUCTOR: "교관",
   RESERVIST: "훈련대상자",
 };
 

@@ -5,12 +5,28 @@ import { ATTENDANCE_STATUS_LABELS } from "@/lib/constants";
 import Link from "next/link";
 import PageTitle from "@/components/ui/PageTitle";
 
-export default async function TrainingsPage() {
+export default async function TrainingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ month?: string }>;
+}) {
   const session = await getServerSession(authOptions);
   if (!session) return null;
 
-  const isAdmin = ["ADMIN", "MANAGER"].includes(session.user.role);
+  const resolvedParams = await searchParams;
+  const isAdmin = ["ADMIN", "MANAGER", "INSTRUCTOR"].includes(session.user.role);
   const isReservist = session.user.role === "RESERVIST";
+
+  // 월 필터링
+  const now = new Date();
+  const currentMonth = resolvedParams.month || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const [year, month] = currentMonth.split("-").map(Number);
+  const monthStart = new Date(year, month - 1, 1);
+  const monthEnd = new Date(year, month, 1);
+
+  const prevMonth = month === 1 ? `${year - 1}-12` : `${year}-${String(month - 1).padStart(2, "0")}`;
+  const nextMonth = month === 12 ? `${year + 1}-01` : `${year}-${String(month + 1).padStart(2, "0")}`;
+  const monthLabel = `${year}년 ${month}월`;
 
   let batchFilter = {};
   if (isReservist) {
@@ -23,7 +39,10 @@ export default async function TrainingsPage() {
   }
 
   const trainings = await prisma.training.findMany({
-    where: batchFilter,
+    where: {
+      ...batchFilter,
+      date: { gte: monthStart, lt: monthEnd },
+    },
     orderBy: { date: "asc" },
     include: {
       batch: { select: { id: true, name: true } },
@@ -50,10 +69,10 @@ export default async function TrainingsPage() {
   return (
     <div>
       <PageTitle
-        title="훈련 일정"
-        description="소집훈련 일정을 확인합니다."
+        title="훈련 과목"
+        description="소집훈련 과목을 확인합니다."
         actions={
-          isAdmin ? (
+          ["ADMIN", "MANAGER"].includes(session.user.role) ? (
             <Link
               href="/trainings/new"
               className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
@@ -63,6 +82,23 @@ export default async function TrainingsPage() {
           ) : undefined
         }
       />
+
+      {/* 월 이동 */}
+      <div className="flex items-center justify-center gap-4 mb-6">
+        <Link
+          href={`/trainings?month=${prevMonth}`}
+          className="px-3 py-1.5 text-sm bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+        >
+          &lt;
+        </Link>
+        <span className="text-sm font-semibold text-gray-700 min-w-[100px] text-center">{monthLabel}</span>
+        <Link
+          href={`/trainings?month=${nextMonth}`}
+          className="px-3 py-1.5 text-sm bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+        >
+          &gt;
+        </Link>
+      </div>
 
       <div className="space-y-6">
         {dateKeys.map((dateKey) => {
@@ -154,7 +190,15 @@ export default async function TrainingsPage() {
 
         {trainings.length === 0 && (
           <div className="text-center py-12 text-gray-400">
-            <p className="text-lg">등록된 훈련이 없습니다.</p>
+            <p className="text-lg mb-4">이 달에 등록된 훈련이 없습니다.</p>
+            {isAdmin && (
+              <Link
+                href="/trainings/new"
+                className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+              >
+                + 훈련 추가
+              </Link>
+            )}
           </div>
         )}
       </div>

@@ -89,7 +89,7 @@ export default async function DailySchedulePage({ params, searchParams }: Props)
 
   return (
     <div className="max-w-3xl">
-      <PageTitle title="일일 훈련 일정" description={headerStr} />
+      <PageTitle title="일일 훈련 과목" description={headerStr} />
 
       {trainings.length === 0 ? (
         <div className="text-center py-12 text-gray-400">
