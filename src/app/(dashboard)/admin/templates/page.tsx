@@ -6,7 +6,7 @@ import PageTitle from "@/components/ui/PageTitle";
 interface TemplateItem {
   id?: string;
   title: string;
-  type: string;
+  type?: string;
   startTime: string;
   endTime: string;
   location: string;
@@ -24,27 +24,17 @@ interface Template {
 interface Batch {
   id: string;
   name: string;
+  startDate: string;
+  endDate: string;
 }
 
 const EMPTY_ITEM: TemplateItem = {
   title: "",
-  type: "",
   startTime: "",
   endTime: "",
   location: "",
   description: "",
 };
-
-const TRAINING_TYPES = [
-  "사격",
-  "화생방",
-  "전술",
-  "체력",
-  "정신교육",
-  "구급법",
-  "화기정비",
-  "기타",
-];
 
 export default function AdminTemplatesPage() {
   const [templates, setTemplates] = useState<Template[]>([]);
@@ -99,7 +89,6 @@ export default function AdminTemplatesPage() {
     setFormItems(
       t.items.map((item) => ({
         title: item.title,
-        type: item.type,
         startTime: item.startTime,
         endTime: item.endTime,
         location: item.location || "",
@@ -122,7 +111,7 @@ export default function AdminTemplatesPage() {
 
   const handleSave = async () => {
     if (!formName.trim()) return alert("템플릿 이름을 입력해주세요.");
-    const validItems = formItems.filter((i) => i.title && i.type && i.startTime && i.endTime);
+    const validItems = formItems.filter((i) => i.title && i.startTime && i.endTime);
     if (validItems.length === 0) return alert("최소 1개의 완성된 항목이 필요합니다.");
 
     // 시간순 정렬
@@ -164,6 +153,36 @@ export default function AdminTemplatesPage() {
     setApplyDate("");
   };
 
+  // 차수 선택 시 날짜 자동 반영
+  const handleBatchChange = (batchId: string) => {
+    setApplyBatchId(batchId);
+    if (batchId) {
+      const batch = batches.find((b) => b.id === batchId);
+      if (batch) {
+        // startDate를 YYYY-MM-DD 형식으로 설정
+        const d = new Date(batch.startDate);
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+        setApplyDate(`${yyyy}-${mm}-${dd}`);
+      }
+    } else {
+      setApplyDate("");
+    }
+  };
+
+  // 선택된 차수의 날짜 범위
+  const getSelectedBatchRange = () => {
+    if (!applyBatchId) return null;
+    const batch = batches.find((b) => b.id === applyBatchId);
+    if (!batch) return null;
+    const fmt = (d: string) => {
+      const date = new Date(d);
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    };
+    return { min: fmt(batch.startDate), max: fmt(batch.endDate), name: batch.name };
+  };
+
   const handleApply = async () => {
     if (!applyTarget || !applyBatchId || !applyDate) return alert("차수와 날짜를 선택해주세요.");
     setApplying(true);
@@ -185,21 +204,26 @@ export default function AdminTemplatesPage() {
   };
 
   // --- 유틸 ---
+  const calcItemMinutes = (startTime: string, endTime: string) => {
+    if (!startTime || !endTime) return 0;
+    const [sh, sm] = startTime.split(":").map(Number);
+    const [eh, em] = endTime.split(":").map(Number);
+    return eh * 60 + em - (sh * 60 + sm);
+  };
+
   const totalMinutes = (items: TemplateItem[]) =>
-    items.reduce((sum, item) => {
-      if (!item.startTime || !item.endTime) return sum;
-      const [sh, sm] = item.startTime.split(":").map(Number);
-      const [eh, em] = item.endTime.split(":").map(Number);
-      return sum + (eh * 60 + em - (sh * 60 + sm));
-    }, 0);
+    items.reduce((sum, item) => sum + calcItemMinutes(item.startTime, item.endTime), 0);
 
   const formatMinutes = (m: number) => {
+    if (m <= 0) return "-";
     const h = Math.floor(m / 60);
     const min = m % 60;
     return h > 0 ? (min > 0 ? `${h}시간 ${min}분` : `${h}시간`) : `${min}분`;
   };
 
   if (loading) return <div className="p-6 text-center text-gray-400">불러오는 중...</div>;
+
+  const batchRange = getSelectedBatchRange();
 
   return (
     <div>
@@ -303,67 +327,68 @@ export default function AdminTemplatesPage() {
                 </button>
               </div>
 
-              {formItems.map((item, idx) => (
-                <div key={idx} className="border rounded-lg p-3 space-y-2 bg-gray-50">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium text-gray-500">항목 {idx + 1}</span>
-                    {formItems.length > 1 && (
-                      <button
-                        onClick={() => removeItem(idx)}
-                        className="text-xs text-red-500 hover:text-red-700"
-                      >
-                        삭제
-                      </button>
+              {formItems.map((item, idx) => {
+                const itemMin = calcItemMinutes(item.startTime, item.endTime);
+                return (
+                  <div key={idx} className="border rounded-lg p-3 space-y-2 bg-gray-50">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-gray-500">항목 {idx + 1}</span>
+                      {formItems.length > 1 && (
+                        <button
+                          onClick={() => removeItem(idx)}
+                          className="text-xs text-red-500 hover:text-red-700"
+                        >
+                          삭제
+                        </button>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="time"
+                        value={item.startTime}
+                        onChange={(e) => updateItem(idx, "startTime", e.target.value)}
+                        className="px-2 py-1.5 border rounded text-sm"
+                      />
+                      <input
+                        type="time"
+                        value={item.endTime}
+                        onChange={(e) => updateItem(idx, "endTime", e.target.value)}
+                        className="px-2 py-1.5 border rounded text-sm"
+                      />
+                    </div>
+                    {itemMin > 0 && (
+                      <p className="text-xs text-blue-600 font-medium">{formatMinutes(itemMin)}</p>
                     )}
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <input
-                      type="time"
-                      value={item.startTime}
-                      onChange={(e) => updateItem(idx, "startTime", e.target.value)}
-                      className="px-2 py-1.5 border rounded text-sm"
-                    />
-                    <input
-                      type="time"
-                      value={item.endTime}
-                      onChange={(e) => updateItem(idx, "endTime", e.target.value)}
-                      className="px-2 py-1.5 border rounded text-sm"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <select
-                      value={item.type}
-                      onChange={(e) => updateItem(idx, "type", e.target.value)}
-                      className="px-2 py-1.5 border rounded text-sm"
-                    >
-                      <option value="">유형 선택</option>
-                      {TRAINING_TYPES.map((t) => (
-                        <option key={t} value={t}>{t}</option>
-                      ))}
-                    </select>
                     <input
                       placeholder="훈련명"
                       value={item.title}
                       onChange={(e) => updateItem(idx, "title", e.target.value)}
-                      className="px-2 py-1.5 border rounded text-sm"
+                      className="w-full px-2 py-1.5 border rounded text-sm"
                     />
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        placeholder="장소 (선택)"
+                        value={item.location}
+                        onChange={(e) => updateItem(idx, "location", e.target.value)}
+                        className="px-2 py-1.5 border rounded text-sm"
+                      />
+                      <input
+                        placeholder="설명 (선택)"
+                        value={item.description}
+                        onChange={(e) => updateItem(idx, "description", e.target.value)}
+                        className="px-2 py-1.5 border rounded text-sm"
+                      />
+                    </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <input
-                      placeholder="장소 (선택)"
-                      value={item.location}
-                      onChange={(e) => updateItem(idx, "location", e.target.value)}
-                      className="px-2 py-1.5 border rounded text-sm"
-                    />
-                    <input
-                      placeholder="설명 (선택)"
-                      value={item.description}
-                      onChange={(e) => updateItem(idx, "description", e.target.value)}
-                      className="px-2 py-1.5 border rounded text-sm"
-                    />
-                  </div>
+                );
+              })}
+
+              {/* 전체 산출 시간 */}
+              {formItems.length > 0 && totalMinutes(formItems) > 0 && (
+                <div className="text-right text-sm font-medium text-gray-700">
+                  총 {formatMinutes(totalMinutes(formItems))}
                 </div>
-              ))}
+              )}
             </div>
 
             <div className="flex gap-3 pt-2">
@@ -399,7 +424,7 @@ export default function AdminTemplatesPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">차수</label>
                 <select
                   value={applyBatchId}
-                  onChange={(e) => setApplyBatchId(e.target.value)}
+                  onChange={(e) => handleBatchChange(e.target.value)}
                   className="w-full px-3 py-2 border rounded-lg"
                 >
                   <option value="">차수 선택</option>
@@ -414,8 +439,15 @@ export default function AdminTemplatesPage() {
                   type="date"
                   value={applyDate}
                   onChange={(e) => setApplyDate(e.target.value)}
+                  min={batchRange?.min}
+                  max={batchRange?.max}
                   className="w-full px-3 py-2 border rounded-lg"
                 />
+                {batchRange && (
+                  <p className="text-xs text-gray-400 mt-1">
+                    {batchRange.name} 기간: {batchRange.min} ~ {batchRange.max}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -427,7 +459,6 @@ export default function AdminTemplatesPage() {
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-3 py-2 text-left">시간</th>
-                      <th className="px-3 py-2 text-left">유형</th>
                       <th className="px-3 py-2 text-left">훈련명</th>
                       <th className="px-3 py-2 text-left">장소</th>
                     </tr>
@@ -436,7 +467,6 @@ export default function AdminTemplatesPage() {
                     {applyTarget.items.map((item, i) => (
                       <tr key={i}>
                         <td className="px-3 py-2 whitespace-nowrap">{item.startTime}~{item.endTime}</td>
-                        <td className="px-3 py-2">{item.type}</td>
                         <td className="px-3 py-2">{item.title}</td>
                         <td className="px-3 py-2 text-gray-500">{item.location || "-"}</td>
                       </tr>

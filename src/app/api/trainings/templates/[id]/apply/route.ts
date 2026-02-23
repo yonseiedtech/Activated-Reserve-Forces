@@ -72,7 +72,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       prisma.training.create({
         data: {
           title: item.title,
-          type: item.type,
+          type: item.type || "기타",
           date: trainingDate,
           startTime: item.startTime,
           endTime: item.endTime,

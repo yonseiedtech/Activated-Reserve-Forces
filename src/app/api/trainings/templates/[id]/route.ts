@@ -38,10 +38,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       name: body.name,
       description: body.description,
       items: {
-        create: body.items.map((item: { title: string; type: string; startTime: string; endTime: string; location?: string; description?: string }, idx: number) => ({
+        create: body.items.map((item: { title: string; type?: string; startTime: string; endTime: string; location?: string; description?: string }, idx: number) => ({
           order: idx,
           title: item.title,
-          type: item.type,
+          type: item.type || null,
           startTime: item.startTime,
           endTime: item.endTime,
           location: item.location,

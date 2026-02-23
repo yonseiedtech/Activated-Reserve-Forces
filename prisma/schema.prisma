@@ -388,7 +388,7 @@ model TrainingTemplateItem {
   template    TrainingTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
   order       Int              // 정렬 순서
   title       String           // 훈련명
-  type        String           // 유형 (사격, 화생방 등)
+  type        String?          // 유형 (선택)
   startTime   String           // "08:00"
   endTime     String           // "09:00"
   location    String?
