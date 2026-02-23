@@ -47,8 +47,6 @@ export async function GET() {
       totalAttendances += t.attendances.length;
     }
 
-    // 훈련유형별 출석률 (사격/화생방 등)
-    const byTypeMap: Record<string, { present: number; absent: number; pending: number; total: number; count: number }> = {};
     // 평일/주말별
     const byDayTypeMap: Record<string, { present: number; absent: number; pending: number; total: number; count: number }> = {
       weekday: { present: 0, absent: 0, pending: 0, total: 0, count: 0 },
@@ -56,18 +54,10 @@ export async function GET() {
     };
 
     for (const t of trainings) {
-      const type = t.type || "기타";
-      if (!byTypeMap[type]) byTypeMap[type] = { present: 0, absent: 0, pending: 0, total: 0, count: 0 };
       const present = t.attendances.filter((a) => a.status === "PRESENT").length;
       const absent = t.attendances.filter((a) => a.status === "ABSENT").length;
       const pending = t.attendances.filter((a) => a.status === "PENDING").length;
       const total = t.attendances.length;
-
-      byTypeMap[type].present += present;
-      byTypeMap[type].absent += absent;
-      byTypeMap[type].pending += pending;
-      byTypeMap[type].total += total;
-      byTypeMap[type].count += 1;
 
       const day = new Date(t.date).getUTCDay();
       const dayType = day === 0 || day === 6 ? "weekend" : "weekday";
@@ -77,12 +67,6 @@ export async function GET() {
       byDayTypeMap[dayType].total += total;
       byDayTypeMap[dayType].count += 1;
     }
-
-    const byType = Object.entries(byTypeMap).map(([type, data]) => ({
-      type,
-      ...data,
-      rate: data.total > 0 ? Math.round((data.present / data.total) * 100) : 0,
-    }));
 
     const byDayType = Object.entries(byDayTypeMap)
       .filter(([, data]) => data.count > 0)
@@ -134,7 +118,6 @@ export async function GET() {
         total: totalAttendances,
         rate: totalAttendances > 0 ? Math.round((totalPresent / totalAttendances) * 100) : 0,
       },
-      byType,
       byDayType,
       byUser,
     };
