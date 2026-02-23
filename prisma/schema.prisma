@@ -368,3 +368,27 @@ model MobileIdCard {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 }
+
+// ─── 훈련 기본 템플릿 ───
+model TrainingTemplate {
+  id          String   @id @default(cuid())
+  name        String   // "1일차 기본 시간표", "2일차 오전 사격"
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  items       TrainingTemplateItem[]
+}
+
+model TrainingTemplateItem {
+  id          String   @id @default(cuid())
+  templateId  String
+  template    TrainingTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  order       Int              // 정렬 순서
+  title       String           // 훈련명
+  type        String           // 유형 (사격, 화생방 등)
+  startTime   String           // "08:00"
+  endTime     String           // "09:00"
+  location    String?
+  description String?
+  createdAt   DateTime @default(now())
+}

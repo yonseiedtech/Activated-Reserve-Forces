@@ -15,6 +15,7 @@ export default async function AdminPage() {
     { href: "/admin/locations", title: "GPS 위치 관리", desc: "출퇴근 기준 위치를 등록/수정합니다.", icon: "📍" },
     { href: "/admin/address", title: "주소 변경 승인", desc: "대상자의 주소 변경 요청을 승인/반려합니다.", icon: "🏠" },
     { href: "/admin/notifications", title: "푸시 알림 발송", desc: "대상자에게 알림을 발송합니다.", icon: "🔔" },
+    { href: "/admin/templates", title: "훈련 템플릿", desc: "반복 사용할 훈련 시간표를 관리합니다.", icon: "📝" },
   ];
 
   return (
