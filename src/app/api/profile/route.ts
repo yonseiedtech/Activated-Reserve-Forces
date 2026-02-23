@@ -33,6 +33,11 @@ export async function GET() {
       zipCode: true,
       address: true,
       addressDetail: true,
+      pendingZipCode: true,
+      pendingAddress: true,
+      pendingAddressDetail: true,
+      addressRejectedAt: true,
+      addressRejectReason: true,
       vehicleType: true,
       vehiclePlateNumber: true,
       vehicleColor: true,
@@ -58,22 +63,48 @@ export async function PATCH(req: NextRequest) {
   if (!session) return unauthorized();
 
   const body = await req.json();
+  const isReservist = session.user.role === "RESERVIST";
 
-  const allowedFields = [
-    "phone",
-    "zipCode",
-    "address",
-    "addressDetail",
-    "vehicleType",
-    "vehiclePlateNumber",
-    "vehicleColor",
-  ] as const;
+  // 주소 필드와 그 외 필드를 분리
+  const addressFields = ["zipCode", "address", "addressDetail"] as const;
+  const otherFields = ["phone", "vehicleType", "vehiclePlateNumber", "vehicleColor"] as const;
 
   const data: Record<string, string | null> = {};
-  for (const key of allowedFields) {
+
+  // 비-주소 필드는 그대로 업데이트
+  for (const key of otherFields) {
     if (key in body) {
       const val = body[key];
       data[key] = typeof val === "string" && val.trim() !== "" ? val.trim() : null;
+    }
+  }
+
+  // 주소 필드 처리
+  const hasAddressChange = addressFields.some((k) => k in body);
+
+  if (hasAddressChange && isReservist) {
+    // RESERVIST: pending 필드에 저장
+    const pendingMap: Record<string, string> = {
+      zipCode: "pendingZipCode",
+      address: "pendingAddress",
+      addressDetail: "pendingAddressDetail",
+    };
+    for (const key of addressFields) {
+      if (key in body) {
+        const val = body[key];
+        data[pendingMap[key]] = typeof val === "string" && val.trim() !== "" ? val.trim() : null;
+      }
+    }
+    // 반려 상태 초기화
+    data["addressRejectedAt" as string] = null;
+    data["addressRejectReason" as string] = null;
+  } else if (hasAddressChange) {
+    // ADMIN/MANAGER: 직접 업데이트
+    for (const key of addressFields) {
+      if (key in body) {
+        const val = body[key];
+        data[key] = typeof val === "string" && val.trim() !== "" ? val.trim() : null;
+      }
     }
   }
 
@@ -89,11 +120,32 @@ export async function PATCH(req: NextRequest) {
       zipCode: true,
       address: true,
       addressDetail: true,
+      pendingZipCode: true,
+      pendingAddress: true,
+      pendingAddressDetail: true,
       vehicleType: true,
       vehiclePlateNumber: true,
       vehicleColor: true,
     },
   });
+
+  // RESERVIST 주소 변경 시 관리자에게 알림
+  if (hasAddressChange && isReservist) {
+    const admins = await prisma.user.findMany({
+      where: { role: { in: ["ADMIN", "MANAGER"] } },
+      select: { id: true },
+    });
+    if (admins.length > 0) {
+      await prisma.notification.createMany({
+        data: admins.map((a) => ({
+          userId: a.id,
+          title: "주소 변경 요청",
+          content: `${session.user.name}님이 주소 변경을 요청했습니다.`,
+          type: "GENERAL",
+        })),
+      });
+    }
+  }
 
   return json(updated);
 }

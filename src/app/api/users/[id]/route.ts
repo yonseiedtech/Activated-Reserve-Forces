@@ -41,6 +41,19 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       warCompany: body.warCompany !== undefined ? (body.warCompany || null) : undefined,
       warPlatoon: body.warPlatoon !== undefined ? (body.warPlatoon || null) : undefined,
       warPosition: body.warPosition !== undefined ? (body.warPosition || null) : undefined,
+      zipCode: body.zipCode !== undefined ? (body.zipCode || null) : undefined,
+      address: body.address !== undefined ? (body.address || null) : undefined,
+      addressDetail: body.addressDetail !== undefined ? (body.addressDetail || null) : undefined,
+      // 관리자 직접 수정 시 pending 상태 클리어
+      ...(body.zipCode !== undefined || body.address !== undefined || body.addressDetail !== undefined
+        ? {
+            pendingZipCode: null,
+            pendingAddress: null,
+            pendingAddressDetail: null,
+            addressRejectedAt: null,
+            addressRejectReason: null,
+          }
+        : {}),
     },
     select: {
       id: true,

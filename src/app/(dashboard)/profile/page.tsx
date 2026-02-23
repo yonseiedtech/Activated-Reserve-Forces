@@ -31,6 +31,11 @@ interface ProfileData {
   zipCode: string | null;
   address: string | null;
   addressDetail: string | null;
+  pendingZipCode: string | null;
+  pendingAddress: string | null;
+  pendingAddressDetail: string | null;
+  addressRejectedAt: string | null;
+  addressRejectReason: string | null;
   vehicleType: string | null;
   vehiclePlateNumber: string | null;
   vehicleColor: string | null;
@@ -54,6 +59,13 @@ export default function ProfilePage() {
   const [vehicleType, setVehicleType] = useState("");
   const [vehiclePlateNumber, setVehiclePlateNumber] = useState("");
   const [vehicleColor, setVehicleColor] = useState("");
+
+  // 비밀번호 변경
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [pwSaving, setPwSaving] = useState(false);
+  const [pwMessage, setPwMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const fetchProfile = useCallback(async () => {
     try {
@@ -126,7 +138,14 @@ export default function ProfilePage() {
         }),
       });
       if (res.ok) {
-        showMessage("success", "저장되었습니다.");
+        const isAddressChanged = zipCode !== (profile?.zipCode || "") ||
+          address !== (profile?.address || "") ||
+          addressDetail !== (profile?.addressDetail || "");
+        if (isAddressChanged && session?.user?.role === "RESERVIST") {
+          showMessage("success", "주소 변경이 요청되었습니다. 관리자 승인을 기다려주세요.");
+        } else {
+          showMessage("success", "저장되었습니다.");
+        }
         await fetchProfile();
       } else {
         const err = await res.json();
@@ -136,6 +155,40 @@ export default function ProfilePage() {
       showMessage("error", "저장 중 오류가 발생했습니다.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  // 비밀번호 변경
+  const handleChangePassword = async () => {
+    setPwMessage(null);
+    if (newPassword.length < 6) {
+      setPwMessage({ type: "error", text: "새 비밀번호는 6자 이상이어야 합니다." });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPwMessage({ type: "error", text: "새 비밀번호가 일치하지 않습니다." });
+      return;
+    }
+    setPwSaving(true);
+    try {
+      const res = await fetch("/api/profile/password", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      if (res.ok) {
+        setPwMessage({ type: "success", text: "비밀번호가 변경되었습니다." });
+        setCurrentPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
+      } else {
+        const err = await res.json();
+        setPwMessage({ type: "error", text: err.error || "비밀번호 변경 실패" });
+      }
+    } catch {
+      setPwMessage({ type: "error", text: "비밀번호 변경 중 오류가 발생했습니다." });
+    } finally {
+      setPwSaving(false);
     }
   };
 
@@ -167,6 +220,10 @@ export default function ProfilePage() {
   const hasApprovedPhoto = !!profile.photoUrl;
   const hasPendingPhoto = !!profile.pendingPhotoUrl;
   const wasRejected = !!profile.photoRejectedAt;
+
+  // 주소 상태
+  const hasPendingAddress = !!profile.pendingAddress;
+  const addressWasRejected = !!profile.addressRejectedAt;
 
   return (
     <div className="max-w-lg">
@@ -282,6 +339,20 @@ export default function ProfilePage() {
           <InputField label="연락처" value={phone} onChange={setPhone} placeholder="010-0000-0000" />
           <div>
             <label className="block text-sm text-gray-500 mb-1">주소</label>
+            {hasPendingAddress && (
+              <div className="mb-2 px-3 py-2 bg-yellow-50 border border-yellow-200 rounded-lg text-sm">
+                <p className="font-medium text-yellow-800">주소 변경 승인 대기 중</p>
+                <p className="text-yellow-700 text-xs mt-1">
+                  변경 요청: [{profile.pendingZipCode}] {profile.pendingAddress} {profile.pendingAddressDetail}
+                </p>
+              </div>
+            )}
+            {addressWasRejected && !hasPendingAddress && (
+              <div className="mb-2 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-sm">
+                <p className="font-medium text-red-800">주소 변경 반려</p>
+                <p className="text-red-700 text-xs mt-1">사유: {profile.addressRejectReason}</p>
+              </div>
+            )}
             <div className="flex gap-2 mb-2">
               <input
                 type="text"
@@ -321,6 +392,43 @@ export default function ProfilePage() {
           <InputField label="차량 종류" value={vehicleType} onChange={setVehicleType} placeholder="예: 승용차, SUV" />
           <InputField label="차량 번호" value={vehiclePlateNumber} onChange={setVehiclePlateNumber} placeholder="예: 12가 3456" />
           <InputField label="차량 색상" value={vehicleColor} onChange={setVehicleColor} placeholder="예: 흰색" />
+        </div>
+
+        {/* ── 비밀번호 변경 ── */}
+        <SectionHeader title="비밀번호 변경" editable />
+        <div className="px-6 py-3 space-y-3">
+          {pwMessage && (
+            <div className={`px-3 py-2 rounded-lg text-sm ${
+              pwMessage.type === "success"
+                ? "bg-green-50 text-green-700 border border-green-200"
+                : "bg-red-50 text-red-700 border border-red-200"
+            }`}>
+              {pwMessage.text}
+            </div>
+          )}
+          <InputField label="현재 비밀번호" value={currentPassword} onChange={setCurrentPassword} type="password" />
+          <InputField label="새 비밀번호" value={newPassword} onChange={setNewPassword} type="password" placeholder="6자 이상" />
+          <div>
+            <label className="block text-sm text-gray-500 mb-1">새 비밀번호 확인</label>
+            <input
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className={`w-full px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 ${
+                confirmPassword && newPassword !== confirmPassword ? "border-red-300" : ""
+              }`}
+            />
+            {confirmPassword && newPassword !== confirmPassword && (
+              <p className="text-xs text-red-500 mt-1">비밀번호가 일치하지 않습니다.</p>
+            )}
+          </div>
+          <button
+            onClick={handleChangePassword}
+            disabled={pwSaving || !currentPassword || !newPassword || !confirmPassword}
+            className="w-full py-2.5 bg-orange-600 text-white rounded-lg font-medium hover:bg-orange-700 transition-colors disabled:opacity-50 text-sm"
+          >
+            {pwSaving ? "변경 중..." : "비밀번호 변경"}
+          </button>
         </div>
 
         {/* ── 저장 버튼 ── */}
@@ -365,17 +473,19 @@ function InputField({
   value,
   onChange,
   placeholder,
+  type = "text",
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
+  type?: string;
 }) {
   return (
     <div>
       <label className="block text-sm text-gray-500 mb-1">{label}</label>
       <input
-        type="text"
+        type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}

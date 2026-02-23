@@ -31,6 +31,9 @@ export async function GET(req: NextRequest) {
       warCompany: true,
       warPlatoon: true,
       warPosition: true,
+      zipCode: true,
+      address: true,
+      addressDetail: true,
       batchUsers: {
         select: { batch: { select: { id: true, name: true } } },
       },

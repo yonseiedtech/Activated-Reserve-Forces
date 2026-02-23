@@ -45,9 +45,14 @@ model User {
   photoRejectReason String?
 
   // 주소
-  zipCode           String?   // 우편번호
-  address           String?   // 기본 주소
-  addressDetail     String?   // 상세 주소
+  zipCode              String?   // 우편번호
+  address              String?   // 기본 주소
+  addressDetail        String?   // 상세 주소
+  pendingZipCode       String?
+  pendingAddress       String?
+  pendingAddressDetail String?
+  addressRejectedAt    DateTime?
+  addressRejectReason  String?
 
   // 차량
   vehicleType        String?  // 차량종류

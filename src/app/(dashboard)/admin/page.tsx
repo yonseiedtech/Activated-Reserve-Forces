@@ -13,6 +13,7 @@ export default async function AdminPage() {
     { href: "/admin/users", title: "사용자 관리", desc: "관리자, 담당자, 대상자 계정을 관리합니다.", icon: "👥" },
     { href: "/admin/units", title: "부대 관리", desc: "부대 정보를 등록/수정/삭제합니다.", icon: "🏢" },
     { href: "/admin/locations", title: "GPS 위치 관리", desc: "출퇴근 기준 위치를 등록/수정합니다.", icon: "📍" },
+    { href: "/admin/address", title: "주소 변경 승인", desc: "대상자의 주소 변경 요청을 승인/반려합니다.", icon: "🏠" },
     { href: "/admin/notifications", title: "푸시 알림 발송", desc: "대상자에게 알림을 발송합니다.", icon: "🔔" },
   ];
 

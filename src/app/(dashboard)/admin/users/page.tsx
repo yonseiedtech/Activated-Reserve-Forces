@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { signIn } from "next-auth/react";
+import Script from "next/script";
 import PageTitle from "@/components/ui/PageTitle";
 import { ROLE_LABELS, RANKS } from "@/lib/constants";
 
@@ -22,6 +23,9 @@ interface User {
   warCompany: string | null;
   warPlatoon: string | null;
   warPosition: string | null;
+  zipCode: string | null;
+  address: string | null;
+  addressDetail: string | null;
   batches: { id: string; name: string }[];
 }
 
@@ -66,6 +70,7 @@ export default function AdminUsersPage() {
   const [editForm, setEditForm] = useState({
     username: "", name: "", rank: "", serviceNumber: "", uniqueNumber: "", unit: "", phone: "", birthDate: "",
     branch: "", warBattalion: "", warCompany: "", warPlatoon: "", warPosition: "",
+    zipCode: "", address: "", addressDetail: "",
   });
   const [editError, setEditError] = useState("");
   const [editLoading, setEditLoading] = useState(false);
@@ -175,6 +180,9 @@ export default function AdminUsersPage() {
       warCompany: user.warCompany || "",
       warPlatoon: user.warPlatoon || "",
       warPosition: user.warPosition || "",
+      zipCode: user.zipCode || "",
+      address: user.address || "",
+      addressDetail: user.addressDetail || "",
     });
   };
 
@@ -200,6 +208,19 @@ export default function AdminUsersPage() {
       const err = await res.json();
       setEditError(err.error || "저장에 실패했습니다.");
     }
+  };
+
+  const handleEditAddressSearch = () => {
+    if (typeof window === "undefined" || !window.daum) return;
+    new window.daum.Postcode({
+      oncomplete(data: DaumPostcodeData) {
+        setEditForm((prev) => ({
+          ...prev,
+          zipCode: data.zonecode,
+          address: data.roadAddress || data.jibunAddress,
+        }));
+      },
+    }).open();
   };
 
   const handleEditClose = () => {
@@ -311,6 +332,7 @@ export default function AdminUsersPage() {
 
   return (
     <div>
+      <Script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js" strategy="lazyOnload" />
       <PageTitle
         title="사용자 관리"
         actions={
@@ -558,6 +580,43 @@ export default function AdminUsersPage() {
             <div>
               <label className="text-sm font-medium">전시직책</label>
               <input placeholder="전시직책" value={editForm.warPosition} onChange={(e) => setEditForm({ ...editForm, warPosition: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+            </div>
+
+            {/* 주소 */}
+            <div className="border-t pt-3 mt-3">
+              <p className="text-sm font-semibold text-gray-700 mb-2">주소</p>
+            </div>
+            <div>
+              <div className="flex gap-2 mb-2">
+                <input
+                  type="text"
+                  value={editForm.zipCode}
+                  readOnly
+                  placeholder="우편번호"
+                  className="w-28 px-3 py-2 text-sm border rounded-lg bg-gray-50 outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={handleEditAddressSearch}
+                  className="px-4 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 border shrink-0"
+                >
+                  우편번호 검색
+                </button>
+              </div>
+              <input
+                type="text"
+                value={editForm.address}
+                readOnly
+                placeholder="기본 주소"
+                className="w-full px-3 py-2 text-sm border rounded-lg bg-gray-50 outline-none mb-2"
+              />
+              <input
+                type="text"
+                value={editForm.addressDetail}
+                onChange={(e) => setEditForm({ ...editForm, addressDetail: e.target.value })}
+                placeholder="상세 주소 입력"
+                className="w-full px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+              />
             </div>
 
             <div className="flex gap-3 pt-2">
