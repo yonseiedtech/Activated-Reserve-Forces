@@ -69,7 +69,7 @@ export default async function DashboardPage() {
   }
 
   // Reservist-specific data
-  let nextTraining: { id: string; title: string; date: Date; dDay: number } | null = null;
+  let nextTraining: { id: string; title: string; batchName: string; date: Date; dDay: number } | null = null;
   let mobileIdExpiringSoon = false;
 
   if (role === ROLES.RESERVIST) {
@@ -83,7 +83,7 @@ export default async function DashboardPage() {
       const nt = await prisma.training.findFirst({
         where: { batchId: { in: batchIds }, date: { gte: today } },
         orderBy: { date: "asc" },
-        select: { id: true, title: true, date: true },
+        select: { id: true, title: true, date: true, batch: { select: { name: true } } },
       });
 
       if (nt) {
@@ -91,6 +91,7 @@ export default async function DashboardPage() {
         nextTraining = {
           id: nt.id,
           title: nt.title,
+          batchName: nt.batch.name,
           date: nt.date,
           dDay: Math.ceil(diffMs / 86400000),
         };
@@ -222,7 +223,7 @@ export default async function DashboardPage() {
                   <p className="text-2xl font-bold text-blue-700">
                     D{nextTraining.dDay === 0 ? "-Day" : `-${nextTraining.dDay}`}
                   </p>
-                  <p className="text-sm text-gray-700 font-medium">{nextTraining.title}</p>
+                  <p className="text-sm text-gray-700 font-medium">{nextTraining.batchName}</p>
                   <p className="text-xs text-gray-400">
                     {new Date(nextTraining.date).toLocaleDateString("ko-KR")}
                   </p>

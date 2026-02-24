@@ -6,6 +6,11 @@ import Link from "next/link";
 import PageTitle from "@/components/ui/PageTitle";
 import { BATCH_STATUS_LABELS } from "@/lib/constants";
 
+interface TrainingAttendance {
+  id: string;
+  status: string;
+}
+
 interface Training {
   id: string;
   title: string;
@@ -14,6 +19,7 @@ interface Training {
   startTime: string | null;
   endTime: string | null;
   location: string | null;
+  attendances?: TrainingAttendance[];
 }
 
 interface Batch {
@@ -360,81 +366,127 @@ export default function ReservistBatchDetailPage() {
 
       {/* ═══ 1. 참석신고 탭 ═══ */}
       {tab === "attendance" && (
-        <div className="bg-white rounded-xl border p-5 space-y-4">
-          <h3 className="text-sm font-semibold text-gray-800">참석 가능 현황</h3>
+        <div className="space-y-4">
+          {/* 참석 가능 현황 신고 폼 */}
+          <div className="bg-white rounded-xl border p-5 space-y-4">
+            <h3 className="text-sm font-semibold text-gray-800">참석 가능 현황</h3>
 
-          <div className="flex gap-2">
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setAttendanceStatus("PRESENT"); setSaved(false); setError(""); }}
+                className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  attendanceStatus === "PRESENT"
+                    ? "bg-green-600 text-white"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                }`}
+              >
+                참석
+              </button>
+              <button
+                onClick={() => { setAttendanceStatus("ABSENT"); setSaved(false); setError(""); }}
+                className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  attendanceStatus === "ABSENT"
+                    ? "bg-red-600 text-white"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                }`}
+              >
+                불참
+              </button>
+              <button
+                onClick={() => { setAttendanceStatus("PENDING"); setSaved(false); setError(""); }}
+                className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  attendanceStatus === "PENDING"
+                    ? "bg-gray-600 text-white"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                }`}
+              >
+                미정
+              </button>
+            </div>
+
+            {attendanceStatus === "ABSENT" && (
+              <div>
+                <label className="text-xs font-medium text-gray-600">불참 사유</label>
+                <textarea
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="불참 사유를 입력해주세요."
+                  rows={2}
+                  className="mt-1 w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-red-500 outline-none resize-none"
+                />
+              </div>
+            )}
+
+            {attendanceStatus === "PENDING" && (
+              <div>
+                <label className="text-xs font-medium text-gray-600">확정 예정 시점</label>
+                <input
+                  type="datetime-local"
+                  value={expectedConfirmAt}
+                  onChange={(e) => setExpectedConfirmAt(e.target.value)}
+                  className="mt-1 w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-gray-500 outline-none"
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  참석 여부가 확정되지 않은 경우, 확정 예정 일시를 입력하세요.
+                </p>
+              </div>
+            )}
+
+            {error && <p className="text-sm text-red-600">{error}</p>}
+
             <button
-              onClick={() => { setAttendanceStatus("PRESENT"); setSaved(false); setError(""); }}
-              className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                attendanceStatus === "PRESENT"
-                  ? "bg-green-600 text-white"
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-              }`}
+              onClick={handleSaveAttendance}
+              disabled={saving}
+              className={`w-full py-2.5 rounded-lg text-sm font-medium text-white transition-colors ${
+                saved ? "bg-green-600" : "bg-blue-600 hover:bg-blue-700"
+              } disabled:opacity-50`}
             >
-              참석
-            </button>
-            <button
-              onClick={() => { setAttendanceStatus("ABSENT"); setSaved(false); setError(""); }}
-              className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                attendanceStatus === "ABSENT"
-                  ? "bg-red-600 text-white"
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-              }`}
-            >
-              불참
-            </button>
-            <button
-              onClick={() => { setAttendanceStatus("PENDING"); setSaved(false); setError(""); }}
-              className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                attendanceStatus === "PENDING"
-                  ? "bg-gray-600 text-white"
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-              }`}
-            >
-              미정
+              {saving ? "저장 중..." : saved ? "저장 완료!" : "저장"}
             </button>
           </div>
 
-          {attendanceStatus === "ABSENT" && (
-            <div>
-              <label className="text-xs font-medium text-gray-600">불참 사유</label>
-              <textarea
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                placeholder="불참 사유를 입력해주세요."
-                rows={2}
-                className="mt-1 w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-red-500 outline-none resize-none"
-              />
+          {/* 훈련별 출석 현황 */}
+          {(batch.trainings || []).length > 0 && (
+            <div className="bg-white rounded-xl border overflow-hidden">
+              <div className="px-4 py-3 bg-gray-50 border-b">
+                <h3 className="font-semibold text-sm text-gray-800">훈련별 출석 현황</h3>
+              </div>
+              <div className="divide-y">
+                {grouped.map(([, dayTrainings]) =>
+                  dayTrainings.map((t) => {
+                    const myAtt = t.attendances?.[0];
+                    const attStatus = myAtt?.status;
+                    return (
+                      <div key={t.id} className="px-4 py-3 flex items-center justify-between">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${TYPE_COLORS[t.type] || TYPE_COLORS["기타"]}`}>
+                              {t.type}
+                            </span>
+                            <span className="text-sm font-medium text-gray-900">{t.title}</span>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            {formatDate(t.date)}
+                            {t.startTime && t.endTime && ` ${t.startTime}~${t.endTime}`}
+                          </p>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                          attStatus === "PRESENT" ? "bg-green-100 text-green-700" :
+                          attStatus === "ABSENT" ? "bg-red-100 text-red-700" :
+                          attStatus === "PENDING" ? "bg-yellow-100 text-yellow-700" :
+                          "bg-gray-100 text-gray-400"
+                        }`}>
+                          {attStatus === "PRESENT" ? "출석" :
+                           attStatus === "ABSENT" ? "결석" :
+                           attStatus === "PENDING" ? "대기" : "미기록"}
+                        </span>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
             </div>
           )}
-
-          {attendanceStatus === "PENDING" && (
-            <div>
-              <label className="text-xs font-medium text-gray-600">확정 예정 시점</label>
-              <input
-                type="datetime-local"
-                value={expectedConfirmAt}
-                onChange={(e) => setExpectedConfirmAt(e.target.value)}
-                className="mt-1 w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-gray-500 outline-none"
-              />
-              <p className="text-xs text-gray-400 mt-1">
-                참석 여부가 확정되지 않은 경우, 확정 예정 일시를 입력하세요.
-              </p>
-            </div>
-          )}
-
-          {error && <p className="text-sm text-red-600">{error}</p>}
-
-          <button
-            onClick={handleSaveAttendance}
-            disabled={saving}
-            className={`w-full py-2.5 rounded-lg text-sm font-medium text-white transition-colors ${
-              saved ? "bg-green-600" : "bg-blue-600 hover:bg-blue-700"
-            } disabled:opacity-50`}
-          >
-            {saving ? "저장 중..." : saved ? "저장 완료!" : "저장"}
-          </button>
         </div>
       )}
 

@@ -829,47 +829,91 @@ export default function AdminBatchDetailPage() {
 
       {/* Attendance Summary Tab */}
       {tab === "attendance" && (
-        <div className="space-y-3">
-          {attendanceLoading ? (
-            <div className="text-center py-8 text-gray-400">로딩 중...</div>
-          ) : (
-            <>
-              {batch.trainings.length === 0 && (
-                <p className="text-center py-8 text-gray-400">등록된 훈련이 없습니다.</p>
-              )}
-              {batch.trainings.map((t) => {
-                const summary = attendanceSummary?.byTraining.find((s) => s.trainingId === t.id);
-                return (
-                  <div
-                    key={t.id}
-                    onClick={() => router.push(`/attendance/${t.id}`)}
-                    className="bg-white rounded-xl border p-4 hover:border-blue-300 hover:shadow-sm cursor-pointer transition-all"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="font-semibold text-sm">{t.title}</h3>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {new Date(t.date).toLocaleDateString("ko-KR")}
-                          {t.startTime && t.endTime ? ` ${t.startTime}~${t.endTime}` : ""}
-                          {t.location ? ` | ${t.location}` : ""}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <span className="px-2 py-0.5 bg-gray-100 rounded text-xs">{t.type}</span>
-                        {summary && (
-                          <div className="flex gap-2 mt-1 text-xs">
-                            <span className="text-green-600">참석 {summary.present}</span>
-                            <span className="text-red-600">불참 {summary.absent}</span>
-                            <span className="text-yellow-600">미정 {summary.pending}</span>
-                          </div>
-                        )}
-                      </div>
+        <div className="space-y-6">
+          {/* 참석신고 현황 (대상자별 자기신고) */}
+          <div className="bg-white rounded-xl border overflow-hidden">
+            <div className="px-4 py-3 bg-gray-50 border-b flex items-center justify-between">
+              <h3 className="font-semibold text-sm">참석신고 현황</h3>
+              <div className="flex gap-3 text-xs">
+                <span className="text-green-600">참석 {batch.users.filter((u) => u.batchStatus === "PRESENT").length}</span>
+                <span className="text-red-600">불참 {batch.users.filter((u) => u.batchStatus === "ABSENT").length}</span>
+                <span className="text-yellow-600">미정 {batch.users.filter((u) => !u.batchStatus || u.batchStatus === "PENDING").length}</span>
+              </div>
+            </div>
+            <div className="divide-y">
+              {batch.users.length === 0 ? (
+                <p className="px-4 py-6 text-sm text-gray-400 text-center">배정된 대상자가 없습니다.</p>
+              ) : (
+                batch.users.map((u) => (
+                  <div key={u.id} className="px-4 py-2.5 flex items-center justify-between hover:bg-gray-50">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm">
+                        <span className="text-gray-500">{u.rank}</span> {u.name}
+                      </span>
+                      <span className="text-xs text-gray-400">{u.serviceNumber}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {u.batchReason && u.batchStatus === "ABSENT" && (
+                        <span className="text-xs text-gray-400 max-w-[150px] truncate" title={u.batchReason}>{u.batchReason}</span>
+                      )}
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                        u.batchStatus === "PRESENT" ? "bg-green-100 text-green-700" :
+                        u.batchStatus === "ABSENT" ? "bg-red-100 text-red-700" :
+                        "bg-yellow-100 text-yellow-700"
+                      }`}>
+                        {u.batchStatus === "PRESENT" ? "참석" : u.batchStatus === "ABSENT" ? "불참" : "미정"}
+                      </span>
                     </div>
                   </div>
-                );
-              })}
-            </>
-          )}
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* 훈련별 출석 현황 */}
+          <div>
+            <h3 className="font-semibold text-sm mb-3 px-1">훈련별 출석 현황</h3>
+            {attendanceLoading ? (
+              <div className="text-center py-8 text-gray-400">로딩 중...</div>
+            ) : (
+              <div className="space-y-3">
+                {batch.trainings.length === 0 && (
+                  <p className="text-center py-8 text-gray-400">등록된 훈련이 없습니다.</p>
+                )}
+                {batch.trainings.map((t) => {
+                  const summary = attendanceSummary?.byTraining.find((s) => s.trainingId === t.id);
+                  return (
+                    <div
+                      key={t.id}
+                      onClick={() => router.push(`/attendance/${t.id}`)}
+                      className="bg-white rounded-xl border p-4 hover:border-blue-300 hover:shadow-sm cursor-pointer transition-all"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="font-semibold text-sm">{t.title}</h3>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {new Date(t.date).toLocaleDateString("ko-KR")}
+                            {t.startTime && t.endTime ? ` ${t.startTime}~${t.endTime}` : ""}
+                            {t.location ? ` | ${t.location}` : ""}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <span className="px-2 py-0.5 bg-gray-100 rounded text-xs">{t.type}</span>
+                          {summary && (
+                            <div className="flex gap-2 mt-1 text-xs">
+                              <span className="text-green-600">참석 {summary.present}</span>
+                              <span className="text-red-600">불참 {summary.absent}</span>
+                              <span className="text-yellow-600">미정 {summary.pending}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
