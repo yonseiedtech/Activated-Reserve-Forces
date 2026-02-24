@@ -282,6 +282,19 @@ export default function AdminBatchDetailPage() {
     setCommutingRows((prev) => prev.map((r, i) => i === idx ? { ...r, [field]: value } : r));
   };
 
+  const getNowTime = () => {
+    const now = new Date();
+    return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  };
+
+  const handleCheckIn = (idx: number) => {
+    updateCommutingRow(idx, "checkIn", getNowTime());
+  };
+
+  const handleCheckOut = (idx: number) => {
+    updateCommutingRow(idx, "checkOut", getNowTime());
+  };
+
   const handleCommutingSave = async () => {
     setCommutingSaving(true);
     const promises = commutingRows
@@ -865,22 +878,40 @@ export default function AdminBatchDetailPage() {
                             )}
                           </td>
                           <td className="px-4 py-2">
-                            <input
-                              type="time"
-                              value={row.checkIn}
-                              onChange={(e) => updateCommutingRow(idx, "checkIn", e.target.value)}
-                              disabled={isAbsent}
-                              className="w-full px-2 py-1 border rounded text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
-                            />
+                            <div className="flex gap-1 items-center">
+                              <input
+                                type="time"
+                                value={row.checkIn}
+                                onChange={(e) => updateCommutingRow(idx, "checkIn", e.target.value)}
+                                disabled={isAbsent}
+                                className="flex-1 px-2 py-1 border rounded text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
+                              />
+                              <button
+                                onClick={() => handleCheckIn(idx)}
+                                disabled={isAbsent}
+                                className="px-2 py-1 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700 disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+                              >
+                                출근
+                              </button>
+                            </div>
                           </td>
                           <td className="px-4 py-2">
-                            <input
-                              type="time"
-                              value={row.checkOut}
-                              onChange={(e) => updateCommutingRow(idx, "checkOut", e.target.value)}
-                              disabled={isAbsent}
-                              className="w-full px-2 py-1 border rounded text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
-                            />
+                            <div className="flex gap-1 items-center">
+                              <input
+                                type="time"
+                                value={row.checkOut}
+                                onChange={(e) => updateCommutingRow(idx, "checkOut", e.target.value)}
+                                disabled={isAbsent}
+                                className="flex-1 px-2 py-1 border rounded text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
+                              />
+                              <button
+                                onClick={() => handleCheckOut(idx)}
+                                disabled={isAbsent}
+                                className="px-2 py-1 bg-orange-600 text-white rounded text-xs font-medium hover:bg-orange-700 disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+                              >
+                                퇴근
+                              </button>
+                            </div>
                           </td>
                           <td className="px-4 py-2">
                             <input
@@ -929,23 +960,41 @@ export default function AdminBatchDetailPage() {
                       <div className="grid grid-cols-2 gap-2 mb-2">
                         <div>
                           <label className="text-xs text-gray-500 mb-1 block">출근시간</label>
-                          <input
-                            type="time"
-                            value={row.checkIn}
-                            onChange={(e) => updateCommutingRow(idx, "checkIn", e.target.value)}
-                            disabled={isAbsent}
-                            className="w-full px-2 py-1.5 border rounded text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
-                          />
+                          <div className="flex gap-1">
+                            <input
+                              type="time"
+                              value={row.checkIn}
+                              onChange={(e) => updateCommutingRow(idx, "checkIn", e.target.value)}
+                              disabled={isAbsent}
+                              className="flex-1 px-2 py-1.5 border rounded text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
+                            />
+                            <button
+                              onClick={() => handleCheckIn(idx)}
+                              disabled={isAbsent}
+                              className="px-2.5 py-1.5 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700 disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+                            >
+                              출근
+                            </button>
+                          </div>
                         </div>
                         <div>
                           <label className="text-xs text-gray-500 mb-1 block">퇴근시간</label>
-                          <input
-                            type="time"
-                            value={row.checkOut}
-                            onChange={(e) => updateCommutingRow(idx, "checkOut", e.target.value)}
-                            disabled={isAbsent}
-                            className="w-full px-2 py-1.5 border rounded text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
-                          />
+                          <div className="flex gap-1">
+                            <input
+                              type="time"
+                              value={row.checkOut}
+                              onChange={(e) => updateCommutingRow(idx, "checkOut", e.target.value)}
+                              disabled={isAbsent}
+                              className="flex-1 px-2 py-1.5 border rounded text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
+                            />
+                            <button
+                              onClick={() => handleCheckOut(idx)}
+                              disabled={isAbsent}
+                              className="px-2.5 py-1.5 bg-orange-600 text-white rounded text-xs font-medium hover:bg-orange-700 disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+                            >
+                              퇴근
+                            </button>
+                          </div>
                         </div>
                       </div>
                       <input
