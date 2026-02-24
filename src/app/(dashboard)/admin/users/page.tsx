@@ -56,6 +56,7 @@ const ROLE_COLORS: Record<string, string> = {
   ADMIN: "bg-red-100 text-red-700",
   MANAGER: "bg-purple-100 text-purple-700",
   COOK: "bg-yellow-100 text-yellow-700",
+  INSTRUCTOR: "bg-green-100 text-green-700",
   RESERVIST: "bg-blue-100 text-blue-700",
 };
 
@@ -70,6 +71,7 @@ export default function AdminUsersPage() {
   const [form, setForm] = useState({
     name: "", username: "", password: "", role: "RESERVIST",
     rank: "", serviceNumber: "", phone: "", unit: "", batchId: "",
+    birthDate: "",
   });
 
   // 정렬
@@ -139,14 +141,37 @@ export default function AdminUsersPage() {
 
   const handleCreate = async () => {
     setCreateError("");
+    const isReservist = form.role === "RESERVIST";
+
+    // RESERVIST: 군번 → 아이디, 생년월일 6자리 → 비밀번호
+    let username = form.username;
+    let password = form.password;
+    if (isReservist) {
+      if (!form.serviceNumber) { setCreateError("군번을 입력해주세요."); return; }
+      if (!form.birthDate || !/^\d{4}-\d{2}-\d{2}$/.test(form.birthDate)) { setCreateError("생년월일을 입력해주세요."); return; }
+      username = form.serviceNumber;
+      // 생년월일 6자리 (YYMMDD)
+      const bd = form.birthDate.replace(/-/g, "");
+      password = bd.slice(2); // YYYYMMDD → MMDDYY → 실제로는 YYMMDD
+      const yy = bd.slice(2, 4);
+      const mm = bd.slice(4, 6);
+      const dd = bd.slice(6, 8);
+      password = `${yy}${mm}${dd}`;
+    } else {
+      if (!username) { setCreateError("아이디를 입력해주세요."); return; }
+      if (!password) { setCreateError("비밀번호를 입력해주세요."); return; }
+    }
+
+    if (!form.name) { setCreateError("이름을 입력해주세요."); return; }
+
     const res = await fetch("/api/users", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
+      body: JSON.stringify({ ...form, username, password }),
     });
     if (res.ok) {
       setShowForm(false);
-      setForm({ name: "", username: "", password: "", role: "RESERVIST", rank: "", serviceNumber: "", phone: "", unit: "", batchId: "" });
+      setForm({ name: "", username: "", password: "", role: "RESERVIST", rank: "", serviceNumber: "", phone: "", unit: "", batchId: "", birthDate: "" });
       fetchAll();
     } else {
       const err = await res.json();
@@ -490,42 +515,113 @@ export default function AdminUsersPage() {
       )}
 
       {/* 사용자 추가 모달 */}
-      {showForm && (
+      {showForm && (() => {
+        const isReservist = form.role === "RESERVIST";
+        return (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl w-full max-w-md p-6 space-y-3 max-h-[80vh] overflow-y-auto">
             <h3 className="text-lg font-semibold">사용자 추가</h3>
             {createError && <p className="text-sm text-red-600">{createError}</p>}
-            <input placeholder="이름" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
-            <input placeholder="아이디" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
-            <input placeholder="비밀번호" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
-            <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} className="w-full px-3 py-2 border rounded-lg">
-              {Object.entries(ROLE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-            </select>
-            {form.role === "RESERVIST" && (
+
+            {/* 1. 역할 선택 (최상단) */}
+            <div>
+              <label className="text-xs font-medium text-gray-600">역할</label>
+              <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} className="w-full px-3 py-2 border rounded-lg mt-1">
+                {Object.entries(ROLE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </div>
+
+            {/* 2. 이름 */}
+            <div>
+              <label className="text-xs font-medium text-gray-600">이름 *</label>
+              <input placeholder="홍길동" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2 border rounded-lg mt-1" />
+            </div>
+
+            {/* 3. 계급 (모든 역할) */}
+            <div>
+              <label className="text-xs font-medium text-gray-600">계급</label>
+              <select value={form.rank} onChange={(e) => setForm({ ...form, rank: e.target.value })} className="w-full px-3 py-2 border rounded-lg mt-1">
+                <option value="">선택 안함</option>
+                {RANKS.map((r) => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+
+            {isReservist ? (
               <>
-                <select value={form.rank} onChange={(e) => setForm({ ...form, rank: e.target.value })} className="w-full px-3 py-2 border rounded-lg">
-                  <option value="">계급 선택</option>
-                  {RANKS.map((r) => <option key={r} value={r}>{r}</option>)}
-                </select>
-                <input placeholder="군번 (예: 1212345678)" value={form.serviceNumber} onChange={(e) => setForm({ ...form, serviceNumber: formatServiceNumber(e.target.value) })} className="w-full px-3 py-2 border rounded-lg" />
-                <select value={form.batchId} onChange={(e) => setForm({ ...form, batchId: e.target.value })} className="w-full px-3 py-2 border rounded-lg">
-                  <option value="">차수 선택</option>
-                  {batches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-                </select>
+                {/* 4-A. RESERVIST: 군번 → 아이디 자동 설정 */}
+                <div>
+                  <label className="text-xs font-medium text-gray-600">군번 * <span className="text-blue-500 font-normal">(= 로그인 아이디)</span></label>
+                  <input placeholder="예: 1212345678" value={form.serviceNumber} onChange={(e) => setForm({ ...form, serviceNumber: formatServiceNumber(e.target.value) })} className="w-full px-3 py-2 border rounded-lg mt-1" />
+                </div>
+
+                {/* 5-A. RESERVIST: 생년월일 → 초기 비밀번호 */}
+                <div>
+                  <label className="text-xs font-medium text-gray-600">생년월일 * <span className="text-blue-500 font-normal">(= 초기 비밀번호 6자리)</span></label>
+                  <input placeholder="예: 950315 또는 19950315" value={form.birthDate} onChange={(e) => setForm({ ...form, birthDate: formatBirthDate(e.target.value) })} className="w-full px-3 py-2 border rounded-lg mt-1" />
+                  {form.birthDate && /^\d{4}-\d{2}-\d{2}$/.test(form.birthDate) && (
+                    <p className="text-xs text-gray-400 mt-1">
+                      {new Date(form.birthDate).toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" })}
+                      {" "}| 초기 비밀번호: <span className="font-mono font-medium text-gray-600">{form.birthDate.replace(/-/g, "").slice(2)}</span>
+                    </p>
+                  )}
+                </div>
+
+                {/* 6-A. 차수 선택 */}
+                <div>
+                  <label className="text-xs font-medium text-gray-600">배정 차수</label>
+                  <select value={form.batchId} onChange={(e) => setForm({ ...form, batchId: e.target.value })} className="w-full px-3 py-2 border rounded-lg mt-1">
+                    <option value="">미배정</option>
+                    {batches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </select>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* 4-B. 비-RESERVIST: 아이디 직접 입력 */}
+                <div>
+                  <label className="text-xs font-medium text-gray-600">아이디 *</label>
+                  <input placeholder="로그인에 사용할 아이디" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} className="w-full px-3 py-2 border rounded-lg mt-1" />
+                </div>
+
+                {/* 5-B. 비-RESERVIST: 비밀번호 직접 입력 */}
+                <div>
+                  <label className="text-xs font-medium text-gray-600">비밀번호 *</label>
+                  <input placeholder="초기 비밀번호" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="w-full px-3 py-2 border rounded-lg mt-1" />
+                </div>
               </>
             )}
-            <input placeholder="연락처 (예: 01012345678)" value={form.phone} onChange={(e) => setForm({ ...form, phone: formatPhone(e.target.value) })} className="w-full px-3 py-2 border rounded-lg" />
-            <select value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} className="w-full px-3 py-2 border rounded-lg">
-              <option value="">소속부대 선택</option>
-              {units.map((u) => <option key={u.id} value={u.name}>{u.name}</option>)}
-            </select>
+
+            {/* 연락처 */}
+            <div>
+              <label className="text-xs font-medium text-gray-600">연락처</label>
+              <input placeholder="예: 01012345678" value={form.phone} onChange={(e) => setForm({ ...form, phone: formatPhone(e.target.value) })} className="w-full px-3 py-2 border rounded-lg mt-1" />
+            </div>
+
+            {/* 소속부대 */}
+            <div>
+              <label className="text-xs font-medium text-gray-600">소속부대</label>
+              <select value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} className="w-full px-3 py-2 border rounded-lg mt-1">
+                <option value="">선택 안함</option>
+                {units.map((u) => <option key={u.id} value={u.name}>{u.name}</option>)}
+              </select>
+            </div>
+
+            {isReservist && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700 space-y-0.5">
+                <p>- 로그인 아이디: 군번 ({form.serviceNumber || "미입력"})</p>
+                <p>- 초기 비밀번호: 생년월일 6자리 ({form.birthDate ? form.birthDate.replace(/-/g, "").slice(2) || "미입력" : "미입력"})</p>
+                <p className="text-blue-500 mt-1">* 대상자에게 최초 로그인 후 비밀번호 변경을 안내해주세요.</p>
+              </div>
+            )}
+
             <div className="flex gap-3 pt-2">
               <button onClick={handleCreate} className="flex-1 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700">생성</button>
-              <button onClick={() => setShowForm(false)} className="flex-1 py-2 border rounded-lg text-gray-700 hover:bg-gray-50">취소</button>
+              <button onClick={() => { setShowForm(false); setCreateError(""); }} className="flex-1 py-2 border rounded-lg text-gray-700 hover:bg-gray-50">취소</button>
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* 편집 모달 */}
       {editTarget && (

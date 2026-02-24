@@ -72,6 +72,7 @@ export async function POST(req: NextRequest) {
       serviceNumber: body.serviceNumber || null,
       phone: body.phone || null,
       unit: body.unit || null,
+      birthDate: body.birthDate ? new Date(body.birthDate) : null,
       branch: body.branch || null,
       warBattalion: body.warBattalion || null,
       warCompany: body.warCompany || null,
