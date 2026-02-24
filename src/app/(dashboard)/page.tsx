@@ -346,7 +346,7 @@ export default async function DashboardPage() {
           </div>
           <div className="space-y-3">
             {batches.map((batch) => (
-              <div key={batch.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+              <Link key={batch.id} href={`/admin/batches/${batch.id}`} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                 <div>
                   <p className="font-medium text-sm">{batch.name}</p>
                   <p className="text-xs text-gray-500">
@@ -363,7 +363,7 @@ export default async function DashboardPage() {
                   </span>
                   <p className="text-xs text-gray-500 mt-1">{batch._count.batchUsers}명 / {batch._count.trainings}개 훈련</p>
                 </div>
-              </div>
+              </Link>
             ))}
             {batches.length === 0 && (
               <p className="text-gray-400 text-sm text-center py-4">등록된 차수가 없습니다.</p>
