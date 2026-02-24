@@ -151,7 +151,10 @@ export default function MealsPage() {
     if (!selectedBatch) return;
     fetch(`/api/meals/dinner-request?batchId=${selectedBatch}`)
       .then((r) => r.json())
-      .then((data) => { if (Array.isArray(data)) setDinnerRequests(data); })
+      .then((data) => {
+        if (data && Array.isArray(data.requests)) setDinnerRequests(data.requests);
+        else if (Array.isArray(data)) setDinnerRequests(data);
+      })
       .catch(() => {});
   }, [selectedBatch]);
 

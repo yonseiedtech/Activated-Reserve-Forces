@@ -143,9 +143,10 @@ export default function ReservistBatchDetailPage() {
     date: string;
     status: string;
     createdAt: string;
+    updatedAt: string;
   }
   const [dinnerRequests, setDinnerRequests] = useState<DinnerReq[]>([]);
-  const [dinnerDate, setDinnerDate] = useState("");
+  const [dinnerDeadlines, setDinnerDeadlines] = useState<{ applyDeadline: string; cancelDeadline: string } | null>(null);
   const [dinnerSubmitting, setDinnerSubmitting] = useState(false);
 
   // 출퇴근 현황
@@ -188,7 +189,12 @@ export default function ReservistBatchDetailPage() {
   const fetchDinnerRequests = useCallback(() => {
     fetch(`/api/meals/dinner-request?batchId=${batchId}`)
       .then((r) => r.json())
-      .then((data) => { if (Array.isArray(data)) setDinnerRequests(data); })
+      .then((data) => {
+        if (data && Array.isArray(data.requests)) {
+          setDinnerRequests(data.requests);
+          setDinnerDeadlines(data.deadlines || null);
+        }
+      })
       .catch(() => {});
   }, [batchId]);
 
@@ -200,16 +206,14 @@ export default function ReservistBatchDetailPage() {
   }, [tab, fetchMeals, fetchDinnerRequests]);
 
   const handleDinnerRequest = async () => {
-    if (!dinnerDate) return;
     setDinnerSubmitting(true);
     try {
       const res = await fetch("/api/meals/dinner-request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ batchId, date: dinnerDate }),
+        body: JSON.stringify({ batchId }),
       });
       if (res.ok) {
-        setDinnerDate("");
         fetchDinnerRequests();
       } else {
         const err = await res.json();
@@ -527,26 +531,36 @@ export default function ReservistBatchDetailPage() {
               <div className="border-t pt-4 mt-4">
                 <h3 className="text-sm font-semibold text-gray-800 mb-3">석식 별도 신청</h3>
                 <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-3">
-                  <ul className="text-xs text-blue-700 space-y-1">
-                    <li>- 석식 신청은 해당일 <span className="font-bold">9근무일 전</span>까지 가능합니다.</li>
-                    <li>- 석식 취소(환불)는 해당일 <span className="font-bold">3일 전</span>까지 가능합니다.</li>
+                  <ul className="text-xs text-blue-700 space-y-1.5">
+                    <li>
+                      - 석식 신청 마감: <span className="font-bold">훈련 시작일 9근무일 전</span>
+                      {dinnerDeadlines && (
+                        <span className="ml-1 text-blue-600 font-semibold">
+                          ({new Date(dinnerDeadlines.applyDeadline).toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" })}까지)
+                        </span>
+                      )}
+                    </li>
+                    <li>
+                      - 석식 취소(환불) 마감: <span className="font-bold">훈련 시작일 3근무일 전</span>
+                      {dinnerDeadlines && (
+                        <span className="ml-1 text-blue-600 font-semibold">
+                          ({new Date(dinnerDeadlines.cancelDeadline).toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" })}까지)
+                        </span>
+                      )}
+                    </li>
                   </ul>
                 </div>
-                <div className="flex gap-2 mb-3">
-                  <input
-                    type="date"
-                    value={dinnerDate}
-                    onChange={(e) => setDinnerDate(e.target.value)}
-                    className="flex-1 px-3 py-2 border rounded-lg text-sm"
-                  />
+
+                {/* 신청 버튼 (아직 신청하지 않은 경우만) */}
+                {dinnerRequests.filter((dr) => dr.status === "PENDING" || dr.status === "APPROVED").length === 0 && (
                   <button
                     onClick={handleDinnerRequest}
-                    disabled={!dinnerDate || dinnerSubmitting}
-                    className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 shrink-0"
+                    disabled={dinnerSubmitting}
+                    className="w-full py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 mb-3"
                   >
                     {dinnerSubmitting ? "신청 중..." : "석식 신청"}
                   </button>
-                </div>
+                )}
 
                 {/* 내 석식 신청 내역 */}
                 {dinnerRequests.length > 0 && (
@@ -559,14 +573,18 @@ export default function ReservistBatchDetailPage() {
                         CANCELLED: { label: "취소", color: "bg-gray-100 text-gray-500" },
                       };
                       const st = stMap[dr.status] || { label: dr.status, color: "bg-gray-100 text-gray-600" };
+                      const createdTime = new Date(dr.createdAt).toLocaleString("ko-KR", {
+                        month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+                      });
+                      const updatedTime = dr.updatedAt && dr.updatedAt !== dr.createdAt
+                        ? new Date(dr.updatedAt).toLocaleString("ko-KR", {
+                            month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+                          })
+                        : null;
+
                       return (
-                        <div key={dr.id} className="bg-white rounded-lg border p-3 flex items-center justify-between">
-                          <div>
-                            <p className="text-sm text-gray-700">
-                              {new Date(dr.date).toLocaleDateString("ko-KR")} 석식
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-2">
+                        <div key={dr.id} className="bg-white rounded-lg border p-3">
+                          <div className="flex items-center justify-between mb-1.5">
                             <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${st.color}`}>
                               {st.label}
                             </span>
@@ -577,6 +595,18 @@ export default function ReservistBatchDetailPage() {
                               >
                                 취소
                               </button>
+                            )}
+                          </div>
+                          <div className="text-xs text-gray-500 space-y-0.5">
+                            <p>신청: {createdTime}</p>
+                            {updatedTime && dr.status === "CANCELLED" && (
+                              <p>취소: {updatedTime}</p>
+                            )}
+                            {updatedTime && dr.status === "APPROVED" && (
+                              <p>승인: {updatedTime}</p>
+                            )}
+                            {updatedTime && dr.status === "REJECTED" && (
+                              <p>반려: {updatedTime}</p>
                             )}
                           </div>
                         </div>

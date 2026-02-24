@@ -32,9 +32,10 @@ export default async function DashboardPage() {
   // Admin-specific data
   let pendingAttendance = 0;
   let pendingMobileIds = 0;
+  let pendingDinnerRequests = 0;
 
   if (isAdmin) {
-    const [pa, pmi] = await Promise.all([
+    const [pa, pmi, pdr] = await Promise.all([
       prisma.attendance.count({
         where: {
           status: "PENDING",
@@ -42,9 +43,11 @@ export default async function DashboardPage() {
         },
       }),
       prisma.mobileIdCard.count({ where: { isApproved: false, rejectedAt: null } }),
+      prisma.dinnerRequest.count({ where: { status: "PENDING" } }),
     ]);
     pendingAttendance = pa;
     pendingMobileIds = pmi;
+    pendingDinnerRequests = pdr;
   }
 
   // Instructor-specific data
@@ -138,7 +141,7 @@ export default async function DashboardPage() {
       {isAdmin && (
         <div className="bg-white rounded-xl shadow-sm border p-6">
           <h2 className="text-lg font-semibold mb-4">오늘의 할 일</h2>
-          <div className="grid sm:grid-cols-2 gap-4">
+          <div className="grid sm:grid-cols-3 gap-4">
             <Link href="/attendance" className="block p-4 bg-orange-50 border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors">
               <div className="flex items-center gap-3">
                 <span className="text-2xl">✅</span>
@@ -154,6 +157,15 @@ export default async function DashboardPage() {
                 <div>
                   <p className="text-2xl font-bold text-purple-700">{pendingMobileIds}</p>
                   <p className="text-xs text-gray-600">승인 대기 신분증</p>
+                </div>
+              </div>
+            </Link>
+            <Link href="/meals" className="block p-4 bg-yellow-50 border border-yellow-200 rounded-lg hover:bg-yellow-100 transition-colors">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">🍽️</span>
+                <div>
+                  <p className="text-2xl font-bold text-yellow-700">{pendingDinnerRequests}</p>
+                  <p className="text-xs text-gray-600">석식 신청 대기</p>
                 </div>
               </div>
             </Link>
