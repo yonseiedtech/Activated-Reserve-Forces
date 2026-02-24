@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import PageTitle from "@/components/ui/PageTitle";
 
@@ -407,77 +407,283 @@ function AdminReportView({ reports }: { reports: BatchReport[] }) {
 // 예비역(훈련 대상자)용 뷰
 // ═══════════════════════════════════════════
 
+interface CommutingData {
+  date: string;
+  checkInAt: string | null;
+  checkOutAt: string | null;
+}
+
+interface TrainingDetail {
+  trainingId: string;
+  title: string;
+  date: string;
+  startTime: string | null;
+  endTime: string | null;
+  status: "PRESENT" | "ABSENT" | "PENDING" | "NONE";
+  // 출퇴근 기반 세부 분류
+  detail: "정상이수" | "지연출근" | "조기퇴근" | "불참" | "미정" | "미기록";
+}
+
+type FilterTab = "all" | "present" | "absent";
+
 function ReservistReportView({ reports, userId }: { reports: BatchReport[]; userId: string }) {
+  const [filter, setFilter] = useState<FilterTab>("all");
+  const [selectedBatchId, setSelectedBatchId] = useState<string>("");
+  const [trainingDetails, setTrainingDetails] = useState<TrainingDetail[]>([]);
+  const [commutingData, setCommutingData] = useState<CommutingData[]>([]);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  // 자동으로 첫 번째 차수 선택
+  useEffect(() => {
+    if (reports.length > 0 && !selectedBatchId) {
+      setSelectedBatchId(reports[0].batchId);
+    }
+  }, [reports, selectedBatchId]);
+
+  // 선택된 차수의 훈련별 출석 + 출퇴근 데이터 로드
+  const fetchDetails = useCallback(async () => {
+    if (!selectedBatchId) return;
+    setDetailLoading(true);
+
+    try {
+      // 배치 상세 (훈련 목록 + 내 출석 정보)
+      const batchRes = await fetch(`/api/batches/${selectedBatchId}`);
+      const batchData = await batchRes.json();
+      const trainings = batchData.trainings || [];
+
+      // 출퇴근 기록 가져오기 (예비역은 자기 기록만 반환)
+      const report = reports.find((r) => r.batchId === selectedBatchId);
+      if (!report) { setDetailLoading(false); return; }
+
+      const startStr = report.startDate.split("T")[0];
+      const endStr = report.endDate.split("T")[0];
+      const [sy, sm, sd] = startStr.split("-").map(Number);
+      const [ey, em, ed] = endStr.split("-").map(Number);
+      const dates: string[] = [];
+      const cur = new Date(Date.UTC(sy, sm - 1, sd, 12, 0, 0));
+      const end = new Date(Date.UTC(ey, em - 1, ed, 12, 0, 0));
+      while (cur <= end) {
+        const y = cur.getUTCFullYear();
+        const m = String(cur.getUTCMonth() + 1).padStart(2, "0");
+        const d = String(cur.getUTCDate()).padStart(2, "0");
+        dates.push(`${y}-${m}-${d}`);
+        cur.setUTCDate(cur.getUTCDate() + 1);
+      }
+
+      const commResults = await Promise.all(
+        dates.map((date) => fetch(`/api/commuting?date=${date}`).then((r) => r.json()))
+      );
+      const allComm: CommutingData[] = commResults.flat();
+      setCommutingData(allComm);
+
+      // 훈련별 세부 분류 계산
+      const details: TrainingDetail[] = trainings.map((t: { id: string; title: string; date: string; startTime: string | null; endTime: string | null; attendances?: { userId: string; status: string }[] }) => {
+        const myAtt = t.attendances?.find((a: { userId: string }) => a.userId === userId);
+        const status = myAtt ? myAtt.status as "PRESENT" | "ABSENT" | "PENDING" : "NONE";
+
+        const tDateStr = new Date(t.date).toISOString().slice(0, 10);
+        const comm = allComm.find((c) => new Date(c.date).toISOString().slice(0, 10) === tDateStr);
+
+        let detail: TrainingDetail["detail"] = "미기록";
+
+        if (status === "ABSENT") {
+          detail = "불참";
+        } else if (status === "PENDING") {
+          detail = "미정";
+        } else if (status === "PRESENT") {
+          if (!comm || (!comm.checkInAt && !comm.checkOutAt)) {
+            detail = "정상이수"; // 출퇴근 기록 없으면 정상으로 간주
+          } else {
+            const isLate = comm.checkInAt && t.startTime
+              ? comm.checkInAt > `${tDateStr}T${t.startTime}:00`
+              : false;
+            const isEarly = comm.checkOutAt && t.endTime
+              ? comm.checkOutAt < `${tDateStr}T${t.endTime}:00`
+              : false;
+            if (isLate) detail = "지연출근";
+            else if (isEarly) detail = "조기퇴근";
+            else detail = "정상이수";
+          }
+        }
+
+        return { trainingId: t.id, title: t.title, date: t.date, startTime: t.startTime, endTime: t.endTime, status, detail };
+      });
+
+      setTrainingDetails(details);
+    } catch {
+      setTrainingDetails([]);
+    }
+    setDetailLoading(false);
+  }, [selectedBatchId, userId, reports]);
+
+  useEffect(() => {
+    fetchDetails();
+  }, [fetchDetails]);
+
+  const selectedReport = reports.find((r) => r.batchId === selectedBatchId);
+  const myStat = selectedReport?.byUser.find((u) => u.userId === userId);
+
+  // 필터 적용
+  const filteredDetails = trainingDetails.filter((d) => {
+    if (filter === "all") return true;
+    if (filter === "present") return d.status === "PRESENT";
+    if (filter === "absent") return d.status === "ABSENT";
+    return true;
+  });
+
+  const presentCount = trainingDetails.filter((d) => d.status === "PRESENT").length;
+  const absentCount = trainingDetails.filter((d) => d.status === "ABSENT").length;
+  const normalCount = trainingDetails.filter((d) => d.detail === "정상이수").length;
+  const lateCount = trainingDetails.filter((d) => d.detail === "지연출근").length;
+  const earlyCount = trainingDetails.filter((d) => d.detail === "조기퇴근").length;
+
+  const DETAIL_COLORS: Record<string, string> = {
+    "정상이수": "bg-green-100 text-green-700",
+    "지연출근": "bg-yellow-100 text-yellow-700",
+    "조기퇴근": "bg-orange-100 text-orange-700",
+    "불참": "bg-red-100 text-red-700",
+    "미정": "bg-gray-100 text-gray-600",
+    "미기록": "bg-gray-50 text-gray-400",
+  };
+
+  if (reports.length === 0) {
+    return <div className="text-center py-16 text-gray-400">배정된 차수가 없습니다.</div>;
+  }
+
   return (
-    <div className="space-y-6">
-      {reports.map((r) => {
-        const myStat = r.byUser.find((u) => u.userId === userId);
-        if (!myStat) return null;
+    <div className="space-y-4">
+      {/* 차수 리스트 */}
+      <div className="space-y-2">
+        {reports.map((r) => {
+          const stat = r.byUser.find((u) => u.userId === userId);
+          const isSelected = r.batchId === selectedBatchId;
+          return (
+            <button
+              key={r.batchId}
+              onClick={() => setSelectedBatchId(r.batchId)}
+              className={`w-full text-left bg-white rounded-xl border p-4 transition-all ${
+                isSelected ? "border-blue-400 shadow-sm ring-1 ring-blue-200" : "hover:border-gray-300"
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold text-sm">{r.batchName}</h3>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${STATUS_COLORS[r.status] || "bg-gray-100"}`}>
+                      {STATUS_LABELS[r.status] || r.status}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {r.startDate.split("T")[0]} ~ {r.endDate.split("T")[0]} | {r.totalTrainings}개 훈련
+                  </p>
+                </div>
+                {stat && <RateBadge rate={stat.rate} />}
+              </div>
+            </button>
+          );
+        })}
+      </div>
 
-        const totalTrainings = r.totalTrainings;
-
-        return (
-          <div key={r.batchId} className="space-y-4">
-            {/* 차수 헤더 */}
-            <div className="flex items-center gap-2">
-              <h2 className="text-base font-bold">{r.batchName}</h2>
-              <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${STATUS_COLORS[r.status] || "bg-gray-100"}`}>
-                {STATUS_LABELS[r.status] || r.status}
-              </span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-50 text-blue-600">
-                {r.batchDayType === "weekday" ? "평일" : "주말"}
-              </span>
+      {/* 선택된 차수 상세 */}
+      {selectedReport && myStat && (
+        <>
+          {/* 종합 요약 카드 */}
+          <div className="bg-white rounded-xl border p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold">참석 현황 종합</h3>
+              <RateBadge rate={myStat.rate} />
             </div>
-
-            {/* 내 출석 요약 카드 */}
-            <div className="bg-white rounded-xl border p-5">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold">내 출석 현황</h3>
-                <RateBadge rate={myStat.rate} />
-              </div>
-
-              <RateBar rate={myStat.rate} />
-
-              <div className="grid grid-cols-4 gap-3 text-center mt-4">
-                <div>
-                  <p className="text-xs text-gray-500">총 훈련</p>
-                  <p className="text-lg font-bold text-gray-800">{totalTrainings}개</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">참석</p>
-                  <p className="text-lg font-bold text-green-600">{myStat.present}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">불참</p>
-                  <p className="text-lg font-bold text-red-600">{myStat.absent}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">미정</p>
-                  <p className="text-lg font-bold text-gray-500">{myStat.pending}</p>
+            <RateBar rate={myStat.rate} />
+            <div className="grid grid-cols-3 gap-3 text-center mt-4">
+              <div>
+                <p className="text-xs text-gray-500">참석</p>
+                <p className="text-lg font-bold text-green-600">{myStat.present}</p>
+                <div className="flex justify-center gap-1 mt-1">
+                  {normalCount > 0 && <span className="text-[10px] bg-green-50 text-green-600 px-1.5 py-0.5 rounded">정상 {normalCount}</span>}
+                  {lateCount > 0 && <span className="text-[10px] bg-yellow-50 text-yellow-600 px-1.5 py-0.5 rounded">지연 {lateCount}</span>}
+                  {earlyCount > 0 && <span className="text-[10px] bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded">조퇴 {earlyCount}</span>}
                 </div>
               </div>
+              <div>
+                <p className="text-xs text-gray-500">불참</p>
+                <p className="text-lg font-bold text-red-600">{myStat.absent}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">미정</p>
+                <p className="text-lg font-bold text-gray-500">{myStat.pending}</p>
+              </div>
+            </div>
+          </div>
 
-              {myStat.total < totalTrainings && (
-                <p className="text-xs text-gray-400 mt-3 text-center">
-                  {totalTrainings - myStat.total}개 훈련의 출석이 아직 기록되지 않았습니다.
-                </p>
+          {/* ALL / 참석 / 불참 필터 탭 */}
+          <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+            <button
+              onClick={() => setFilter("all")}
+              className={`flex-1 py-2 rounded-md text-xs font-medium transition-colors ${
+                filter === "all" ? "bg-white shadow text-blue-600" : "text-gray-600"
+              }`}
+            >
+              전체 ({trainingDetails.length})
+            </button>
+            <button
+              onClick={() => setFilter("present")}
+              className={`flex-1 py-2 rounded-md text-xs font-medium transition-colors ${
+                filter === "present" ? "bg-white shadow text-green-600" : "text-gray-600"
+              }`}
+            >
+              참석 ({presentCount})
+            </button>
+            <button
+              onClick={() => setFilter("absent")}
+              className={`flex-1 py-2 rounded-md text-xs font-medium transition-colors ${
+                filter === "absent" ? "bg-white shadow text-red-600" : "text-gray-600"
+              }`}
+            >
+              불참 ({absentCount})
+            </button>
+          </div>
+
+          {/* 훈련별 목록 */}
+          {detailLoading ? (
+            <div className="flex justify-center py-10">
+              <div className="animate-spin h-6 w-6 border-4 border-blue-600 border-t-transparent rounded-full" />
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {filteredDetails.length === 0 ? (
+                <div className="text-center py-10 text-gray-400">해당하는 항목이 없습니다.</div>
+              ) : (
+                filteredDetails.map((d) => {
+                  const dt = new Date(d.date);
+                  const days = ["일", "월", "화", "수", "목", "금", "토"];
+                  const dateStr = `${dt.getMonth() + 1}/${dt.getDate()} (${days[dt.getDay()]})`;
+                  return (
+                    <div key={d.trainingId} className="bg-white rounded-xl border p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-xs text-gray-500">{dateStr}</span>
+                            {d.startTime && d.endTime && (
+                              <span className="text-xs text-gray-400">{d.startTime}~{d.endTime}</span>
+                            )}
+                          </div>
+                          <h4 className="font-medium text-sm text-gray-900">{d.title}</h4>
+                        </div>
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${DETAIL_COLORS[d.detail]}`}>
+                          {d.detail}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })
               )}
             </div>
-
-            {/* 기간 */}
-            <p className="text-[11px] text-gray-400 text-center">
-              훈련 기간: {r.startDate.split("T")[0]} ~ {r.endDate.split("T")[0]}
-            </p>
-          </div>
-        );
-      })}
-
-      {reports.length === 0 && (
-        <div className="text-center py-16 text-gray-400">배정된 차수가 없습니다.</div>
+          )}
+        </>
       )}
 
-      {reports.length > 0 && reports.every((r) => !r.byUser.find((u) => u.userId === userId)) && (
-        <div className="text-center py-16 text-gray-400">출석 데이터가 없습니다.</div>
+      {selectedReport && !myStat && (
+        <div className="text-center py-10 text-gray-400">출석 데이터가 없습니다.</div>
       )}
     </div>
   );
