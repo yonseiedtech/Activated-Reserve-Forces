@@ -19,6 +19,7 @@ interface SummaryRow {
   grandTotal: number;
   refundStatus: string | null;
   refundTotal: number;
+  startDate?: string;
 }
 
 interface SummaryData {
@@ -30,11 +31,24 @@ interface SummaryData {
   };
 }
 
+// 예비역 차수 리스트 타입
+interface ReservistBatch {
+  batchId: string;
+  batchName: string;
+  startDate: string;
+  endDate: string;
+  status: string;
+  compensationTotal: number;
+  transportAmount: number;
+  grandTotal: number;
+}
+
 export default function PaymentsPage() {
   const { data: session } = useSession();
   const router = useRouter();
   const [data, setData] = useState<SummaryData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [reservistBatches, setReservistBatches] = useState<ReservistBatch[]>([]);
 
   const isAdmin = session?.user?.role === "ADMIN" || session?.user?.role === "MANAGER";
 
@@ -42,15 +56,12 @@ export default function PaymentsPage() {
     if (!session) return;
 
     if (!isAdmin) {
-      // 대상자: 자기 차수 상세 페이지로 이동
-      fetch("/api/payments")
+      // 대상자: 자기 차수 리스트 조회
+      fetch("/api/payments/my-batches")
         .then((r) => r.json())
         .then((d) => {
-          if (d.batchId) {
-            router.replace(`/payments/${d.batchId}`);
-          } else {
-            setLoading(false);
-          }
+          if (Array.isArray(d)) setReservistBatches(d);
+          setLoading(false);
         })
         .catch(() => setLoading(false));
       return;
@@ -65,7 +76,58 @@ export default function PaymentsPage() {
       .catch(() => setLoading(false));
   }, [session, isAdmin, router]);
 
-  if (loading || !data) {
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+      </div>
+    );
+  }
+
+  // 예비역: 차수 리스트 표시
+  if (!isAdmin) {
+    return (
+      <div>
+        <PageTitle title="훈련비 관리" description="내 차수별 훈련비 현황을 확인합니다." />
+        {reservistBatches.length === 0 ? (
+          <p className="text-center py-10 text-gray-400">배정된 차수가 없습니다.</p>
+        ) : (
+          <div className="space-y-3">
+            {reservistBatches.map((b) => (
+              <div
+                key={b.batchId}
+                onClick={() => router.push(`/payments/${b.batchId}`)}
+                className="bg-white rounded-xl border p-4 hover:shadow-sm cursor-pointer transition-shadow"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-medium text-sm">{b.batchName}</span>
+                  <span className="text-xs text-gray-400">
+                    {new Date(b.startDate).toLocaleDateString("ko-KR")}
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-xs text-gray-500">
+                  <div>
+                    <p className="text-gray-400">보상비</p>
+                    <p className="font-medium text-gray-700">{b.compensationTotal.toLocaleString()}원</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-400">교통비</p>
+                    <p className="font-medium text-gray-700">{b.transportAmount.toLocaleString()}원</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-400">총액</p>
+                    <p className="font-semibold text-gray-900">{b.grandTotal.toLocaleString()}원</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (!data) {
     return (
       <div className="flex justify-center py-12">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
@@ -90,9 +152,8 @@ export default function PaymentsPage() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50">
             <tr>
+              <th className="text-left px-4 py-3 font-medium">상태</th>
               <th className="text-left px-4 py-3 font-medium">차수</th>
-              <th className="text-left px-4 py-3 font-medium">입금 절차</th>
-              <th className="text-left px-4 py-3 font-medium">환수</th>
               <th className="text-right px-4 py-3 font-medium">보상비</th>
               <th className="text-right px-4 py-3 font-medium">교통비</th>
               <th className="text-right px-4 py-3 font-medium">총액</th>
@@ -105,29 +166,27 @@ export default function PaymentsPage() {
                 onClick={() => router.push(`/payments/${row.batchId}`)}
                 className="hover:bg-gray-50 cursor-pointer"
               >
-                <td className="px-4 py-3 font-medium">{row.batchName}</td>
                 <td className="px-4 py-3">
-                  <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
-                    row.status === "CMS_APPROVED"
-                      ? "bg-green-100 text-green-700"
-                      : "bg-blue-100 text-blue-700"
-                  }`}>
-                    {PAYMENT_STATUS_LABELS[row.status] || row.status}
-                  </span>
-                </td>
-                <td className="px-4 py-3">
-                  {row.refundStatus ? (
-                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
-                      row.refundStatus === "REFUND_COMPLETED"
+                  <div className="flex flex-col gap-1">
+                    <span className={`inline-block w-fit px-2 py-0.5 rounded-full text-xs font-medium ${
+                      row.status === "CMS_APPROVED"
                         ? "bg-green-100 text-green-700"
-                        : "bg-orange-100 text-orange-700"
+                        : "bg-blue-100 text-blue-700"
                     }`}>
-                      {REFUND_STATUS_LABELS[row.refundStatus] || row.refundStatus}
+                      {PAYMENT_STATUS_LABELS[row.status] || row.status}
                     </span>
-                  ) : (
-                    <span className="text-gray-300">-</span>
-                  )}
+                    {row.refundStatus && (
+                      <span className={`inline-block w-fit px-2 py-0.5 rounded-full text-xs font-medium ${
+                        row.refundStatus === "REFUND_COMPLETED"
+                          ? "bg-green-100 text-green-700"
+                          : "bg-orange-100 text-orange-700"
+                      }`}>
+                        {REFUND_STATUS_LABELS[row.refundStatus] || row.refundStatus}
+                      </span>
+                    )}
+                  </div>
                 </td>
+                <td className="px-4 py-3 font-medium">{row.batchName}</td>
                 <td className="px-4 py-3 text-right">{row.compensationTotal.toLocaleString()}원</td>
                 <td className="px-4 py-3 text-right">{row.transportTotal.toLocaleString()}원</td>
                 <td className="px-4 py-3 text-right font-medium">{row.grandTotal.toLocaleString()}원</td>
@@ -153,13 +212,24 @@ export default function PaymentsPage() {
           >
             <div className="flex items-center justify-between mb-2">
               <span className="font-medium text-sm">{row.batchName}</span>
-              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                row.status === "CMS_APPROVED"
-                  ? "bg-green-100 text-green-700"
-                  : "bg-blue-100 text-blue-700"
-              }`}>
-                {PAYMENT_STATUS_LABELS[row.status] || row.status}
-              </span>
+              <div className="flex items-center gap-1">
+                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                  row.status === "CMS_APPROVED"
+                    ? "bg-green-100 text-green-700"
+                    : "bg-blue-100 text-blue-700"
+                }`}>
+                  {PAYMENT_STATUS_LABELS[row.status] || row.status}
+                </span>
+                {row.refundStatus && (
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                    row.refundStatus === "REFUND_COMPLETED"
+                      ? "bg-green-100 text-green-700"
+                      : "bg-orange-100 text-orange-700"
+                  }`}>
+                    {REFUND_STATUS_LABELS[row.refundStatus] || row.refundStatus}
+                  </span>
+                )}
+              </div>
             </div>
             <div className="grid grid-cols-3 gap-2 text-xs text-gray-500">
               <div>
@@ -175,17 +245,6 @@ export default function PaymentsPage() {
                 <p className="font-semibold text-gray-900">{row.grandTotal.toLocaleString()}원</p>
               </div>
             </div>
-            {row.refundStatus && (
-              <div className="mt-2">
-                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                  row.refundStatus === "REFUND_COMPLETED"
-                    ? "bg-green-100 text-green-700"
-                    : "bg-orange-100 text-orange-700"
-                }`}>
-                  {REFUND_STATUS_LABELS[row.refundStatus] || row.refundStatus}
-                </span>
-              </div>
-            )}
           </div>
         ))}
       </div>

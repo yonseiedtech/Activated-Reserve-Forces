@@ -160,14 +160,12 @@ export default function PaymentDetailPage() {
         title={batchName ? `${batchName} 훈련비` : "훈련비 상세"}
         description="입금 절차 및 보상비를 확인합니다."
         actions={
-          isAdmin ? (
-            <button
-              onClick={() => router.push("/payments")}
-              className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
-            >
-              ← 목록으로
-            </button>
-          ) : undefined
+          <button
+            onClick={() => router.push("/payments")}
+            className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
+          >
+            ← 목록으로
+          </button>
         }
       />
 

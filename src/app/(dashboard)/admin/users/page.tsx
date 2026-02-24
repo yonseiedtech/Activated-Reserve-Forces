@@ -52,6 +52,13 @@ interface Unit {
 type SortKey = "name" | "username" | "role" | "rank" | "serviceNumber" | "phone";
 type SortDir = "asc" | "desc";
 
+const ROLE_COLORS: Record<string, string> = {
+  ADMIN: "bg-red-100 text-red-700",
+  MANAGER: "bg-purple-100 text-purple-700",
+  COOK: "bg-yellow-100 text-yellow-700",
+  RESERVIST: "bg-blue-100 text-blue-700",
+};
+
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [batches, setBatches] = useState<Batch[]>([]);
@@ -418,7 +425,7 @@ export default function AdminUsersPage() {
                   <td className="px-4 py-3 font-medium">{u.name}</td>
                   <td className="px-4 py-3 text-gray-500">{u.username}</td>
                   <td className="px-4 py-3">
-                    <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs">{ROLE_LABELS[u.role] || u.role}</span>
+                    <span className={`px-2 py-0.5 rounded-full text-xs ${ROLE_COLORS[u.role] || "bg-gray-100 text-gray-700"}`}>{ROLE_LABELS[u.role] || u.role}</span>
                   </td>
                   <td className="px-4 py-3">{u.rank || "-"}</td>
                   <td className="px-4 py-3">{u.serviceNumber || "-"}</td>
@@ -455,7 +462,7 @@ export default function AdminUsersPage() {
             <div key={u.id} className="bg-white rounded-xl border p-4">
               <div className="flex items-center justify-between mb-2">
                 <div className="font-medium text-sm">{u.name}</div>
-                <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs">{ROLE_LABELS[u.role] || u.role}</span>
+                <span className={`px-2 py-0.5 rounded-full text-xs ${ROLE_COLORS[u.role] || "bg-gray-100 text-gray-700"}`}>{ROLE_LABELS[u.role] || u.role}</span>
               </div>
               <div className="text-xs text-gray-500 space-y-1 mb-3">
                 {u.rank && <p>계급: {u.rank}</p>}
