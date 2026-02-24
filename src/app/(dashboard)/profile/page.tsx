@@ -39,6 +39,7 @@ interface ProfileData {
   pendingAddressDetail: string | null;
   addressRejectedAt: string | null;
   addressRejectReason: string | null;
+  noVehicle: boolean;
   vehicleType: string | null;
   vehiclePlateNumber: string | null;
   vehicleColor: string | null;
@@ -75,6 +76,7 @@ export default function ProfilePage() {
   const [zipCode, setZipCode] = useState("");
   const [address, setAddress] = useState("");
   const [addressDetail, setAddressDetail] = useState("");
+  const [noVehicle, setNoVehicle] = useState(false);
   const [vehicleType, setVehicleType] = useState("");
   const [vehiclePlateNumber, setVehiclePlateNumber] = useState("");
   const [vehicleColor, setVehicleColor] = useState("");
@@ -101,6 +103,7 @@ export default function ProfilePage() {
         setZipCode(data.zipCode || "");
         setAddress(data.address || "");
         setAddressDetail(data.addressDetail || "");
+        setNoVehicle(data.noVehicle || false);
         setVehicleType(data.vehicleType || "");
         setVehiclePlateNumber(data.vehiclePlateNumber || "");
         setVehicleColor(data.vehicleColor || "");
@@ -204,7 +207,7 @@ export default function ProfilePage() {
       const res = await fetch("/api/profile", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ vehicleType, vehiclePlateNumber, vehicleColor }),
+        body: JSON.stringify({ noVehicle, vehicleType: noVehicle ? null : vehicleType, vehiclePlateNumber: noVehicle ? null : vehiclePlateNumber, vehicleColor: noVehicle ? null : vehicleColor }),
       });
       if (res.ok) {
         showMessage("success", "차량 정보가 저장되었습니다.");
@@ -442,9 +445,22 @@ export default function ProfilePage() {
           <div>
             <SectionHeader title="차량 정보" editable />
             <div className="px-6 py-3 space-y-3">
-              <InputField label="차량 종류" value={vehicleType} onChange={setVehicleType} placeholder="예: 승용차, SUV" />
-              <InputField label="차량 번호" value={vehiclePlateNumber} onChange={setVehiclePlateNumber} placeholder="예: 12가 3456" />
-              <InputField label="차량 색상" value={vehicleColor} onChange={setVehicleColor} placeholder="예: 흰색" />
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={noVehicle}
+                  onChange={(e) => setNoVehicle(e.target.checked)}
+                  className="rounded border-gray-300"
+                />
+                <span className="text-sm text-gray-700">차량 미보유</span>
+              </label>
+              {!noVehicle && (
+                <>
+                  <InputField label="차량 종류" value={vehicleType} onChange={setVehicleType} placeholder="예: 승용차, SUV" />
+                  <InputField label="차량 번호" value={vehiclePlateNumber} onChange={setVehiclePlateNumber} placeholder="예: 12가 3456" />
+                  <InputField label="차량 색상" value={vehicleColor} onChange={setVehicleColor} placeholder="예: 흰색" />
+                </>
+              )}
             </div>
             <div className="px-6 py-4 bg-gray-50 border-t">
               <button onClick={handleSaveVehicle} disabled={saving} className="w-full py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors disabled:opacity-50">

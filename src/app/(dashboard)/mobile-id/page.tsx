@@ -15,6 +15,7 @@ interface IdCardData {
   approvedAt: string | null;
   rejectedAt: string | null;
   rejectReason: string | null;
+  approvalNumber: string | null;
   user: {
     name: string;
     rank: string | null;
@@ -111,6 +112,15 @@ function MobileIdCardView({ card }: { card: IdCardData }) {
             유효기간: {formatDate(card.validFrom)} ~ {formatDate(card.validUntil)}
           </p>
         </div>
+
+        {/* 승인번호 바 */}
+        {card.isApproved && card.approvalNumber && (
+          <div className="bg-white border-t border-gray-200 px-5 py-1.5">
+            <p className="text-xs text-gray-600 text-center">
+              승인번호: <span className="font-mono font-medium">{card.approvalNumber}</span>
+            </p>
+          </div>
+        )}
 
         {/* 하단 고지문 */}
         <div className="bg-gray-100 border-t border-gray-200 px-5 py-3">
@@ -209,7 +219,7 @@ export default function MobileIdPage() {
   if (isAdmin) {
     return (
       <div>
-        <PageTitle title="모바일 신분증" description="신분증 발급 승인을 관리합니다." />
+        <PageTitle title="승인 관리" description="신분증, 사진, 주소 승인을 관리합니다." />
         <AdminView />
       </div>
     );
@@ -287,14 +297,21 @@ export default function MobileIdPage() {
 // 관리자 뷰 (탭: 신분증 관리 / 사진 승인)
 // ──────────────────────────────────────────────
 function AdminView() {
-  const [tab, setTab] = useState<"cards" | "photos">("cards");
+  const [tab, setTab] = useState<"cards" | "photos" | "address">("cards");
   const [photoPendingCount, setPhotoPendingCount] = useState(0);
+  const [addressPendingCount, setAddressPendingCount] = useState(0);
 
   useEffect(() => {
     fetch("/api/profile/photo/manage")
       .then((r) => r.json())
       .then((data) => {
         if (Array.isArray(data)) setPhotoPendingCount(data.length);
+      })
+      .catch(() => {});
+    fetch("/api/profile/address/manage")
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data)) setAddressPendingCount(data.length);
       })
       .catch(() => {});
   }, [tab]);
@@ -305,28 +322,43 @@ function AdminView() {
       <div className="flex gap-1 mb-4 bg-gray-100 rounded-lg p-1">
         <button
           onClick={() => setTab("cards")}
-          className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+          className={`flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
             tab === "cards" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
           }`}
         >
-          신분증 관리
+          신분증
         </button>
         <button
           onClick={() => setTab("photos")}
-          className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors relative ${
+          className={`flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors relative ${
             tab === "photos" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
           }`}
         >
-          사진 승인
+          사진
           {photoPendingCount > 0 && (
             <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 text-[10px] font-bold bg-red-500 text-white rounded-full">
               {photoPendingCount}
             </span>
           )}
         </button>
+        <button
+          onClick={() => setTab("address")}
+          className={`flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors relative ${
+            tab === "address" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          주소
+          {addressPendingCount > 0 && (
+            <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 text-[10px] font-bold bg-red-500 text-white rounded-full">
+              {addressPendingCount}
+            </span>
+          )}
+        </button>
       </div>
 
-      {tab === "cards" ? <AdminIdCardList /> : <AdminPhotoApproval />}
+      {tab === "cards" && <AdminIdCardList />}
+      {tab === "photos" && <AdminPhotoApproval />}
+      {tab === "address" && <AdminAddressApproval />}
     </div>
   );
 }
@@ -345,6 +377,7 @@ function AdminIdCardList() {
       approvedAt: string | null;
       rejectedAt: string | null;
       rejectReason: string | null;
+      approvalNumber: string | null;
       createdAt: string;
       user: {
         name: string;
@@ -366,6 +399,9 @@ function AdminIdCardList() {
   const [validFrom, setValidFrom] = useState("");
   const [validUntil, setValidUntil] = useState("");
   const [previewCard, setPreviewCard] = useState<IdCardData | null>(null);
+  const [approvalYear, setApprovalYear] = useState(new Date().getFullYear().toString());
+  const [approvalUnit, setApprovalUnit] = useState("");
+  const [approvalSeq, setApprovalSeq] = useState("");
 
   useEffect(() => {
     fetch("/api/mobile-id/manage")
@@ -377,6 +413,10 @@ function AdminIdCardList() {
   }, []);
 
   const handleAction = async (cardId: string, action: "approve" | "reject") => {
+    const approvalNumber = approvalUnit && approvalSeq
+      ? `${approvalYear}-${approvalUnit}-${approvalSeq}`
+      : undefined;
+
     const res = await fetch("/api/mobile-id/manage", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -386,6 +426,7 @@ function AdminIdCardList() {
         rejectReason: action === "reject" ? rejectReason : undefined,
         validFrom: action === "approve" && validFrom ? validFrom : undefined,
         validUntil: action === "approve" && validUntil ? validUntil : undefined,
+        approvalNumber: action === "approve" ? approvalNumber : undefined,
       }),
     });
     if (res.ok) {
@@ -396,6 +437,8 @@ function AdminIdCardList() {
       setApproveId(null);
       setValidFrom("");
       setValidUntil("");
+      setApprovalUnit("");
+      setApprovalSeq("");
     }
   };
 
@@ -409,6 +452,7 @@ function AdminIdCardList() {
       approvedAt: c.approvedAt,
       rejectedAt: c.rejectedAt,
       rejectReason: c.rejectReason,
+      approvalNumber: c.approvalNumber,
       user: {
         name: c.user.name,
         rank: c.user.rank,
@@ -464,6 +508,9 @@ function AdminIdCardList() {
                 <div className="shrink-0 flex items-center gap-1">
                   {status === "approved" && (
                     <>
+                      {c.approvalNumber && (
+                        <span className="text-[10px] text-gray-400 font-mono">{c.approvalNumber}</span>
+                      )}
                       <button
                         onClick={() => handlePreview(c)}
                         className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
@@ -520,6 +567,39 @@ function AdminIdCardList() {
                       onChange={(e) => setValidUntil(e.target.value)}
                       className="flex-1 px-3 py-1.5 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-green-500"
                     />
+                  </div>
+                  <div className="mt-2">
+                    <label className="text-xs text-gray-500 mb-1 block">승인번호</label>
+                    <div className="flex gap-1 items-center">
+                      <input
+                        type="text"
+                        value={approvalYear}
+                        onChange={(e) => setApprovalYear(e.target.value)}
+                        className="w-16 px-2 py-1.5 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-green-500 text-center"
+                        placeholder="년도"
+                      />
+                      <span className="text-gray-400">-</span>
+                      <input
+                        type="text"
+                        value={approvalUnit}
+                        onChange={(e) => setApprovalUnit(e.target.value)}
+                        className="flex-1 px-2 py-1.5 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-green-500"
+                        placeholder="훈련부대"
+                      />
+                      <span className="text-gray-400">-</span>
+                      <input
+                        type="text"
+                        value={approvalSeq}
+                        onChange={(e) => setApprovalSeq(e.target.value)}
+                        className="w-16 px-2 py-1.5 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-green-500 text-center"
+                        placeholder="순번"
+                      />
+                    </div>
+                    {approvalUnit && approvalSeq && (
+                      <p className="text-xs text-gray-400 mt-1">
+                        미리보기: <span className="font-mono">{approvalYear}-{approvalUnit}-{approvalSeq}</span>
+                      </p>
+                    )}
                   </div>
                   <div className="flex justify-end">
                     <button
@@ -676,6 +756,159 @@ function AdminPhotoApproval() {
                 ) : (
                   <span className="text-gray-400 text-sm">-</span>
                 )}
+              </div>
+            </div>
+          </div>
+
+          {/* 액션 버튼 */}
+          {rejectingId === u.id ? (
+            <div className="flex gap-2">
+              <input
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="반려 사유 입력"
+                className="flex-1 px-3 py-1.5 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-red-500"
+              />
+              <button
+                onClick={() => handleAction(u.id, "reject")}
+                className="px-3 py-1.5 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 shrink-0"
+              >
+                반려 확인
+              </button>
+              <button
+                onClick={() => { setRejectingId(null); setRejectReason(""); }}
+                className="px-3 py-1.5 text-xs bg-gray-200 text-gray-600 rounded-lg hover:bg-gray-300 shrink-0"
+              >
+                취소
+              </button>
+            </div>
+          ) : (
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => handleAction(u.id, "approve")}
+                className="px-4 py-1.5 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700"
+              >
+                승인
+              </button>
+              <button
+                onClick={() => setRejectingId(u.id)}
+                className="px-4 py-1.5 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700"
+              >
+                반려
+              </button>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// 관리자 주소 승인 탭
+// ──────────────────────────────────────────────
+interface PendingAddressUser {
+  id: string;
+  name: string;
+  rank: string | null;
+  serviceNumber: string | null;
+  unit: string | null;
+  zipCode: string | null;
+  address: string | null;
+  addressDetail: string | null;
+  pendingZipCode: string | null;
+  pendingAddress: string | null;
+  pendingAddressDetail: string | null;
+}
+
+function AdminAddressApproval() {
+  const [users, setUsers] = useState<PendingAddressUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+
+  const fetchList = () => {
+    fetch("/api/profile/address/manage")
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data)) setUsers(data);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchList();
+  }, []);
+
+  const handleAction = async (userId: string, action: "approve" | "reject") => {
+    const res = await fetch("/api/profile/address/manage", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId,
+        action,
+        rejectReason: action === "reject" ? rejectReason : undefined,
+      }),
+    });
+    if (res.ok) {
+      setRejectingId(null);
+      setRejectReason("");
+      fetchList();
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+      </div>
+    );
+  }
+
+  if (users.length === 0) {
+    return (
+      <div className="text-center py-12 text-gray-400">
+        <p>승인 대기 중인 주소 변경이 없습니다.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {users.map((u) => (
+        <div key={u.id} className="bg-white rounded-xl border p-4">
+          <div className="flex items-center gap-3 mb-3">
+            <p className="font-medium text-sm">
+              {u.rank} {u.name}
+              <span className="text-gray-400 text-xs ml-2">{u.serviceNumber}</span>
+            </p>
+            <span className="text-xs text-gray-400">{u.unit}</span>
+          </div>
+
+          {/* 주소 비교 */}
+          <div className="flex gap-3 mb-3">
+            <div className="flex-1">
+              <p className="text-xs text-gray-500 mb-1">현재 주소</p>
+              <div className="bg-gray-50 rounded-lg p-2.5 text-sm text-gray-700 min-h-[48px]">
+                {u.address ? (
+                  <>
+                    <p>{u.address}</p>
+                    {u.addressDetail && <p className="text-gray-500">{u.addressDetail}</p>}
+                    {u.zipCode && <p className="text-xs text-gray-400 mt-0.5">{u.zipCode}</p>}
+                  </>
+                ) : (
+                  <span className="text-gray-400">없음</span>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center text-gray-300 text-xl pt-4">→</div>
+            <div className="flex-1">
+              <p className="text-xs text-blue-600 mb-1 font-medium">변경 요청</p>
+              <div className="bg-blue-50 rounded-lg p-2.5 text-sm text-gray-700 min-h-[48px] border border-blue-100">
+                <p>{u.pendingAddress}</p>
+                {u.pendingAddressDetail && <p className="text-gray-500">{u.pendingAddressDetail}</p>}
+                {u.pendingZipCode && <p className="text-xs text-gray-400 mt-0.5">{u.pendingZipCode}</p>}
               </div>
             </div>
           </div>

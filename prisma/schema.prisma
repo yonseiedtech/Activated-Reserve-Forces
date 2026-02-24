@@ -58,6 +58,7 @@ model User {
   addressRejectReason  String?
 
   // 차량
+  noVehicle          Boolean  @default(false) // 차량 미보유
   vehicleType        String?  // 차량종류
   vehiclePlateNumber String?  // 차량번호
   vehicleColor       String?  // 차량 색상
@@ -78,6 +79,7 @@ model User {
   mobileIdCard         MobileIdCard?
   approvedIdCards      MobileIdCard[]     @relation("ApprovedByUser")
   transportAllowances  UserTransportAllowance[]
+  dinnerRequests       DinnerRequest[]
 }
 
 // ─── User-Batch M:N 조인 테이블 ───
@@ -107,6 +109,9 @@ model Batch {
 
   location       String?  // 훈련 장소
   requiredHours  Float?   // 훈련 부과 시간 (예: 40)
+  startTime      String?  // 시작 시간 (예: "08:30")
+  endTime        String?  // 종료 시간 (예: "17:30")
+  unitId         String?  // 훈련 부대
 
   batchUsers          BatchUser[]
   trainings           Training[]
@@ -115,6 +120,7 @@ model Batch {
   transportAllowances UserTransportAllowance[]
   refundProcess       RefundProcess?
   commutingRecords    CommutingRecord[]
+  dinnerRequests      DinnerRequest[]
 }
 
 // ─── 훈련 일정 ───
@@ -366,10 +372,11 @@ model MobileIdCard {
   approvedAt    DateTime?
   approvedById  String?
   approvedBy    User?     @relation("ApprovedByUser", fields: [approvedById], references: [id])
-  rejectedAt    DateTime?
-  rejectReason  String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  rejectedAt     DateTime?
+  rejectReason   String?
+  approvalNumber String?    // 승인번호 (예: "2026-601수송-001")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 }
 
 // ─── 훈련 기본 템플릿 ───
@@ -395,4 +402,20 @@ model TrainingTemplateItem {
   location    String?
   description String?
   createdAt   DateTime @default(now())
+}
+
+// ─── 석식 신청 ───
+model DinnerRequest {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  batchId   String
+  batch     Batch    @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  date      DateTime // 석식 신청 날짜
+  status    String   @default("PENDING") // PENDING, APPROVED, REJECTED, CANCELLED
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, batchId, date])
 }

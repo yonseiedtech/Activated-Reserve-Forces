@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import PageTitle from "@/components/ui/PageTitle";
 import { PAYMENT_STATUS_LABELS, REFUND_STATUS_LABELS } from "@/lib/constants";
 
@@ -74,7 +75,15 @@ export default function PaymentsPage() {
 
   return (
     <div>
-      <PageTitle title="훈련비 관리" description="전체 차수별 훈련비 현황을 확인합니다." />
+      <div className="flex items-center justify-between mb-0">
+        <PageTitle title="훈련비 관리" description="전체 차수별 훈련비 현황을 확인합니다." />
+        <Link
+          href="/payments/transport"
+          className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors shrink-0"
+        >
+          교통비 관리
+        </Link>
+      </div>
 
       {/* Desktop: 테이블 */}
       <div className="hidden lg:block bg-white rounded-xl border overflow-x-auto">

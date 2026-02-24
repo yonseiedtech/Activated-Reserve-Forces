@@ -52,10 +52,13 @@ export async function POST(req: NextRequest) {
       year: body.year,
       number: body.number,
       startDate: new Date(body.startDate),
-      endDate: new Date(body.endDate),
+      endDate: new Date(body.endDate || body.startDate),
       status: body.status || "PLANNED",
       location: body.location || null,
       requiredHours: body.requiredHours != null && body.requiredHours !== "" ? parseFloat(body.requiredHours) : null,
+      startTime: body.startTime || null,
+      endTime: body.endTime || null,
+      unitId: body.unitId || null,
     },
   });
 

@@ -552,37 +552,21 @@ function ReservistReportView({ reports, userId }: { reports: BatchReport[]; user
 
   return (
     <div className="space-y-4">
-      {/* 차수 리스트 */}
-      <div className="space-y-2">
+      {/* 차수 선택 드롭다운 */}
+      <select
+        value={selectedBatchId}
+        onChange={(e) => setSelectedBatchId(e.target.value)}
+        className="w-full px-3 py-2.5 border rounded-lg text-sm font-medium bg-white"
+      >
         {reports.map((r) => {
           const stat = r.byUser.find((u) => u.userId === userId);
-          const isSelected = r.batchId === selectedBatchId;
           return (
-            <button
-              key={r.batchId}
-              onClick={() => setSelectedBatchId(r.batchId)}
-              className={`w-full text-left bg-white rounded-xl border p-4 transition-all ${
-                isSelected ? "border-blue-400 shadow-sm ring-1 ring-blue-200" : "hover:border-gray-300"
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-semibold text-sm">{r.batchName}</h3>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${STATUS_COLORS[r.status] || "bg-gray-100"}`}>
-                      {STATUS_LABELS[r.status] || r.status}
-                    </span>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {r.startDate.split("T")[0]} ~ {r.endDate.split("T")[0]} | {r.totalTrainings}개 훈련
-                  </p>
-                </div>
-                {stat && <RateBadge rate={stat.rate} />}
-              </div>
-            </button>
+            <option key={r.batchId} value={r.batchId}>
+              {r.batchName} ({r.totalTrainings}개 훈련{stat ? ` · ${stat.rate}%` : ""})
+            </option>
           );
         })}
-      </div>
+      </select>
 
       {/* 선택된 차수 상세 */}
       {selectedReport && myStat && (

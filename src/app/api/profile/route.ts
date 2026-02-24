@@ -38,6 +38,7 @@ export async function GET() {
       pendingAddressDetail: true,
       addressRejectedAt: true,
       addressRejectReason: true,
+      noVehicle: true,
       vehicleType: true,
       vehiclePlateNumber: true,
       vehicleColor: true,
@@ -69,7 +70,7 @@ export async function PATCH(req: NextRequest) {
   const addressFields = ["zipCode", "address", "addressDetail"] as const;
   const otherFields = ["phone", "vehicleType", "vehiclePlateNumber", "vehicleColor"] as const;
 
-  const data: Record<string, string | null> = {};
+  const data: Record<string, string | boolean | null> = {};
 
   // 비-주소 필드는 그대로 업데이트
   for (const key of otherFields) {
@@ -77,6 +78,11 @@ export async function PATCH(req: NextRequest) {
       const val = body[key];
       data[key] = typeof val === "string" && val.trim() !== "" ? val.trim() : null;
     }
+  }
+
+  // noVehicle (boolean)
+  if ("noVehicle" in body) {
+    data.noVehicle = !!body.noVehicle;
   }
 
   // 주소 필드 처리
@@ -123,6 +129,7 @@ export async function PATCH(req: NextRequest) {
       pendingZipCode: true,
       pendingAddress: true,
       pendingAddressDetail: true,
+      noVehicle: true,
       vehicleType: true,
       vehiclePlateNumber: true,
       vehicleColor: true,

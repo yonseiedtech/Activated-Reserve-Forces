@@ -137,6 +137,17 @@ export default function ReservistBatchDetailPage() {
   const [meals, setMeals] = useState<Meal[]>([]);
   const [mealsLoading, setMealsLoading] = useState(false);
 
+  // 석식 신청
+  interface DinnerReq {
+    id: string;
+    date: string;
+    status: string;
+    createdAt: string;
+  }
+  const [dinnerRequests, setDinnerRequests] = useState<DinnerReq[]>([]);
+  const [dinnerDate, setDinnerDate] = useState("");
+  const [dinnerSubmitting, setDinnerSubmitting] = useState(false);
+
   // 출퇴근 현황
   const [commutingRecords, setCommutingRecords] = useState<CommutingRecord[]>([]);
   const [commutingLoading, setCommutingLoading] = useState(false);
@@ -174,9 +185,56 @@ export default function ReservistBatchDetailPage() {
       .finally(() => setMealsLoading(false));
   }, [batchId]);
 
+  const fetchDinnerRequests = useCallback(() => {
+    fetch(`/api/meals/dinner-request?batchId=${batchId}`)
+      .then((r) => r.json())
+      .then((data) => { if (Array.isArray(data)) setDinnerRequests(data); })
+      .catch(() => {});
+  }, [batchId]);
+
   useEffect(() => {
-    if (tab === "meals") fetchMeals();
-  }, [tab, fetchMeals]);
+    if (tab === "meals") {
+      fetchMeals();
+      fetchDinnerRequests();
+    }
+  }, [tab, fetchMeals, fetchDinnerRequests]);
+
+  const handleDinnerRequest = async () => {
+    if (!dinnerDate) return;
+    setDinnerSubmitting(true);
+    try {
+      const res = await fetch("/api/meals/dinner-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ batchId, date: dinnerDate }),
+      });
+      if (res.ok) {
+        setDinnerDate("");
+        fetchDinnerRequests();
+      } else {
+        const err = await res.json();
+        alert(err.error || "석식 신청 실패");
+      }
+    } catch {
+      alert("석식 신청 중 오류가 발생했습니다.");
+    } finally {
+      setDinnerSubmitting(false);
+    }
+  };
+
+  const handleDinnerCancel = async (requestId: string) => {
+    const res = await fetch("/api/meals/dinner-request", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ requestId, action: "cancel" }),
+    });
+    if (res.ok) {
+      fetchDinnerRequests();
+    } else {
+      const err = await res.json();
+      alert(err.error || "취소 실패");
+    }
+  };
 
   // 출퇴근 데이터 fetch
   const fetchCommuting = useCallback(() => {
@@ -422,40 +480,111 @@ export default function ReservistBatchDetailPage() {
             <div className="flex justify-center py-10">
               <div className="animate-spin h-6 w-6 border-4 border-blue-600 border-t-transparent rounded-full" />
             </div>
-          ) : meals.length === 0 ? (
-            <div className="text-center py-10 text-gray-500">
-              등록된 식사 정보가 없습니다.
-            </div>
           ) : (
             <div className="space-y-4">
-              {mealDates.map(([dateKey, dayMeals]) => (
-                <div key={dateKey}>
-                  <h3 className="text-sm font-semibold text-gray-700 mb-2 px-1">
-                    {formatDate(dayMeals[0].date)}
-                  </h3>
-                  <div className="grid grid-cols-3 gap-2">
-                    {["BREAKFAST", "LUNCH", "DINNER"].map((mealType) => {
-                      const meal = dayMeals.find((m) => m.type === mealType);
+              {/* 식사 목록 (세로 배치, 날짜 중복 제거) */}
+              {meals.length > 0 ? (
+                <div className="space-y-2">
+                  {(() => {
+                    let lastDateKey = "";
+                    return mealDates.flatMap(([dateKey, dayMeals]) => {
+                      const items: React.ReactNode[] = [];
+                      const showDate = dateKey !== lastDateKey;
+                      lastDateKey = dateKey;
+                      if (showDate) {
+                        items.push(
+                          <h3 key={`date-${dateKey}`} className="text-sm font-semibold text-gray-700 pt-2 px-1">
+                            {formatDate(dayMeals[0].date)}
+                          </h3>
+                        );
+                      }
+                      for (const mealType of ["BREAKFAST", "LUNCH", "DINNER"] as const) {
+                        const meal = dayMeals.find((m) => m.type === mealType);
+                        if (!meal) continue;
+                        items.push(
+                          <div
+                            key={`${dateKey}-${mealType}`}
+                            className="bg-white rounded-xl border p-4 flex items-center justify-between"
+                          >
+                            <div>
+                              <span className="text-xs font-medium text-gray-500">{MEAL_TYPE_LABELS[mealType]}</span>
+                              <p className="text-sm text-gray-800 mt-0.5">{meal.menuInfo || "-"}</p>
+                            </div>
+                          </div>
+                        );
+                      }
+                      return items;
+                    });
+                  })()}
+                </div>
+              ) : (
+                <div className="text-center py-10 text-gray-500">
+                  등록된 식사 정보가 없습니다.
+                </div>
+              )}
+
+              {/* 석식 신청 */}
+              <div className="border-t pt-4 mt-4">
+                <h3 className="text-sm font-semibold text-gray-800 mb-3">석식 별도 신청</h3>
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-3">
+                  <ul className="text-xs text-blue-700 space-y-1">
+                    <li>- 석식 신청은 해당일 <span className="font-bold">9근무일 전</span>까지 가능합니다.</li>
+                    <li>- 석식 취소(환불)는 해당일 <span className="font-bold">3일 전</span>까지 가능합니다.</li>
+                  </ul>
+                </div>
+                <div className="flex gap-2 mb-3">
+                  <input
+                    type="date"
+                    value={dinnerDate}
+                    onChange={(e) => setDinnerDate(e.target.value)}
+                    className="flex-1 px-3 py-2 border rounded-lg text-sm"
+                  />
+                  <button
+                    onClick={handleDinnerRequest}
+                    disabled={!dinnerDate || dinnerSubmitting}
+                    className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 shrink-0"
+                  >
+                    {dinnerSubmitting ? "신청 중..." : "석식 신청"}
+                  </button>
+                </div>
+
+                {/* 내 석식 신청 내역 */}
+                {dinnerRequests.length > 0 && (
+                  <div className="space-y-2">
+                    {dinnerRequests.map((dr) => {
+                      const stMap: Record<string, { label: string; color: string }> = {
+                        PENDING: { label: "대기", color: "bg-yellow-100 text-yellow-700" },
+                        APPROVED: { label: "승인", color: "bg-green-100 text-green-700" },
+                        REJECTED: { label: "반려", color: "bg-red-100 text-red-700" },
+                        CANCELLED: { label: "취소", color: "bg-gray-100 text-gray-500" },
+                      };
+                      const st = stMap[dr.status] || { label: dr.status, color: "bg-gray-100 text-gray-600" };
                       return (
-                        <div
-                          key={mealType}
-                          className={`rounded-xl border p-3 ${meal ? "bg-green-50 border-green-200" : "bg-gray-50 border-gray-200"}`}
-                        >
-                          <p className="text-xs font-medium text-gray-500 mb-1">{MEAL_TYPE_LABELS[mealType]}</p>
-                          {meal ? (
-                            <>
-                              <p className="text-sm text-gray-800">{meal.menuInfo || "-"}</p>
-                              <p className="text-xs text-gray-400 mt-1">{meal.headcount}명</p>
-                            </>
-                          ) : (
-                            <p className="text-xs text-gray-400">미등록</p>
-                          )}
+                        <div key={dr.id} className="bg-white rounded-lg border p-3 flex items-center justify-between">
+                          <div>
+                            <p className="text-sm text-gray-700">
+                              {new Date(dr.date).toLocaleDateString("ko-KR")} 석식
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${st.color}`}>
+                              {st.label}
+                            </span>
+                            {(dr.status === "PENDING" || dr.status === "APPROVED") && (
+                              <button
+                                onClick={() => handleDinnerCancel(dr.id)}
+                                className="px-2 py-1 text-xs bg-gray-200 text-gray-600 rounded hover:bg-gray-300"
+                              >
+                                취소
+                              </button>
+                            )}
+                          </div>
                         </div>
                       );
                     })}
                   </div>
-                </div>
-              ))}
+                )}
+              </div>
             </div>
           )}
         </>

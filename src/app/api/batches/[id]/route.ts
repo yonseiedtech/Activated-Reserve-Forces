@@ -66,6 +66,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       endDate: body.endDate ? new Date(body.endDate) : undefined,
       location: body.location,
       requiredHours: body.requiredHours !== undefined ? (body.requiredHours != null && body.requiredHours !== "" ? parseFloat(body.requiredHours) : null) : undefined,
+      startTime: body.startTime !== undefined ? (body.startTime || null) : undefined,
+      endTime: body.endTime !== undefined ? (body.endTime || null) : undefined,
+      unitId: body.unitId !== undefined ? (body.unitId || null) : undefined,
     },
   });
 
