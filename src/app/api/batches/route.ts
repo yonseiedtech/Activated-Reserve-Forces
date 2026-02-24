@@ -24,16 +24,26 @@ export async function GET() {
     where: isReservist
       ? { batchUsers: { some: { userId: session.user.id } } }
       : undefined,
-    orderBy: { startDate: "desc" },
-    include: { _count: { select: { batchUsers: true, trainings: true } } },
+    orderBy: { startDate: "asc" },
+    include: {
+      _count: { select: { batchUsers: true, trainings: true } },
+      ...(isReservist ? {
+        batchUsers: {
+          where: { userId: session.user.id },
+          select: { status: true },
+        },
+      } : {}),
+    },
   });
 
   const batchesWithStatus = batches.map((b) => {
-    const { _count, ...rest } = b;
+    const { _count, batchUsers, ...rest } = b as typeof b & { batchUsers?: { status: string }[] };
+    const myAttendanceStatus = batchUsers?.[0]?.status || null;
     return {
       ...rest,
       _count: { users: _count.batchUsers, trainings: _count.trainings },
       status: computeBatchStatus(b.startDate, b.endDate),
+      ...(isReservist ? { myAttendanceStatus } : {}),
     };
   });
 
