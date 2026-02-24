@@ -893,6 +893,15 @@ export default function AdminBatchDetailPage() {
                               >
                                 출근
                               </button>
+                              {row.checkIn && !isAbsent && (
+                                <button
+                                  onClick={() => updateCommutingRow(idx, "checkIn", "")}
+                                  className="px-1.5 py-1 text-gray-400 hover:text-red-500 text-xs shrink-0"
+                                  title="출근 기록 삭제"
+                                >
+                                  ✕
+                                </button>
+                              )}
                             </div>
                           </td>
                           <td className="px-4 py-2">
@@ -911,6 +920,15 @@ export default function AdminBatchDetailPage() {
                               >
                                 퇴근
                               </button>
+                              {row.checkOut && !isAbsent && (
+                                <button
+                                  onClick={() => updateCommutingRow(idx, "checkOut", "")}
+                                  className="px-1.5 py-1 text-gray-400 hover:text-red-500 text-xs shrink-0"
+                                  title="퇴근 기록 삭제"
+                                >
+                                  ✕
+                                </button>
+                              )}
                             </div>
                           </td>
                           <td className="px-4 py-2">
@@ -975,6 +993,14 @@ export default function AdminBatchDetailPage() {
                             >
                               출근
                             </button>
+                            {row.checkIn && !isAbsent && (
+                              <button
+                                onClick={() => updateCommutingRow(idx, "checkIn", "")}
+                                className="px-1.5 py-1.5 text-gray-400 hover:text-red-500 text-xs shrink-0"
+                              >
+                                ✕
+                              </button>
+                            )}
                           </div>
                         </div>
                         <div>
@@ -994,6 +1020,14 @@ export default function AdminBatchDetailPage() {
                             >
                               퇴근
                             </button>
+                            {row.checkOut && !isAbsent && (
+                              <button
+                                onClick={() => updateCommutingRow(idx, "checkOut", "")}
+                                className="px-1.5 py-1.5 text-gray-400 hover:text-red-500 text-xs shrink-0"
+                              >
+                                ✕
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
