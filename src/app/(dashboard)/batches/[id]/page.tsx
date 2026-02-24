@@ -106,7 +106,16 @@ function getDateRange(startDate: string, endDate: string): string[] {
   return dates;
 }
 
-type TabType = "attendance" | "training" | "meals" | "commuting" | "payment";
+interface Survey {
+  id: string;
+  title: string;
+  description: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  _count: { responses: number };
+}
+
+type TabType = "attendance" | "training" | "meals" | "commuting" | "payment" | "survey";
 
 export default function ReservistBatchDetailPage() {
   const params = useParams();
@@ -131,6 +140,10 @@ export default function ReservistBatchDetailPage() {
   // 출퇴근 현황
   const [commutingRecords, setCommutingRecords] = useState<CommutingRecord[]>([]);
   const [commutingLoading, setCommutingLoading] = useState(false);
+
+  // 설문조사
+  const [surveys, setSurveys] = useState<Survey[]>([]);
+  const [surveysLoading, setSurveysLoading] = useState(false);
 
   const fetchBatch = useCallback(() => {
     setLoading(true);
@@ -181,6 +194,19 @@ export default function ReservistBatchDetailPage() {
   useEffect(() => {
     if (tab === "commuting" && batch) fetchCommuting();
   }, [tab, batch, fetchCommuting]);
+
+  // 설문조사 fetch
+  const fetchSurveys = useCallback(() => {
+    setSurveysLoading(true);
+    fetch("/api/surveys")
+      .then((r) => r.json())
+      .then((data: Survey[]) => setSurveys(data))
+      .finally(() => setSurveysLoading(false));
+  }, []);
+
+  useEffect(() => {
+    if (tab === "survey") fetchSurveys();
+  }, [tab, fetchSurveys]);
 
   const handleSaveAttendance = async () => {
     setSaving(true);
@@ -235,6 +261,7 @@ export default function ReservistBatchDetailPage() {
     { key: "meals", label: "식사현황" },
     { key: "commuting", label: "출퇴근" },
     { key: "payment", label: "훈련비" },
+    { key: "survey", label: "설문조사" },
   ];
 
   return (
@@ -490,6 +517,44 @@ export default function ReservistBatchDetailPage() {
             훈련비 상세 보기
           </Link>
         </div>
+      )}
+
+      {/* ═══ 6. 설문조사 탭 ═══ */}
+      {tab === "survey" && (
+        <>
+          {surveysLoading ? (
+            <div className="flex justify-center py-10">
+              <div className="animate-spin h-6 w-6 border-4 border-blue-600 border-t-transparent rounded-full" />
+            </div>
+          ) : surveys.length === 0 ? (
+            <div className="text-center py-10 text-gray-500">
+              등록된 설문조사가 없습니다.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {surveys.map((s) => (
+                <Link
+                  key={s.id}
+                  href={`/surveys?id=${s.id}`}
+                  className="block bg-white rounded-xl border p-4 hover:border-blue-300 hover:shadow-sm transition-all"
+                >
+                  <h4 className="font-semibold text-sm text-gray-900">{s.title}</h4>
+                  {s.description && (
+                    <p className="text-xs text-gray-500 mt-1 line-clamp-2">{s.description}</p>
+                  )}
+                  <div className="flex items-center gap-3 mt-2 text-xs text-gray-400">
+                    {s.startDate && s.endDate && (
+                      <span>
+                        {new Date(s.startDate).toLocaleDateString("ko-KR")} ~ {new Date(s.endDate).toLocaleDateString("ko-KR")}
+                      </span>
+                    )}
+                    <span>응답 {s._count.responses}건</span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
