@@ -6,7 +6,6 @@ export async function GET() {
   if (!session) return unauthorized();
   const role = session.user.role;
 
-  // 예비역: 본인이 배정된 차수만
   const isReservist = role === "RESERVIST";
   if (!["ADMIN", "MANAGER", "INSTRUCTOR", "RESERVIST"].includes(role)) return forbidden();
 
@@ -35,6 +34,10 @@ export async function GET() {
     const trainings = batch.trainings;
     const totalUsers = users.length;
 
+    // 차수의 startDate 요일로 평일/주말 판단
+    const batchStartDay = new Date(batch.startDate).getUTCDay();
+    const batchDayType: "weekday" | "weekend" = (batchStartDay === 0 || batchStartDay === 6) ? "weekend" : "weekday";
+
     // 차수 종합 출석률
     let totalPresent = 0;
     let totalAbsent = 0;
@@ -46,36 +49,6 @@ export async function GET() {
       totalPending += t.attendances.filter((a) => a.status === "PENDING").length;
       totalAttendances += t.attendances.length;
     }
-
-    // 평일/주말별
-    const byDayTypeMap: Record<string, { present: number; absent: number; pending: number; total: number; count: number }> = {
-      weekday: { present: 0, absent: 0, pending: 0, total: 0, count: 0 },
-      weekend: { present: 0, absent: 0, pending: 0, total: 0, count: 0 },
-    };
-
-    for (const t of trainings) {
-      const present = t.attendances.filter((a) => a.status === "PRESENT").length;
-      const absent = t.attendances.filter((a) => a.status === "ABSENT").length;
-      const pending = t.attendances.filter((a) => a.status === "PENDING").length;
-      const total = t.attendances.length;
-
-      const day = new Date(t.date).getUTCDay();
-      const dayType = day === 0 || day === 6 ? "weekend" : "weekday";
-      byDayTypeMap[dayType].present += present;
-      byDayTypeMap[dayType].absent += absent;
-      byDayTypeMap[dayType].pending += pending;
-      byDayTypeMap[dayType].total += total;
-      byDayTypeMap[dayType].count += 1;
-    }
-
-    const byDayType = Object.entries(byDayTypeMap)
-      .filter(([, data]) => data.count > 0)
-      .map(([dayType, data]) => ({
-        dayType,
-        label: dayType === "weekday" ? "평일" : "주말",
-        ...data,
-        rate: data.total > 0 ? Math.round((data.present / data.total) * 100) : 0,
-      }));
 
     // 인원별 출석률
     const byUser = users.map((user) => {
@@ -111,6 +84,7 @@ export async function GET() {
       endDate: batch.endDate,
       totalUsers,
       totalTrainings: trainings.length,
+      batchDayType,
       summary: {
         present: totalPresent,
         absent: totalAbsent,
@@ -118,7 +92,6 @@ export async function GET() {
         total: totalAttendances,
         rate: totalAttendances > 0 ? Math.round((totalPresent / totalAttendances) * 100) : 0,
       },
-      byDayType,
       byUser,
     };
   });

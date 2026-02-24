@@ -12,14 +12,13 @@ interface BatchSummary {
   rate: number;
 }
 
-interface DayTypeStat {
-  dayType: string;
-  label: string;
+interface DayTypeAgg {
   present: number;
   absent: number;
   pending: number;
   total: number;
-  count: number;
+  batchCount: number;
+  trainingCount: number;
   rate: number;
 }
 
@@ -42,8 +41,8 @@ interface BatchReport {
   endDate: string;
   totalUsers: number;
   totalTrainings: number;
+  batchDayType: "weekday" | "weekend";
   summary: BatchSummary;
-  byDayType: DayTypeStat[];
   byUser: UserStat[];
 }
 
@@ -84,7 +83,7 @@ function RateBar({ rate, size = "md" }: { rate: number; size?: "sm" | "md" }) {
 // 관리자/교관용 뷰
 // ═══════════════════════════════════════════
 
-function DayTypeRow({ label, stat, badge }: { label: string; stat: DayTypeStat | null; badge?: string }) {
+function DayTypeCard({ label, stat, badge }: { label: string; stat: DayTypeAgg | null; badge?: string }) {
   if (!stat) return (
     <div className="bg-white rounded-xl border p-4">
       <div className="flex items-center gap-2 mb-2">
@@ -105,7 +104,7 @@ function DayTypeRow({ label, stat, badge }: { label: string; stat: DayTypeStat |
       </div>
       <RateBar rate={stat.rate} />
       <div className="flex gap-4 mt-2 text-xs text-gray-500">
-        <span>{stat.count}개 과목</span>
+        <span>{stat.batchCount}개 차수 · {stat.trainingCount}개 과목</span>
         <span>참석 <span className="text-green-600 font-medium">{stat.present}</span></span>
         <span>불참 <span className="text-red-600 font-medium">{stat.absent}</span></span>
         <span>미정 <span className="font-medium">{stat.pending}</span></span>
@@ -206,26 +205,28 @@ function AdminReportView({ reports }: { reports: BatchReport[] }) {
   const totalAtt = reports.reduce((s, r) => s + r.summary.total, 0);
   const totalRate = totalAtt > 0 ? Math.round((totalPresent / totalAtt) * 100) : 0;
 
-  const totalDayType = { weekday: { present: 0, absent: 0, pending: 0, total: 0, count: 0 }, weekend: { present: 0, absent: 0, pending: 0, total: 0, count: 0 } };
-  for (const r of reports) {
-    for (const dt of r.byDayType) {
-      const key = dt.dayType as "weekday" | "weekend";
-      if (totalDayType[key]) {
-        totalDayType[key].present += dt.present;
-        totalDayType[key].absent += dt.absent;
-        totalDayType[key].pending += dt.pending;
-        totalDayType[key].total += dt.total;
-        totalDayType[key].count += dt.count;
-      }
-    }
+  // 차수의 batchDayType 기준으로 평일/주말 집계
+  const weekdayBatches = reports.filter((r) => r.batchDayType === "weekday");
+  const weekendBatches = reports.filter((r) => r.batchDayType === "weekend");
+
+  function aggDayType(batches: BatchReport[]): DayTypeAgg | null {
+    if (batches.length === 0) return null;
+    const present = batches.reduce((s, r) => s + r.summary.present, 0);
+    const absent = batches.reduce((s, r) => s + r.summary.absent, 0);
+    const pending = batches.reduce((s, r) => s + r.summary.pending, 0);
+    const total = batches.reduce((s, r) => s + r.summary.total, 0);
+    const trainingCount = batches.reduce((s, r) => s + r.totalTrainings, 0);
+    return {
+      present, absent, pending, total,
+      batchCount: batches.length,
+      trainingCount,
+      rate: total > 0 ? Math.round((present / total) * 100) : 0,
+    };
   }
+
   const totalDayTypeData = {
-    weekday: totalDayType.weekday.count > 0
-      ? { ...totalDayType.weekday, dayType: "weekday", label: "평일", rate: Math.round((totalDayType.weekday.present / totalDayType.weekday.total) * 100) } as DayTypeStat
-      : null,
-    weekend: totalDayType.weekend.count > 0
-      ? { ...totalDayType.weekend, dayType: "weekend", label: "주말", rate: Math.round((totalDayType.weekend.present / totalDayType.weekend.total) * 100) } as DayTypeStat
-      : null,
+    weekday: aggDayType(weekdayBatches),
+    weekend: aggDayType(weekendBatches),
   };
 
   const userMap: Record<string, UserStat> = {};
@@ -336,31 +337,47 @@ function AdminReportView({ reports }: { reports: BatchReport[] }) {
       {tab === "daytype" && (
         <div className="space-y-8">
           <div>
-            <h2 className="text-base font-bold mb-3">평일 출석률</h2>
+            <h2 className="text-base font-bold mb-3">평일 차수 출석률</h2>
             <div className="space-y-3">
-              <DayTypeRow label="전체 종합" stat={totalDayTypeData.weekday} />
-              {reports.map((r) => (
-                <DayTypeRow
-                  key={r.batchId}
-                  label={r.batchName}
-                  stat={r.byDayType.find((d) => d.dayType === "weekday") || null}
-                  badge={STATUS_LABELS[r.status] || r.status}
-                />
-              ))}
+              <DayTypeCard label="평일 종합" stat={totalDayTypeData.weekday} />
+              {weekdayBatches.map((r) => {
+                const batchAgg: DayTypeAgg = {
+                  ...r.summary,
+                  batchCount: 1,
+                  trainingCount: r.totalTrainings,
+                  rate: r.summary.rate,
+                };
+                return (
+                  <DayTypeCard
+                    key={r.batchId}
+                    label={r.batchName}
+                    stat={batchAgg}
+                    badge={STATUS_LABELS[r.status] || r.status}
+                  />
+                );
+              })}
             </div>
           </div>
           <div>
-            <h2 className="text-base font-bold mb-3">주말 출석률</h2>
+            <h2 className="text-base font-bold mb-3">주말 차수 출석률</h2>
             <div className="space-y-3">
-              <DayTypeRow label="전체 종합" stat={totalDayTypeData.weekend} />
-              {reports.map((r) => (
-                <DayTypeRow
-                  key={r.batchId}
-                  label={r.batchName}
-                  stat={r.byDayType.find((d) => d.dayType === "weekend") || null}
-                  badge={STATUS_LABELS[r.status] || r.status}
-                />
-              ))}
+              <DayTypeCard label="주말 종합" stat={totalDayTypeData.weekend} />
+              {weekendBatches.map((r) => {
+                const batchAgg: DayTypeAgg = {
+                  ...r.summary,
+                  batchCount: 1,
+                  trainingCount: r.totalTrainings,
+                  rate: r.summary.rate,
+                };
+                return (
+                  <DayTypeCard
+                    key={r.batchId}
+                    label={r.batchName}
+                    stat={batchAgg}
+                    badge={STATUS_LABELS[r.status] || r.status}
+                  />
+                );
+              })}
             </div>
           </div>
         </div>
@@ -407,6 +424,9 @@ function ReservistReportView({ reports, userId }: { reports: BatchReport[]; user
               <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${STATUS_COLORS[r.status] || "bg-gray-100"}`}>
                 {STATUS_LABELS[r.status] || r.status}
               </span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-50 text-blue-600">
+                {r.batchDayType === "weekday" ? "평일" : "주말"}
+              </span>
             </div>
 
             {/* 내 출석 요약 카드 */}
@@ -443,24 +463,6 @@ function ReservistReportView({ reports, userId }: { reports: BatchReport[]; user
                 </p>
               )}
             </div>
-
-            {/* 평일/주말별 내 출석 */}
-            {r.byDayType.length > 0 && (
-              <div className="grid grid-cols-2 gap-3">
-                {r.byDayType.map((dt) => {
-                  // 해당 dayType의 내 출석 데이터를 다시 계산할 수 없으므로
-                  // 전체 dayType 데이터를 참고로 표시
-                  return (
-                    <div key={dt.dayType} className="bg-white rounded-xl border p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="font-semibold text-sm">{dt.label} 훈련</h4>
-                      </div>
-                      <p className="text-xs text-gray-500">{dt.count}개 과목</p>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
 
             {/* 기간 */}
             <p className="text-[11px] text-gray-400 text-center">
