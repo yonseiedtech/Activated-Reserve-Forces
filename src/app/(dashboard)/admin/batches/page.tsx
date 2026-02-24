@@ -29,6 +29,11 @@ export default function AdminBatchesPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: "", year: 2026, number: 1, startDate: "", endDate: "", location: "", requiredHours: "" });
 
+  // Edit state
+  const [editTarget, setEditTarget] = useState<Batch | null>(null);
+  const [editForm, setEditForm] = useState({ name: "", year: 2026, number: 1, startDate: "", endDate: "", location: "", requiredHours: "" });
+  const [editLoading, setEditLoading] = useState(false);
+
   // Duplicate state
   const [duplicateTarget, setDuplicateTarget] = useState<Batch | null>(null);
   const [dupForm, setDupForm] = useState({ name: "", year: 2026, number: 1, startDate: "", endDate: "", location: "", requiredHours: "" });
@@ -58,6 +63,44 @@ export default function AdminBatchesPage() {
     } else {
       const data = await res.json();
       alert(data.error || "삭제에 실패했습니다.");
+    }
+  };
+
+  const handleEditOpen = (batch: Batch) => {
+    setEditTarget(batch);
+    setEditForm({
+      name: batch.name,
+      year: batch.year,
+      number: batch.number,
+      startDate: batch.startDate.split("T")[0],
+      endDate: batch.endDate.split("T")[0],
+      location: batch.location || "",
+      requiredHours: batch.requiredHours != null ? String(batch.requiredHours) : "",
+    });
+  };
+
+  const handleEdit = async () => {
+    if (!editTarget) return;
+    setEditLoading(true);
+    const res = await fetch(`/api/batches/${editTarget.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: editForm.name,
+        year: editForm.year,
+        number: editForm.number,
+        startDate: editForm.startDate,
+        endDate: editForm.endDate,
+        location: editForm.location || null,
+        requiredHours: editForm.requiredHours,
+      }),
+    });
+    setEditLoading(false);
+    if (res.ok) {
+      setEditTarget(null);
+      fetchBatches();
+    } else {
+      alert("수정에 실패했습니다.");
     }
   };
 
@@ -98,7 +141,10 @@ export default function AdminBatchesPage() {
             <Link href={`/admin/batches/${b.id}`} className="flex-1 min-w-0">
               <h3 className="font-semibold hover:text-blue-600">{b.name}</h3>
               <p className="text-sm text-gray-500">
-                {new Date(b.startDate).toLocaleDateString("ko-KR")} ~ {new Date(b.endDate).toLocaleDateString("ko-KR")} | {b._count.users}명 | {b._count.trainings}개 훈련
+                {b.startDate.split("T")[0] === b.endDate.split("T")[0]
+                  ? new Date(b.startDate).toLocaleDateString("ko-KR")
+                  : `${new Date(b.startDate).toLocaleDateString("ko-KR")} ~ ${new Date(b.endDate).toLocaleDateString("ko-KR")}`
+                } | {b._count.users}명 | {b._count.trainings}개 훈련
               </p>
               {(b.location || b.requiredHours != null) && (
                 <p className="text-xs text-gray-400 mt-0.5">
@@ -110,6 +156,7 @@ export default function AdminBatchesPage() {
               <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[b.status] || "bg-gray-100"}`}>
                 {BATCH_STATUS_LABELS[b.status] || b.status}
               </span>
+              <button onClick={() => handleEditOpen(b)} className="px-3 py-1 text-gray-600 border border-gray-200 rounded text-sm hover:bg-gray-50">수정</button>
               <button onClick={() => handleDuplicateOpen(b)} className="px-3 py-1 text-blue-600 border border-blue-200 rounded text-sm hover:bg-blue-50">복제</button>
               <button onClick={() => handleDelete(b.id)} className="px-3 py-1 text-red-600 border border-red-200 rounded text-sm hover:bg-red-50">삭제</button>
             </div>
@@ -141,6 +188,38 @@ export default function AdminBatchesPage() {
             <div className="flex gap-3">
               <button onClick={handleCreate} className="flex-1 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700">생성</button>
               <button onClick={() => setShowForm(false)} className="flex-1 py-2 border rounded-lg text-gray-700 hover:bg-gray-50">취소</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 차수 수정 모달 */}
+      {editTarget && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl w-full max-w-md p-6 space-y-4">
+            <h3 className="text-lg font-semibold">차수 수정</h3>
+            <input placeholder="차수명" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+            <div className="grid grid-cols-2 gap-4">
+              <input type="number" placeholder="연도" value={editForm.year} onChange={(e) => setEditForm({ ...editForm, year: parseInt(e.target.value) })} className="w-full px-3 py-2 border rounded-lg" />
+              <input type="number" placeholder="차수 번호" value={editForm.number} onChange={(e) => setEditForm({ ...editForm, number: parseInt(e.target.value) })} className="w-full px-3 py-2 border rounded-lg" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium">시작일</label>
+                <input type="date" value={editForm.startDate} onChange={(e) => setEditForm({ ...editForm, startDate: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+              </div>
+              <div>
+                <label className="text-sm font-medium">종료일</label>
+                <input type="date" value={editForm.endDate} onChange={(e) => setEditForm({ ...editForm, endDate: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+              </div>
+            </div>
+            <input placeholder="훈련 장소" value={editForm.location} onChange={(e) => setEditForm({ ...editForm, location: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+            <input type="number" placeholder="훈련 부과 시간 (시간)" value={editForm.requiredHours} onChange={(e) => setEditForm({ ...editForm, requiredHours: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+            <div className="flex gap-3">
+              <button onClick={handleEdit} disabled={editLoading} className="flex-1 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50">
+                {editLoading ? "저장 중..." : "저장"}
+              </button>
+              <button onClick={() => setEditTarget(null)} className="flex-1 py-2 border rounded-lg text-gray-700 hover:bg-gray-50">취소</button>
             </div>
           </div>
         </div>

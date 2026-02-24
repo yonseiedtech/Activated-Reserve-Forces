@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import PageTitle from "@/components/ui/PageTitle";
 import { BATCH_STATUS_LABELS, TRAINING_TYPES } from "@/lib/constants";
 
@@ -36,6 +37,8 @@ interface Batch {
   startDate: string;
   endDate: string;
   status: string;
+  location: string | null;
+  requiredHours: number | null;
   users: BatchUser[];
   trainings: Training[];
   _count: { users: number; trainings: number };
@@ -133,10 +136,11 @@ function getDateRange(startDate: string, endDate: string): string[] {
 export default function AdminBatchDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { data: session, status } = useSession();
   const batchId = params.id as string;
 
   const [batch, setBatch] = useState<Batch | null>(null);
-  const [tab, setTab] = useState<"training" | "trainees" | "attendance" | "commuting">("training");
+  const [tab, setTab] = useState<"training" | "trainees" | "attendance" | "commuting" | "settings">("training");
   const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [showTrainingForm, setShowTrainingForm] = useState(false);
   const [trainingFormDate, setTrainingFormDate] = useState("");
@@ -170,6 +174,10 @@ export default function AdminBatchDetailPage() {
   const [commutingLoading, setCommutingLoading] = useState(false);
   const [commutingSaving, setCommutingSaving] = useState(false);
 
+  // Settings tab state
+  const [settingsForm, setSettingsForm] = useState({ name: "", year: 0, number: 0, startDate: "", endDate: "", location: "", requiredHours: "" });
+  const [settingsSaving, setSettingsSaving] = useState(false);
+
   const fetchBatch = useCallback(() => {
     fetch(`/api/batches/${batchId}`).then((r) => r.json()).then(setBatch);
   }, [batchId]);
@@ -198,15 +206,19 @@ export default function AdminBatchDetailPage() {
       .finally(() => setAttendanceLoading(false));
   }, [batchId]);
 
+  const isAuthorized = status === "authenticated" && ["ADMIN", "MANAGER"].includes(session?.user?.role ?? "");
+
   useEffect(() => {
+    if (!isAuthorized) return;
     fetchBatch();
     fetchInstructors();
     fetchUnassigned();
-  }, [fetchBatch, fetchInstructors, fetchUnassigned]);
+  }, [fetchBatch, fetchInstructors, fetchUnassigned, isAuthorized]);
 
   useEffect(() => {
+    if (!isAuthorized) return;
     if (tab === "attendance") fetchAttendanceSummary();
-  }, [tab, fetchAttendanceSummary]);
+  }, [tab, fetchAttendanceSummary, isAuthorized]);
 
   // Training/Commuting: batch 로드 시 날짜 초기화
   useEffect(() => {
@@ -321,6 +333,45 @@ export default function AdminBatchDetailPage() {
     await Promise.all(promises);
     setCommutingSaving(false);
     alert("저장 완료되었습니다.");
+  };
+
+  // Initialize settings form when batch loads or tab switches to settings
+  useEffect(() => {
+    if (batch && tab === "settings") {
+      setSettingsForm({
+        name: batch.name,
+        year: batch.year,
+        number: batch.number,
+        startDate: batch.startDate.split("T")[0],
+        endDate: batch.endDate.split("T")[0],
+        location: batch.location || "",
+        requiredHours: batch.requiredHours != null ? String(batch.requiredHours) : "",
+      });
+    }
+  }, [batch, tab]);
+
+  const handleSaveSettings = async () => {
+    setSettingsSaving(true);
+    const res = await fetch(`/api/batches/${batchId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: settingsForm.name,
+        year: settingsForm.year,
+        number: settingsForm.number,
+        startDate: settingsForm.startDate,
+        endDate: settingsForm.endDate,
+        location: settingsForm.location || null,
+        requiredHours: settingsForm.requiredHours,
+      }),
+    });
+    setSettingsSaving(false);
+    if (res.ok) {
+      alert("저장되었습니다.");
+      fetchBatch();
+    } else {
+      alert("저장에 실패했습니다.");
+    }
   };
 
   const handleAddTraining = (date: string) => {
@@ -442,6 +493,16 @@ export default function AdminBatchDetailPage() {
     setBulkLoading(false);
   };
 
+  useEffect(() => {
+    if (status === "authenticated" && !["ADMIN", "MANAGER"].includes(session?.user?.role ?? "")) {
+      router.replace("/batches");
+    }
+  }, [session, status, router]);
+
+  if (status === "loading" || !isAuthorized) {
+    return <div className="text-center py-8 text-gray-400">로딩 중...</div>;
+  }
+
   if (!batch) return <div className="text-center py-8 text-gray-400">로딩 중...</div>;
 
   const dateRange = getDateRange(batch.startDate, batch.endDate);
@@ -484,9 +545,7 @@ export default function AdminBatchDetailPage() {
     <div>
       <PageTitle
         title={batch.name}
-        description={
-          `${new Date(batch.startDate).toLocaleDateString("ko-KR")} ~ ${new Date(batch.endDate).toLocaleDateString("ko-KR")} | ${batch._count.users}명 | ${batch._count.trainings}개 훈련`
-        }
+        description={`${batch._count.users}명 | ${batch._count.trainings}개 훈련`}
         actions={
           <span className={`px-3 py-1.5 rounded-full text-sm font-medium ${STATUS_COLORS[batch.status] || "bg-gray-100"}`}>
             {BATCH_STATUS_LABELS[batch.status] || batch.status}
@@ -520,35 +579,43 @@ export default function AdminBatchDetailPage() {
         >
           출퇴근
         </button>
+        <button
+          onClick={() => setTab("settings")}
+          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === "settings" ? "bg-white shadow text-blue-600" : "text-gray-600 hover:text-gray-900"}`}
+        >
+          차수 설정
+        </button>
       </div>
 
       {/* Training Plan Tab */}
       {tab === "training" && (
         <div className="space-y-4">
-          {/* 차수 날짜 선택 */}
-          <div className="flex gap-1.5 flex-wrap">
-            {dateRange.map((d) => {
-              const dt = new Date(d);
-              const label = dt.toLocaleDateString("ko-KR", { month: "numeric", day: "numeric", weekday: "short" });
-              const isSelected = trainingDate === d;
-              const hasTraining = (trainingsByDate[d] || []).length > 0;
-              return (
-                <button
-                  key={d}
-                  onClick={() => setTrainingDate(d)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    isSelected
-                      ? "bg-blue-600 text-white"
-                      : hasTraining
-                        ? "bg-blue-50 text-blue-700 hover:bg-blue-100"
-                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                  }`}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
+          {/* 차수 날짜 선택 — 2일 이상일 때만 표시 */}
+          {dateRange.length > 1 && (
+            <div className="flex gap-1.5 flex-wrap">
+              {dateRange.map((d) => {
+                const dt = new Date(d);
+                const label = dt.toLocaleDateString("ko-KR", { month: "numeric", day: "numeric", weekday: "short" });
+                const isSelected = trainingDate === d;
+                const hasTraining = (trainingsByDate[d] || []).length > 0;
+                return (
+                  <button
+                    key={d}
+                    onClick={() => setTrainingDate(d)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                      isSelected
+                        ? "bg-blue-600 text-white"
+                        : hasTraining
+                          ? "bg-blue-50 text-blue-700 hover:bg-blue-100"
+                          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           {/* 선택된 날짜 훈련 내용 */}
           {(() => {
@@ -557,7 +624,10 @@ export default function AdminBatchDetailPage() {
               <div className="bg-white rounded-xl border overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b">
                   <h3 className="font-semibold text-sm">
-                    {new Date(trainingDate).toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "long" })}
+                    {dateRange.length === 1
+                      ? new Date(trainingDate).toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "long" })
+                      : `훈련 ${dayTrainings.length}개`
+                    }
                   </h3>
                   <button
                     onClick={() => handleAddTraining(trainingDate)}
@@ -806,27 +876,29 @@ export default function AdminBatchDetailPage() {
       {/* Commuting Tab */}
       {tab === "commuting" && (
         <div>
-          {/* 차수 날짜 선택 */}
-          <div className="flex gap-1.5 mb-4 flex-wrap">
-            {dateRange.map((d) => {
-              const dt = new Date(d);
-              const label = dt.toLocaleDateString("ko-KR", { month: "numeric", day: "numeric", weekday: "short" });
-              const isSelected = commutingDate === d;
-              return (
-                <button
-                  key={d}
-                  onClick={() => setCommutingDate(d)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    isSelected
-                      ? "bg-blue-600 text-white"
-                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                  }`}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
+          {/* 차수 날짜 선택 — 2일 이상일 때만 표시 */}
+          {dateRange.length > 1 && (
+            <div className="flex gap-1.5 mb-4 flex-wrap">
+              {dateRange.map((d) => {
+                const dt = new Date(d);
+                const label = dt.toLocaleDateString("ko-KR", { month: "numeric", day: "numeric", weekday: "short" });
+                const isSelected = commutingDate === d;
+                return (
+                  <button
+                    key={d}
+                    onClick={() => setCommutingDate(d)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                      isSelected
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           {commutingLoading ? (
             <div className="flex justify-center py-12">
@@ -1056,6 +1128,89 @@ export default function AdminBatchDetailPage() {
               )}
             </>
           )}
+        </div>
+      )}
+
+      {/* Settings Tab */}
+      {tab === "settings" && (
+        <div className="bg-white rounded-xl border p-6 max-w-lg space-y-4">
+          <h3 className="text-lg font-semibold">차수 기본 정보</h3>
+          <div>
+            <label className="text-sm font-medium text-gray-700">차수명</label>
+            <input
+              value={settingsForm.name}
+              onChange={(e) => setSettingsForm({ ...settingsForm, name: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg mt-1"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-medium text-gray-700">연도</label>
+              <input
+                type="number"
+                value={settingsForm.year}
+                onChange={(e) => setSettingsForm({ ...settingsForm, year: parseInt(e.target.value) || 0 })}
+                className="w-full px-3 py-2 border rounded-lg mt-1"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700">차수 번호</label>
+              <input
+                type="number"
+                value={settingsForm.number}
+                onChange={(e) => setSettingsForm({ ...settingsForm, number: parseInt(e.target.value) || 0 })}
+                className="w-full px-3 py-2 border rounded-lg mt-1"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-medium text-gray-700">시작일</label>
+              <input
+                type="date"
+                value={settingsForm.startDate}
+                onChange={(e) => setSettingsForm({ ...settingsForm, startDate: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg mt-1"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700">종료일</label>
+              <input
+                type="date"
+                value={settingsForm.endDate}
+                onChange={(e) => setSettingsForm({ ...settingsForm, endDate: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg mt-1"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-700">훈련 장소</label>
+            <input
+              value={settingsForm.location}
+              onChange={(e) => setSettingsForm({ ...settingsForm, location: e.target.value })}
+              placeholder="예: 00사단 훈련장"
+              className="w-full px-3 py-2 border rounded-lg mt-1"
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-700">부과시간 (시간)</label>
+            <input
+              type="number"
+              value={settingsForm.requiredHours}
+              onChange={(e) => setSettingsForm({ ...settingsForm, requiredHours: e.target.value })}
+              placeholder="예: 8"
+              className="w-full px-3 py-2 border rounded-lg mt-1"
+            />
+          </div>
+          <div className="pt-2">
+            <button
+              onClick={handleSaveSettings}
+              disabled={settingsSaving}
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50"
+            >
+              {settingsSaving ? "저장 중..." : "저장"}
+            </button>
+          </div>
         </div>
       )}
 
