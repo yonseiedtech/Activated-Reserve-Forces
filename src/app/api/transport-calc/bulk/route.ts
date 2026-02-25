@@ -89,13 +89,30 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-      // Geocoding
-      const geoRes = await fetch(
-        `https://naveropenapi.apigw.ntruss.com/map-geocode/v2/geocode?query=${encodeURIComponent(user.address!)}`,
-        { headers: NCP_HEADERS }
-      );
-      const geoData = await geoRes.json();
-      if (!geoData.addresses || geoData.addresses.length === 0) {
+      // Geocoding (원본 주소로 시도 → 실패 시 간소화 후 재시도)
+      const tryGeocode = async (query: string) => {
+        const res = await fetch(
+          `https://naveropenapi.apigw.ntruss.com/map-geocode/v2/geocode?query=${encodeURIComponent(query)}`,
+          { headers: NCP_HEADERS }
+        );
+        const data = await res.json();
+        return data.addresses && data.addresses.length > 0 ? data.addresses[0] : null;
+      };
+
+      let geoResult = await tryGeocode(user.address!);
+      if (!geoResult) {
+        // 상세주소/괄호 제거 후 재시도
+        const simplified = user.address!
+          .replace(/\(.*?\)/g, "")
+          .replace(/\d+-\d+$/, "")
+          .replace(/\s+\d+동\s*\d*호?$/, "")
+          .trim();
+        if (simplified && simplified !== user.address) {
+          geoResult = await tryGeocode(simplified);
+        }
+      }
+
+      if (!geoResult) {
         results.push({
           userId: user.id,
           name: user.name,
@@ -109,8 +126,8 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      const originX = geoData.addresses[0].x;
-      const originY = geoData.addresses[0].y;
+      const originX = geoResult.x;
+      const originY = geoResult.y;
 
       // Directions
       const navRes = await fetch(

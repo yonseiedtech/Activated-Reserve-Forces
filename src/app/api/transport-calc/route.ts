@@ -41,16 +41,36 @@ export async function GET(req: NextRequest) {
   }
 
   // 2. 사용자 주소 → 좌표 변환 (네이버 Geocoding API)
-  const geoRes = await fetch(
-    `https://naveropenapi.apigw.ntruss.com/map-geocode/v2/geocode?query=${encodeURIComponent(address)}`,
-    { headers: NCP_HEADERS }
-  );
-  const geoData = await geoRes.json();
-  if (!geoData.addresses || geoData.addresses.length === 0) {
-    return json({ error: "주소를 좌표로 변환할 수 없습니다." }, 400);
+  // 상세주소(동/호수 등)를 제거하여 재시도하는 함수
+  const tryGeocode = async (query: string) => {
+    const res = await fetch(
+      `https://naveropenapi.apigw.ntruss.com/map-geocode/v2/geocode?query=${encodeURIComponent(query)}`,
+      { headers: NCP_HEADERS }
+    );
+    const data = await res.json();
+    return data.addresses && data.addresses.length > 0 ? data.addresses[0] : null;
+  };
+
+  // 원본 주소로 시도
+  let geoResult = await tryGeocode(address);
+
+  // 실패 시 괄호/상세주소 제거 후 재시도
+  if (!geoResult) {
+    const simplified = address
+      .replace(/\(.*?\)/g, "")           // 괄호 안 내용 제거
+      .replace(/\d+-\d+$/, "")           // 끝의 동-호수 제거
+      .replace(/\s+\d+동\s*\d*호?$/, "") // "101동 302호" 패턴 제거
+      .trim();
+    if (simplified && simplified !== address) {
+      geoResult = await tryGeocode(simplified);
+    }
   }
-  const originX = geoData.addresses[0].x; // 경도
-  const originY = geoData.addresses[0].y; // 위도
+
+  if (!geoResult) {
+    return json({ error: "입력된 주소를 찾을 수 없습니다. 도로명 또는 지번 주소를 정확히 입력해주세요." }, 400);
+  }
+  const originX = geoResult.x; // 경도
+  const originY = geoResult.y; // 위도
 
   // 3. 네이버 Directions 5 API 호출
   const navRes = await fetch(
