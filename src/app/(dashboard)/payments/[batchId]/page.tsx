@@ -617,6 +617,8 @@ function AdminTransportSection({
   const [users, setUsers] = useState<{ id: string; name: string; rank: string; serviceNumber: string }[]>([]);
   const [form, setForm] = useState<Record<string, { amount: string; address: string }>>({});
   const [saving, setSaving] = useState(false);
+  const [autoCalcing, setAutoCalcing] = useState(false);
+  const [autoCalcError, setAutoCalcError] = useState("");
 
   const startEdit = async () => {
     const res = await fetch(`/api/batches/${batchId}`);
@@ -636,6 +638,57 @@ function AdminTransportSection({
       setForm(f);
     }
     setEditing(true);
+  };
+
+  const handleAutoCalc = async () => {
+    setAutoCalcing(true);
+    setAutoCalcError("");
+    try {
+      const res = await fetch("/api/transport-calc/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ batchId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setAutoCalcError(data.error || "자동 계산에 실패했습니다.");
+        setAutoCalcing(false);
+        return;
+      }
+
+      // 계산 성공한 결과를 교통비로 저장
+      const calcResults = data.results as { userId: string; address: string | null; calculatedAmount: number | null; status: string }[];
+      const recs = calcResults
+        .filter((r) => r.status === "OK" && r.calculatedAmount !== null)
+        .map((r) => ({
+          userId: r.userId,
+          amount: r.calculatedAmount!,
+          address: r.address || undefined,
+        }));
+
+      if (recs.length === 0) {
+        setAutoCalcError("계산 가능한 대상자가 없습니다. 대상자의 주소 등록 여부를 확인하세요.");
+        setAutoCalcing(false);
+        return;
+      }
+
+      await fetch("/api/payments/transport", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ batchId, records: recs }),
+      });
+
+      // 실패 건수 안내
+      const failCount = calcResults.filter((r) => r.status !== "OK").length;
+      if (failCount > 0) {
+        setAutoCalcError(`${recs.length}명 계산 완료, ${failCount}명 실패 (주소 미등록 또는 경로 조회 불가)`);
+      }
+
+      onUpdate();
+    } catch {
+      setAutoCalcError("자동 계산 중 오류가 발생했습니다.");
+    }
+    setAutoCalcing(false);
   };
 
   const handleSave = async () => {
@@ -664,13 +717,34 @@ function AdminTransportSection({
     <section className="bg-white rounded-xl border p-5">
       <div className="flex items-center justify-between mb-4">
         <h2 className="font-semibold text-gray-900">교통비</h2>
-        <button
-          onClick={editing ? () => setEditing(false) : startEdit}
-          className="text-xs text-blue-600 hover:underline"
-        >
-          {editing ? "취소" : "교통비 편집"}
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleAutoCalc}
+            disabled={autoCalcing}
+            className="text-xs text-green-600 hover:underline disabled:opacity-50"
+          >
+            {autoCalcing ? "계산 중..." : "자동 계산"}
+          </button>
+          <button
+            onClick={editing ? () => setEditing(false) : startEdit}
+            className="text-xs text-blue-600 hover:underline"
+          >
+            {editing ? "취소" : "수동 편집"}
+          </button>
+        </div>
       </div>
+
+      {autoCalcError && (
+        <div className={`text-xs mb-3 px-3 py-2 rounded-lg ${
+          autoCalcError.includes("완료") ? "bg-yellow-50 text-yellow-700 border border-yellow-200" : "bg-red-50 text-red-600 border border-red-200"
+        }`}>
+          {autoCalcError}
+        </div>
+      )}
+
+      <p className="text-xs text-gray-400 mb-3">
+        30km 이하 4,000원 / 초과 시 연료비(km×1,486÷13.3)+통행료 자동 산출
+      </p>
 
       {!editing ? (
         <>
@@ -704,7 +778,7 @@ function AdminTransportSection({
               </table>
             </div>
           ) : (
-            <p className="text-sm text-gray-400">등록된 교통비가 없습니다. &quot;교통비 편집&quot;을 눌러 입력하세요.</p>
+            <p className="text-sm text-gray-400">등록된 교통비가 없습니다. &quot;자동 계산&quot; 또는 &quot;수동 편집&quot;을 이용하세요.</p>
           )}
         </>
       ) : (
