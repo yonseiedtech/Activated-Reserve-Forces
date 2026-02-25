@@ -143,7 +143,7 @@ const REASON_TYPE_LABELS: Record<string, string> = {
   ABSENT: "불참 사유서",
 };
 
-type TabType = "attendance" | "training" | "meals" | "commuting" | "payment" | "survey";
+type TabType = "attendance" | "training" | "health" | "meals" | "commuting" | "payment" | "survey";
 
 export default function ReservistBatchDetailPage() {
   const params = useParams();
@@ -194,7 +194,6 @@ export default function ReservistBatchDetailPage() {
   const [commutingLoading, setCommutingLoading] = useState(false);
 
   // 건강관리 문진표
-  const [showHealthModal, setShowHealthModal] = useState(false);
   const [healthAnswers, setHealthAnswers] = useState<Record<string, boolean | string>>({
     q1_chronic: false, q1_chronic_detail: "",
     q2_treating: false,
@@ -455,7 +454,6 @@ export default function ReservistBatchDetailPage() {
         body: JSON.stringify({ batchUserId, answers: JSON.stringify(answersWithTime) }),
       });
       if (res.ok) {
-        setShowHealthModal(false);
         setHealthSubmitted(true);
         setHealthSubmittedAt(new Date().toISOString());
       }
@@ -472,6 +470,7 @@ export default function ReservistBatchDetailPage() {
   }
 
   const grouped = groupByDate(batch.trainings || []);
+  const isActive = batch.status === "ACTIVE";
 
   // 식사 데이터를 날짜별로 그룹핑
   const mealsByDate: Record<string, Meal[]> = {};
@@ -482,14 +481,37 @@ export default function ReservistBatchDetailPage() {
   }
   const mealDates = Object.entries(mealsByDate).sort(([a], [b]) => a.localeCompare(b));
 
-  const tabs: { key: TabType; label: string }[] = [
+  // 사유서 표시 조건
+  const showReasonButton = batchUserId && (
+    (attendanceStatus === "PRESENT" && subStatus === "LATE_ARRIVAL") ||
+    (attendanceStatus === "PRESENT" && subStatus === "EARLY_DEPARTURE") ||
+    (attendanceStatus === "ABSENT")
+  );
+
+  const getReasonButtonType = (): string | null => {
+    if (attendanceStatus === "PRESENT" && subStatus === "LATE_ARRIVAL") return "LATE_ARRIVAL";
+    if (attendanceStatus === "PRESENT" && subStatus === "EARLY_DEPARTURE") return "EARLY_DEPARTURE";
+    if (attendanceStatus === "ABSENT") return "ABSENT";
+    return null;
+  };
+
+  const reasonType = getReasonButtonType();
+
+  const tabs: { key: TabType; label: string; disabled?: boolean }[] = [
     { key: "attendance", label: "참석신고" },
     { key: "training", label: "훈련계획" },
+    { key: "health", label: "건강문진표", disabled: !isActive },
     { key: "meals", label: "식사현황" },
     { key: "commuting", label: "출퇴근" },
     { key: "payment", label: "훈련비" },
     { key: "survey", label: "설문조사" },
   ];
+
+  // 탭 변경 시 비활성 탭 클릭 방지
+  const handleTabClick = (t: typeof tabs[0]) => {
+    if (t.disabled) return;
+    setTab(t.key);
+  };
 
   return (
     <div>
@@ -513,9 +535,14 @@ export default function ReservistBatchDetailPage() {
         {tabs.map((t) => (
           <button
             key={t.key}
-            onClick={() => setTab(t.key)}
+            onClick={() => handleTabClick(t)}
+            disabled={t.disabled}
             className={`px-3 py-2 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
-              tab === t.key ? "bg-white shadow text-blue-600" : "text-gray-600 hover:text-gray-900"
+              tab === t.key
+                ? "bg-white shadow text-blue-600"
+                : t.disabled
+                  ? "text-gray-300 cursor-not-allowed"
+                  : "text-gray-600 hover:text-gray-900"
             }`}
           >
             {t.label}
@@ -526,7 +553,7 @@ export default function ReservistBatchDetailPage() {
       {/* ═══ 1. 참석신고 탭 ═══ */}
       {tab === "attendance" && (
         <div className="space-y-4">
-          {/* 참석 가능 현황 신고 폼 */}
+          {/* 참석 가능 현황 신고 폼 + 사유서 통합 */}
           <div className="bg-white rounded-xl border p-5 space-y-4">
             <h3 className="text-sm font-semibold text-gray-800">참석 가능 현황</h3>
 
@@ -632,91 +659,51 @@ export default function ReservistBatchDetailPage() {
             >
               {saving ? "저장 중..." : saved ? "저장 완료!" : "저장"}
             </button>
-          </div>
 
-          {/* 사유서 작성 버튼 */}
-          {batchUserId && (
-            <div className="bg-white rounded-xl border p-5 space-y-3">
-              <h3 className="text-sm font-semibold text-gray-800">사유서 작성</h3>
-              {attendanceStatus === "PRESENT" && subStatus === "LATE_ARRIVAL" && (
-                <button
-                  onClick={() => openReasonModal("LATE_ARRIVAL")}
-                  className="w-full py-2.5 rounded-lg text-sm font-medium bg-yellow-500 text-white hover:bg-yellow-600"
-                >
-                  {reasonReports.find((r) => r.type === "LATE_ARRIVAL") ? "지연입소 사유서 수정" : "지연입소 사유서 작성"}
-                </button>
-              )}
-              {attendanceStatus === "PRESENT" && subStatus === "EARLY_DEPARTURE" && (
-                <button
-                  onClick={() => openReasonModal("EARLY_DEPARTURE")}
-                  className="w-full py-2.5 rounded-lg text-sm font-medium bg-orange-500 text-white hover:bg-orange-600"
-                >
-                  {reasonReports.find((r) => r.type === "EARLY_DEPARTURE") ? "조기퇴소 사유서 수정" : "조기퇴소 사유서 작성"}
-                </button>
-              )}
-              {attendanceStatus === "ABSENT" && (
-                <button
-                  onClick={() => openReasonModal("ABSENT")}
-                  className="w-full py-2.5 rounded-lg text-sm font-medium bg-red-500 text-white hover:bg-red-600"
-                >
-                  {reasonReports.find((r) => r.type === "ABSENT") ? "불참 사유서 수정" : "불참 사유서 작성"}
-                </button>
-              )}
-              {attendanceStatus === "PRESENT" && subStatus === "NORMAL" && (
-                <p className="text-xs text-gray-400 text-center py-2">정상 참석 시 사유서가 필요하지 않습니다.</p>
-              )}
-              {attendanceStatus === "PENDING" && (
-                <p className="text-xs text-gray-400 text-center py-2">참석 여부를 확정한 후 사유서를 작성할 수 있습니다.</p>
-              )}
+            {/* ── 사유서 영역 (참석 가능 현황 카드 내부) ── */}
+            {batchUserId && (
+              <div className="border-t pt-4 space-y-3">
+                <h4 className="text-xs font-semibold text-gray-600">사유서</h4>
 
-              {/* 기존 사유서 목록 */}
-              {reasonReports.length > 0 && (
-                <div className="mt-3 space-y-2">
-                  <p className="text-xs font-medium text-gray-500">작성된 사유서</p>
-                  {reasonReports.map((r) => (
-                    <div key={r.id} className="p-3 bg-gray-50 rounded-lg text-xs">
-                      <span className="font-medium text-gray-700">{REASON_TYPE_LABELS[r.type] || r.type}</span>
-                      <span className="text-gray-400 ml-2">
-                        제출: {new Date(r.createdAt).toLocaleString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* 건강관리 문진표 */}
-          {batchUserId && attendanceStatus === "PRESENT" && (
-            <div className="bg-white rounded-xl border p-5 space-y-3">
-              <h3 className="text-sm font-semibold text-gray-800">건강관리 문진표</h3>
-              {healthSubmitted ? (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-medium">제출 완료</span>
-                    {healthSubmittedAt && (
-                      <span className="text-xs text-gray-400">
-                        제출: {new Date(healthSubmittedAt).toLocaleString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}
-                      </span>
-                    )}
-                  </div>
+                {showReasonButton && reasonType && (
                   <button
-                    onClick={() => setShowHealthModal(true)}
-                    className="w-full py-2.5 rounded-lg text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    onClick={() => openReasonModal(reasonType)}
+                    className={`w-full py-2.5 rounded-lg text-sm font-medium text-white ${
+                      reasonType === "ABSENT" ? "bg-red-500 hover:bg-red-600" :
+                      reasonType === "EARLY_DEPARTURE" ? "bg-orange-500 hover:bg-orange-600" :
+                      "bg-yellow-500 hover:bg-yellow-600"
+                    }`}
                   >
-                    문진표 수정
+                    {reasonReports.find((r) => r.type === reasonType)
+                      ? `${REASON_TYPE_LABELS[reasonType]} 수정`
+                      : `${REASON_TYPE_LABELS[reasonType]} 작성`}
                   </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setShowHealthModal(true)}
-                  className="w-full py-2.5 rounded-lg text-sm font-medium bg-teal-600 text-white hover:bg-teal-700"
-                >
-                  건강관리 문진표 작성
-                </button>
-              )}
-            </div>
-          )}
+                )}
+
+                {attendanceStatus === "PRESENT" && subStatus === "NORMAL" && (
+                  <p className="text-xs text-gray-400 text-center py-1">정상 참석 시 사유서가 필요하지 않습니다.</p>
+                )}
+                {attendanceStatus === "PENDING" && (
+                  <p className="text-xs text-gray-400 text-center py-1">참석 여부를 확정한 후 사유서를 작성할 수 있습니다.</p>
+                )}
+
+                {/* 기존 사유서 목록 */}
+                {reasonReports.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-gray-500">작성된 사유서</p>
+                    {reasonReports.map((r) => (
+                      <div key={r.id} className="p-3 bg-gray-50 rounded-lg text-xs">
+                        <span className="font-medium text-gray-700">{REASON_TYPE_LABELS[r.type] || r.type}</span>
+                        <span className="text-gray-400 ml-2">
+                          제출: {new Date(r.createdAt).toLocaleString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
           {/* 훈련별 출석 현황 */}
           {(batch.trainings || []).length > 0 && (
@@ -802,7 +789,191 @@ export default function ReservistBatchDetailPage() {
         </>
       )}
 
-      {/* ═══ 3. 식사현황 탭 ═══ */}
+      {/* ═══ 3. 건강관리 문진표 탭 ═══ */}
+      {tab === "health" && isActive && (
+        <div className="space-y-4">
+          {!batchUserId ? (
+            <div className="text-center py-10 text-gray-500">차수에 배정되지 않았습니다.</div>
+          ) : attendanceStatus !== "PRESENT" ? (
+            <div className="text-center py-10 text-gray-500">참석 상태일 때만 문진표를 작성할 수 있습니다.</div>
+          ) : (
+            <>
+              {/* 제출 상태 */}
+              {healthSubmitted && (
+                <div className="bg-white rounded-xl border p-4 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-medium">제출 완료</span>
+                    {healthSubmittedAt && (
+                      <span className="text-xs text-gray-400">
+                        제출: {new Date(healthSubmittedAt).toLocaleString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* 문진표 폼 (인라인) */}
+              <div className="bg-white rounded-xl border p-5 space-y-4">
+                <h3 className="text-sm font-semibold text-gray-800">건강관리 문진표</h3>
+
+                <div className="space-y-3 text-sm">
+                  {[
+                    { key: "q1_chronic", label: "1. 만성질환(고혈압, 당뇨, 심장질환 등)이 있습니까?", detail: "q1_chronic_detail", detailLabel: "질환명" },
+                    { key: "q2_treating", label: "2. 현재 치료 중인 질병이 있습니까?" },
+                    { key: "q3_medication", label: "3. 과거 병력 또는 현재 약물을 복용하고 있습니까?", detail: "q3_medication_detail", detailLabel: "질환명/약물" },
+                    { key: "q4_exercise_symptoms", label: "4. 운동 중 흉통, 호흡곤란, 현기증 등의 증상을 경험한 적이 있습니까?" },
+                    { key: "q5_blood_pressure_meds", label: "5. 혈압약을 복용하고 있습니까?" },
+                    { key: "q6_fatigue", label: "6. 최근 지속적인 피로감이나 건강 이상을 느끼고 있습니까?" },
+                    { key: "q7_mental", label: "7. 정신과적 증상(우울, 불안, 수면장애 등)이 있습니까?" },
+                    { key: "q8_family_history", label: "8. 부모님 중 심혈관 질환(심근경색, 뇌졸중 등)으로 사망하신 분이 있습니까?" },
+                  ].map((q) => (
+                    <div key={q.key} className="bg-gray-50 rounded-lg p-3">
+                      <p className="text-sm text-gray-800 mb-2">{q.label}</p>
+                      <div className="flex gap-3">
+                        <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border cursor-pointer text-sm ${healthAnswers[q.key] ? "border-red-400 bg-red-50 text-red-700" : "border-gray-200 hover:bg-gray-100"}`}>
+                          <input
+                            type="radio"
+                            name={q.key}
+                            checked={!!healthAnswers[q.key]}
+                            onChange={() => setHealthAnswers({ ...healthAnswers, [q.key]: true })}
+                            className="text-red-600"
+                          />
+                          있음
+                        </label>
+                        <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border cursor-pointer text-sm ${!healthAnswers[q.key] ? "border-green-400 bg-green-50 text-green-700" : "border-gray-200 hover:bg-gray-100"}`}>
+                          <input
+                            type="radio"
+                            name={q.key}
+                            checked={!healthAnswers[q.key]}
+                            onChange={() => setHealthAnswers({ ...healthAnswers, [q.key]: false })}
+                            className="text-green-600"
+                          />
+                          없음
+                        </label>
+                      </div>
+                      {q.detail && healthAnswers[q.key] && (
+                        <input
+                          type="text"
+                          value={(healthAnswers[q.detail] as string) || ""}
+                          onChange={(e) => setHealthAnswers({ ...healthAnswers, [q.detail!]: e.target.value })}
+                          placeholder={q.detailLabel}
+                          className="mt-2 w-full px-3 py-1.5 border rounded text-sm"
+                        />
+                      )}
+                    </div>
+                  ))}
+
+                  <div className="bg-blue-50 rounded-lg p-3">
+                    <p className="font-medium mb-2">9. 코로나 관련</p>
+                    {[
+                      { key: "q9_covid_1", label: "7일 이내 코로나 감염 이력" },
+                      { key: "q9_covid_2", label: "1일 이내 감염 확인" },
+                      { key: "q9_covid_3", label: "14일 이내 확진자 접촉" },
+                      { key: "q9_covid_4", label: "현재 발열, 기침, 인후통 등 증상" },
+                    ].map((q) => (
+                      <div key={q.key} className="mt-2">
+                        <p className="text-sm text-gray-800 mb-1">{q.label}</p>
+                        <div className="flex gap-3">
+                          <label className={`flex items-center gap-1.5 px-3 py-1 rounded-lg border cursor-pointer text-xs ${healthAnswers[q.key] ? "border-red-400 bg-red-50 text-red-700" : "border-gray-200 hover:bg-gray-100"}`}>
+                            <input
+                              type="radio"
+                              name={q.key}
+                              checked={!!healthAnswers[q.key]}
+                              onChange={() => setHealthAnswers({ ...healthAnswers, [q.key]: true })}
+                              className="text-red-600"
+                            />
+                            있음
+                          </label>
+                          <label className={`flex items-center gap-1.5 px-3 py-1 rounded-lg border cursor-pointer text-xs ${!healthAnswers[q.key] ? "border-green-400 bg-green-50 text-green-700" : "border-gray-200 hover:bg-gray-100"}`}>
+                            <input
+                              type="radio"
+                              name={q.key}
+                              checked={!healthAnswers[q.key]}
+                              onChange={() => setHealthAnswers({ ...healthAnswers, [q.key]: false })}
+                              className="text-green-600"
+                            />
+                            없음
+                          </label>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <p className="text-sm text-gray-800 mb-2">10. 훈련 수행에 지장이 있는 사항이 있습니까?</p>
+                    <div className="flex gap-3">
+                      <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border cursor-pointer text-sm ${healthAnswers.q10_training_issue ? "border-red-400 bg-red-50 text-red-700" : "border-gray-200 hover:bg-gray-100"}`}>
+                        <input
+                          type="radio"
+                          name="q10_training_issue"
+                          checked={!!healthAnswers.q10_training_issue}
+                          onChange={() => setHealthAnswers({ ...healthAnswers, q10_training_issue: true })}
+                          className="text-red-600"
+                        />
+                        있음
+                      </label>
+                      <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border cursor-pointer text-sm ${!healthAnswers.q10_training_issue ? "border-green-400 bg-green-50 text-green-700" : "border-gray-200 hover:bg-gray-100"}`}>
+                        <input
+                          type="radio"
+                          name="q10_training_issue"
+                          checked={!healthAnswers.q10_training_issue}
+                          onChange={() => setHealthAnswers({ ...healthAnswers, q10_training_issue: false })}
+                          className="text-green-600"
+                        />
+                        없음
+                      </label>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">11. 기타 참고사항</label>
+                    <textarea
+                      value={(healthAnswers.q11_other as string) || ""}
+                      onChange={(e) => setHealthAnswers({ ...healthAnswers, q11_other: e.target.value })}
+                      placeholder="기타 건강 관련 참고사항을 입력하세요."
+                      rows={2}
+                      className="mt-1 w-full px-3 py-2 text-sm border rounded-lg outline-none resize-none"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">혈압 <span className="text-xs text-gray-400 font-normal">(선택)</span></label>
+                      <input
+                        type="text"
+                        value={(healthAnswers.bloodPressure as string) || ""}
+                        onChange={(e) => setHealthAnswers({ ...healthAnswers, bloodPressure: e.target.value })}
+                        placeholder="예: 120/80"
+                        className="mt-1 w-full px-3 py-2 text-sm border rounded-lg outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">체온 <span className="text-xs text-gray-400 font-normal">(선택)</span></label>
+                      <input
+                        type="text"
+                        value={(healthAnswers.temperature as string) || ""}
+                        onChange={(e) => setHealthAnswers({ ...healthAnswers, temperature: e.target.value })}
+                        placeholder="예: 36.5"
+                        className="mt-1 w-full px-3 py-2 text-sm border rounded-lg outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleSaveHealth}
+                  disabled={healthSaving}
+                  className="w-full py-2.5 bg-teal-600 text-white rounded-lg font-medium hover:bg-teal-700 disabled:opacity-50 text-sm"
+                >
+                  {healthSaving ? "제출 중..." : healthSubmitted ? "수정 제출" : "제출"}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ═══ 4. 식사현황 탭 ═══ */}
       {tab === "meals" && (
         <>
           {mealsLoading ? (
@@ -811,7 +982,6 @@ export default function ReservistBatchDetailPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              {/* 식사 목록 (세로 배치, 날짜 중복 제거) */}
               {meals.length > 0 ? (
                 <div className="space-y-2">
                   {(() => {
@@ -876,7 +1046,6 @@ export default function ReservistBatchDetailPage() {
                   </ul>
                 </div>
 
-                {/* 신청 버튼 (아직 신청하지 않은 경우만) */}
                 {dinnerRequests.filter((dr) => dr.status === "PENDING" || dr.status === "APPROVED").length === 0 && (() => {
                   const isExpired = dinnerDeadlines
                     ? new Date().setHours(0, 0, 0, 0) > new Date(dinnerDeadlines.applyDeadline).setHours(0, 0, 0, 0)
@@ -896,7 +1065,6 @@ export default function ReservistBatchDetailPage() {
                   );
                 })()}
 
-                {/* 내 석식 신청 내역 */}
                 {dinnerRequests.length > 0 && (
                   <div className="space-y-2">
                     {dinnerRequests.map((dr) => {
@@ -933,15 +1101,9 @@ export default function ReservistBatchDetailPage() {
                           </div>
                           <div className="text-xs text-gray-500 space-y-0.5">
                             <p>신청: {createdTime}</p>
-                            {updatedTime && dr.status === "CANCELLED" && (
-                              <p>취소: {updatedTime}</p>
-                            )}
-                            {updatedTime && dr.status === "APPROVED" && (
-                              <p>승인: {updatedTime}</p>
-                            )}
-                            {updatedTime && dr.status === "REJECTED" && (
-                              <p>반려: {updatedTime}</p>
-                            )}
+                            {updatedTime && dr.status === "CANCELLED" && <p>취소: {updatedTime}</p>}
+                            {updatedTime && dr.status === "APPROVED" && <p>승인: {updatedTime}</p>}
+                            {updatedTime && dr.status === "REJECTED" && <p>반려: {updatedTime}</p>}
                           </div>
                         </div>
                       );
@@ -954,7 +1116,7 @@ export default function ReservistBatchDetailPage() {
         </>
       )}
 
-      {/* ═══ 4. 출퇴근 탭 (보기 모드) ═══ */}
+      {/* ═══ 5. 출퇴근 탭 ═══ */}
       {tab === "commuting" && (
         <>
           {commutingLoading ? (
@@ -998,7 +1160,7 @@ export default function ReservistBatchDetailPage() {
         </>
       )}
 
-      {/* ═══ 5. 훈련비 탭 ═══ */}
+      {/* ═══ 6. 훈련비 탭 ═══ */}
       {tab === "payment" && (
         <div className="bg-white rounded-xl border p-5">
           <h3 className="text-sm font-semibold text-gray-800 mb-3">훈련비</h3>
@@ -1012,7 +1174,7 @@ export default function ReservistBatchDetailPage() {
         </div>
       )}
 
-      {/* ═══ 6. 설문조사 탭 ═══ */}
+      {/* ═══ 7. 설문조사 탭 ═══ */}
       {tab === "survey" && (
         <>
           {surveysLoading ? (
@@ -1066,6 +1228,8 @@ export default function ReservistBatchDetailPage() {
                 {reasonModalType === "ABSENT" ? (
                   <>
                     <div className="grid grid-cols-2 gap-2">
+                      <div><span className="text-gray-500">소속:</span> 1군수지원여단 601수송대대</div>
+                      <div><span className="text-gray-500">직책:</span> {session.user.position || "-"}</div>
                       <div><span className="text-gray-500">성명:</span> {session.user.name}</div>
                       <div><span className="text-gray-500">생년월일:</span> {session.user.birthDate ? new Date(session.user.birthDate).toLocaleDateString("ko-KR") : "-"}</div>
                       <div><span className="text-gray-500">E-mail:</span> {session.user.email || "-"}</div>
@@ -1149,131 +1313,6 @@ export default function ReservistBatchDetailPage() {
               </button>
               <button
                 onClick={() => setShowReasonModal(false)}
-                className="flex-1 py-2.5 border rounded-lg text-gray-700 hover:bg-gray-50"
-              >
-                취소
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 건강관리 문진표 모달 */}
-      {showHealthModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl w-full max-w-lg p-6 space-y-4 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-semibold">건강관리 문진표</h3>
-
-            <div className="space-y-3 text-sm">
-              {[
-                { key: "q1_chronic", label: "1. 만성질환(고혈압, 당뇨, 심장질환 등)이 있습니까?", detail: "q1_chronic_detail", detailLabel: "질환명" },
-                { key: "q2_treating", label: "2. 현재 치료 중인 질병이 있습니까?" },
-                { key: "q3_medication", label: "3. 과거 병력 또는 현재 약물을 복용하고 있습니까?", detail: "q3_medication_detail", detailLabel: "질환명/약물" },
-                { key: "q4_exercise_symptoms", label: "4. 운동 중 흉통, 호흡곤란, 현기증 등의 증상을 경험한 적이 있습니까?" },
-                { key: "q5_blood_pressure_meds", label: "5. 혈압약을 복용하고 있습니까?" },
-                { key: "q6_fatigue", label: "6. 최근 지속적인 피로감이나 건강 이상을 느끼고 있습니까?" },
-                { key: "q7_mental", label: "7. 정신과적 증상(우울, 불안, 수면장애 등)이 있습니까?" },
-                { key: "q8_family_history", label: "8. 부모님 중 심혈관 질환(심근경색, 뇌졸중 등)으로 사망하신 분이 있습니까?" },
-              ].map((q) => (
-                <div key={q.key} className="bg-gray-50 rounded-lg p-3">
-                  <label className="flex items-start gap-2">
-                    <input
-                      type="checkbox"
-                      checked={!!healthAnswers[q.key]}
-                      onChange={(e) => setHealthAnswers({ ...healthAnswers, [q.key]: e.target.checked })}
-                      className="mt-0.5 rounded"
-                    />
-                    <span>{q.label}</span>
-                  </label>
-                  {q.detail && healthAnswers[q.key] && (
-                    <input
-                      type="text"
-                      value={(healthAnswers[q.detail] as string) || ""}
-                      onChange={(e) => setHealthAnswers({ ...healthAnswers, [q.detail!]: e.target.value })}
-                      placeholder={q.detailLabel}
-                      className="mt-2 w-full px-3 py-1.5 border rounded text-sm"
-                    />
-                  )}
-                </div>
-              ))}
-
-              <div className="bg-blue-50 rounded-lg p-3">
-                <p className="font-medium mb-2">9. 코로나 관련</p>
-                {[
-                  { key: "q9_covid_1", label: "7일 이내 코로나 감염 이력" },
-                  { key: "q9_covid_2", label: "1일 이내 감염 확인" },
-                  { key: "q9_covid_3", label: "14일 이내 확진자 접촉" },
-                  { key: "q9_covid_4", label: "현재 발열, 기침, 인후통 등 증상" },
-                ].map((q) => (
-                  <label key={q.key} className="flex items-center gap-2 mt-1.5">
-                    <input
-                      type="checkbox"
-                      checked={!!healthAnswers[q.key]}
-                      onChange={(e) => setHealthAnswers({ ...healthAnswers, [q.key]: e.target.checked })}
-                      className="rounded"
-                    />
-                    <span className="text-sm">{q.label}</span>
-                  </label>
-                ))}
-              </div>
-
-              <div className="bg-gray-50 rounded-lg p-3">
-                <label className="flex items-start gap-2">
-                  <input
-                    type="checkbox"
-                    checked={!!healthAnswers.q10_training_issue}
-                    onChange={(e) => setHealthAnswers({ ...healthAnswers, q10_training_issue: e.target.checked })}
-                    className="mt-0.5 rounded"
-                  />
-                  <span>10. 훈련 수행에 지장이 있는 사항이 있습니까?</span>
-                </label>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-gray-700">11. 기타 참고사항</label>
-                <textarea
-                  value={(healthAnswers.q11_other as string) || ""}
-                  onChange={(e) => setHealthAnswers({ ...healthAnswers, q11_other: e.target.value })}
-                  placeholder="기타 건강 관련 참고사항을 입력하세요."
-                  rows={2}
-                  className="mt-1 w-full px-3 py-2 text-sm border rounded-lg outline-none resize-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-sm font-medium text-gray-700">혈압</label>
-                  <input
-                    type="text"
-                    value={(healthAnswers.bloodPressure as string) || ""}
-                    onChange={(e) => setHealthAnswers({ ...healthAnswers, bloodPressure: e.target.value })}
-                    placeholder="예: 120/80"
-                    className="mt-1 w-full px-3 py-2 text-sm border rounded-lg outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-700">체온</label>
-                  <input
-                    type="text"
-                    value={(healthAnswers.temperature as string) || ""}
-                    onChange={(e) => setHealthAnswers({ ...healthAnswers, temperature: e.target.value })}
-                    placeholder="예: 36.5"
-                    className="mt-1 w-full px-3 py-2 text-sm border rounded-lg outline-none"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="flex gap-3 pt-2">
-              <button
-                onClick={handleSaveHealth}
-                disabled={healthSaving}
-                className="flex-1 py-2.5 bg-teal-600 text-white rounded-lg font-medium hover:bg-teal-700 disabled:opacity-50"
-              >
-                {healthSaving ? "제출 중..." : "제출"}
-              </button>
-              <button
-                onClick={() => setShowHealthModal(false)}
                 className="flex-1 py-2.5 border rounded-lg text-gray-700 hover:bg-gray-50"
               >
                 취소
