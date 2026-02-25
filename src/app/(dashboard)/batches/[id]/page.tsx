@@ -437,6 +437,17 @@ export default function ReservistBatchDetailPage() {
       if (res.ok) {
         setShowReasonModal(false);
         fetchReasonReports(batchUserId);
+        // 불참 사유서 제출 시 자동으로 상태도 ABSENT로 저장
+        if (reasonModalType === "ABSENT" && attendanceStatus === "ABSENT") {
+          await fetch(`/api/batches/${batchId}/self-attendance`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status: "ABSENT" }),
+          });
+          setSaved(true);
+          setTimeout(() => setSaved(false), 2000);
+          fetchBatch();
+        }
       }
     } catch { /* ignore */ }
     setReasonSaving(false);
@@ -651,15 +662,18 @@ export default function ReservistBatchDetailPage() {
 
             {error && <p className="text-sm text-red-600">{error}</p>}
 
-            <button
-              onClick={handleSaveAttendance}
-              disabled={saving}
-              className={`w-full py-2.5 rounded-lg text-sm font-medium text-white transition-colors ${
-                saved ? "bg-green-600" : "bg-blue-600 hover:bg-blue-700"
-              } disabled:opacity-50`}
-            >
-              {saving ? "저장 중..." : saved ? "저장 완료!" : "저장"}
-            </button>
+            {/* 불참일 때는 저장 버튼 숨기고 사유서로 대체 */}
+            {attendanceStatus !== "ABSENT" && (
+              <button
+                onClick={handleSaveAttendance}
+                disabled={saving}
+                className={`w-full py-2.5 rounded-lg text-sm font-medium text-white transition-colors ${
+                  saved ? "bg-green-600" : "bg-blue-600 hover:bg-blue-700"
+                } disabled:opacity-50`}
+              >
+                {saving ? "저장 중..." : saved ? "저장 완료!" : "저장"}
+              </button>
+            )}
 
             {/* ── 사유서 영역 (참석 가능 현황 카드 내부) ── */}
             {batchUserId && (

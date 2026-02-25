@@ -1,6 +1,18 @@
 import { prisma } from "@/lib/prisma";
 import { getSession, json, unauthorized, forbidden } from "@/lib/api-utils";
 
+function computeBatchStatus(startDate: Date, endDate: Date): string {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const start = new Date(startDate);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(endDate);
+  end.setHours(0, 0, 0, 0);
+  if (today < start) return "PLANNED";
+  if (today > end) return "COMPLETED";
+  return "ACTIVE";
+}
+
 export async function GET() {
   const session = await getSession();
   if (!session) return unauthorized();
@@ -15,7 +27,15 @@ export async function GET() {
       : undefined,
     orderBy: [{ year: "desc" }, { number: "desc" }],
     include: {
-      batchUsers: { select: { user: { select: { id: true, name: true, rank: true } } } },
+      batchUsers: {
+        select: {
+          userId: true,
+          status: true,
+          subStatus: true,
+          reason: true,
+          user: { select: { id: true, name: true, rank: true } },
+        },
+      },
       trainings: {
         orderBy: { date: "asc" },
         select: {
@@ -23,6 +43,9 @@ export async function GET() {
           title: true,
           type: true,
           date: true,
+          startTime: true,
+          endTime: true,
+          countsTowardHours: true,
           attendances: { select: { userId: true, status: true } },
         },
       },
@@ -76,15 +99,38 @@ export async function GET() {
       };
     });
 
+    // 이수시간 계산 (countsTowardHours인 훈련만, 시간 기반)
+    let requiredHours = batch.requiredHours;
+    if (!requiredHours) {
+      // 훈련 시간표 기반으로 총 시간 계산
+      let totalMins = 0;
+      for (const t of trainings) {
+        if (!t.countsTowardHours) continue;
+        if (t.startTime && t.endTime) {
+          const [sh, sm] = t.startTime.split(":").map(Number);
+          const [eh, em] = t.endTime.split(":").map(Number);
+          totalMins += (eh * 60 + em) - (sh * 60 + sm);
+        }
+      }
+      requiredHours = totalMins > 0 ? Math.round(totalMins / 60) : null;
+    }
+
+    // batchUser 상태 매핑 (subStatus, reason 포함)
+    const batchUserMap: Record<string, { status: string; subStatus: string | null; reason: string | null }> = {};
+    for (const bu of batch.batchUsers) {
+      batchUserMap[bu.userId] = { status: bu.status, subStatus: bu.subStatus, reason: bu.reason };
+    }
+
     return {
       batchId: batch.id,
       batchName: batch.name,
-      status: batch.status,
+      status: computeBatchStatus(batch.startDate, batch.endDate),
       startDate: batch.startDate,
       endDate: batch.endDate,
       totalUsers,
       totalTrainings: trainings.length,
       batchDayType,
+      requiredHours,
       summary: {
         present: totalPresent,
         absent: totalAbsent,
@@ -93,6 +139,7 @@ export async function GET() {
         rate: totalAttendances > 0 ? Math.round((totalPresent / totalAttendances) * 100) : 0,
       },
       byUser,
+      batchUserMap,
     };
   });
 
