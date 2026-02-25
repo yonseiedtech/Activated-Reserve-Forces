@@ -33,17 +33,21 @@ export default function GuardPostPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
+  const [errorType, setErrorType] = useState<string | null>(null);
+
   const fetchData = useCallback(() => {
     fetch(`/api/guard-post/${token}`)
       .then(async (r) => {
         if (!r.ok) {
           const err = await r.json();
           setError(err.error || "링크를 불러올 수 없습니다.");
+          setErrorType(err.notTrainingDay ? "notTrainingDay" : null);
           setData(null);
         } else {
           const d = await r.json();
           setData(d);
           setError("");
+          setErrorType(null);
         }
       })
       .catch(() => setError("네트워크 오류가 발생했습니다."))
@@ -57,7 +61,9 @@ export default function GuardPostPage() {
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  const handleAction = async (userId: string, type: "checkIn" | "checkOut") => {
+  const [confirmCancel, setConfirmCancel] = useState<string | null>(null);
+
+  const handleAction = async (userId: string, type: "checkIn" | "checkOut" | "cancelCheckIn" | "cancelCheckOut") => {
     setActionLoading(`${userId}-${type}`);
     try {
       const res = await fetch(`/api/guard-post/${token}/check`, {
@@ -78,6 +84,7 @@ export default function GuardPostPage() {
             ),
           };
         });
+        setConfirmCancel(null);
       } else {
         const err = await res.json();
         alert(err.error || "처리 중 오류가 발생했습니다.");
@@ -100,9 +107,15 @@ export default function GuardPostPage() {
   if (error) {
     return (
       <div className="text-center py-20">
-        <div className="text-5xl mb-4">🔒</div>
-        <h2 className="text-lg font-bold text-gray-800 mb-2">접근 불가</h2>
-        <p className="text-gray-500">{error}</p>
+        <div className="text-5xl mb-4">{errorType === "notTrainingDay" ? "📅" : "🔒"}</div>
+        <h2 className="text-lg font-bold text-gray-800 mb-2">
+          {errorType === "notTrainingDay" ? "훈련 일이 아닙니다" : "접근 불가"}
+        </h2>
+        <p className="text-gray-500">
+          {errorType === "notTrainingDay"
+            ? "설정된 훈련 기간이 아니므로 출퇴근 기록을 할 수 없습니다."
+            : error}
+        </p>
       </div>
     );
   }
@@ -159,9 +172,35 @@ export default function GuardPostPage() {
               <div>
                 <p className="text-xs text-gray-500 mb-1">출근</p>
                 {user.checkInAt ? (
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-green-700">{formatTime(user.checkInAt)}</span>
-                    <span className="px-1.5 py-0.5 bg-green-100 text-green-600 rounded text-xs">완료</span>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-green-700">{formatTime(user.checkInAt)}</span>
+                      <span className="px-1.5 py-0.5 bg-green-100 text-green-600 rounded text-xs">완료</span>
+                    </div>
+                    {confirmCancel === `${user.userId}-checkIn` ? (
+                      <div className="flex gap-1 mt-1.5">
+                        <button
+                          onClick={() => handleAction(user.userId, "cancelCheckIn")}
+                          disabled={actionLoading === `${user.userId}-cancelCheckIn`}
+                          className="flex-1 py-1 bg-red-500 text-white rounded text-xs font-medium hover:bg-red-600 disabled:opacity-50"
+                        >
+                          {actionLoading === `${user.userId}-cancelCheckIn` ? "처리중..." : "취소 확인"}
+                        </button>
+                        <button
+                          onClick={() => setConfirmCancel(null)}
+                          className="flex-1 py-1 bg-gray-200 text-gray-600 rounded text-xs font-medium hover:bg-gray-300"
+                        >
+                          아니오
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmCancel(`${user.userId}-checkIn`)}
+                        className="mt-1.5 text-xs text-gray-400 hover:text-red-500 underline"
+                      >
+                        출근 취소
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <button
@@ -178,9 +217,35 @@ export default function GuardPostPage() {
               <div>
                 <p className="text-xs text-gray-500 mb-1">퇴근</p>
                 {user.checkOutAt ? (
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-orange-700">{formatTime(user.checkOutAt)}</span>
-                    <span className="px-1.5 py-0.5 bg-orange-100 text-orange-600 rounded text-xs">완료</span>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-orange-700">{formatTime(user.checkOutAt)}</span>
+                      <span className="px-1.5 py-0.5 bg-orange-100 text-orange-600 rounded text-xs">완료</span>
+                    </div>
+                    {confirmCancel === `${user.userId}-checkOut` ? (
+                      <div className="flex gap-1 mt-1.5">
+                        <button
+                          onClick={() => handleAction(user.userId, "cancelCheckOut")}
+                          disabled={actionLoading === `${user.userId}-cancelCheckOut`}
+                          className="flex-1 py-1 bg-red-500 text-white rounded text-xs font-medium hover:bg-red-600 disabled:opacity-50"
+                        >
+                          {actionLoading === `${user.userId}-cancelCheckOut` ? "처리중..." : "취소 확인"}
+                        </button>
+                        <button
+                          onClick={() => setConfirmCancel(null)}
+                          className="flex-1 py-1 bg-gray-200 text-gray-600 rounded text-xs font-medium hover:bg-gray-300"
+                        >
+                          아니오
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmCancel(`${user.userId}-checkOut`)}
+                        className="mt-1.5 text-xs text-gray-400 hover:text-red-500 underline"
+                      >
+                        퇴근 취소
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <button

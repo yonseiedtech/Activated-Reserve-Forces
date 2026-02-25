@@ -38,6 +38,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
   const todayStr = kst.toISOString().split("T")[0];
   const today = new Date(todayStr + "T00:00:00.000Z");
 
+  // 훈련 기간 검증: 오늘이 차수 startDate~endDate 범위 안에 있는지 확인
+  const batchStart = new Date(guardToken.batch.startDate.toISOString().split("T")[0] + "T00:00:00.000Z");
+  const batchEnd = new Date(guardToken.batch.endDate.toISOString().split("T")[0] + "T00:00:00.000Z");
+  if (today < batchStart || today > batchEnd) {
+    return NextResponse.json({ error: "훈련 일이 아닙니다.", notTrainingDay: true }, { status: 403 });
+  }
+
   const userIds = guardToken.batch.batchUsers.map((bu) => bu.user.id);
   const existingRecords = await prisma.commutingRecord.findMany({
     where: {
