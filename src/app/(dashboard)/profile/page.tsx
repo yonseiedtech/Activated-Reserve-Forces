@@ -450,14 +450,7 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            <TransportInfoCard
-              transport={transport}
-              transportLoading={transportLoading}
-              transportError={transportError}
-              mapReady={mapReady}
-              address={profile.address}
-              unit={profile.unit}
-            />
+            {/* TransportInfoCard - 교통비 자동계산 기능 일시 비활성화 */}
 
             <div className="px-6 py-4 bg-gray-50 border-t">
               <button onClick={handleSaveContact} disabled={saving} className="w-full py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors disabled:opacity-50">

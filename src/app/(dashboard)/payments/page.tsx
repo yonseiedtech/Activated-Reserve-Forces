@@ -111,10 +111,6 @@ export default function PaymentsPage() {
                     <p className="font-medium text-gray-700">{b.compensationTotal.toLocaleString()}원</p>
                   </div>
                   <div>
-                    <p className="text-gray-400">교통비</p>
-                    <p className="font-medium text-gray-700">{b.transportAmount.toLocaleString()}원</p>
-                  </div>
-                  <div>
                     <p className="text-gray-400">총액</p>
                     <p className="font-semibold text-gray-900">{b.grandTotal.toLocaleString()}원</p>
                   </div>
@@ -139,12 +135,6 @@ export default function PaymentsPage() {
     <div>
       <div className="flex items-center justify-between mb-0">
         <PageTitle title="훈련비 관리" description="전체 차수별 훈련비 현황을 확인합니다." />
-        <Link
-          href="/payments/transport"
-          className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors shrink-0"
-        >
-          교통비 관리
-        </Link>
       </div>
 
       {/* Desktop: 테이블 */}
@@ -155,7 +145,6 @@ export default function PaymentsPage() {
               <th className="text-left px-4 py-3 font-medium">상태</th>
               <th className="text-left px-4 py-3 font-medium">차수</th>
               <th className="text-right px-4 py-3 font-medium">보상비</th>
-              <th className="text-right px-4 py-3 font-medium">교통비</th>
               <th className="text-right px-4 py-3 font-medium">총액</th>
             </tr>
           </thead>
@@ -188,7 +177,6 @@ export default function PaymentsPage() {
                 </td>
                 <td className="px-4 py-3 font-medium">{row.batchName}</td>
                 <td className="px-4 py-3 text-right">{row.compensationTotal.toLocaleString()}원</td>
-                <td className="px-4 py-3 text-right">{row.transportTotal.toLocaleString()}원</td>
                 <td className="px-4 py-3 text-right font-medium">{row.grandTotal.toLocaleString()}원</td>
               </tr>
             ))}
@@ -231,14 +219,10 @@ export default function PaymentsPage() {
                 )}
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-2 text-xs text-gray-500">
+            <div className="grid grid-cols-2 gap-2 text-xs text-gray-500">
               <div>
                 <p className="text-gray-400">보상비</p>
                 <p className="font-medium text-gray-700">{row.compensationTotal.toLocaleString()}원</p>
-              </div>
-              <div>
-                <p className="text-gray-400">교통비</p>
-                <p className="font-medium text-gray-700">{row.transportTotal.toLocaleString()}원</p>
               </div>
               <div>
                 <p className="text-gray-400">총액</p>

@@ -735,10 +735,7 @@ export default function AdminUsersPage() {
               />
             </div>
 
-            {/* 교통비 정보 */}
-            {editForm.address && editForm.unit && (
-              <EditTransportInfo address={editForm.address} unitName={editForm.unit} />
-            )}
+            {/* 교통비 정보 - 기능 일시 비활성화 */}
 
             <div className="flex gap-3 pt-2">
               <button
