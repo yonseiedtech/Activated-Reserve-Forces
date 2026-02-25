@@ -20,7 +20,7 @@ export default function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose:
         <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={onClose} />
       )}
       <aside
-        className={`fixed top-0 left-0 z-50 h-full w-64 bg-blue-900 text-white transform transition-transform duration-200 ease-in-out lg:translate-x-0 lg:static lg:z-auto ${
+        className={`fixed top-0 left-0 z-50 h-full w-64 bg-gradient-to-b from-blue-900 to-blue-950 text-white transform transition-transform duration-200 ease-in-out lg:translate-x-0 lg:static lg:z-auto ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >

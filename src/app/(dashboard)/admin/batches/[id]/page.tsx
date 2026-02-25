@@ -192,7 +192,7 @@ export default function AdminBatchDetailPage() {
   const batchId = params.id as string;
 
   const [batch, setBatch] = useState<Batch | null>(null);
-  const [tab, setTab] = useState<"training" | "trainees" | "attendance" | "commuting" | "settings">("training");
+  const [tab, setTab] = useState<"training" | "trainees" | "attendance" | "trainingAttendance" | "commuting" | "settings">("training");
   const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [trainingCategories, setTrainingCategories] = useState<TrainingCategory[]>([]);
   const [showTrainingForm, setShowTrainingForm] = useState(false);
@@ -306,7 +306,7 @@ export default function AdminBatchDetailPage() {
 
   useEffect(() => {
     if (!isAuthorized) return;
-    if (tab === "attendance") {
+    if (tab === "attendance" || tab === "trainingAttendance") {
       fetchAttendanceSummary();
       fetchReasonReports();
       fetchHealthQuestionnaires();
@@ -661,34 +661,40 @@ export default function AdminBatchDetailPage() {
       />
 
       {/* Tab navigation */}
-      <div className="flex gap-1 mb-4 bg-gray-100 p-1 rounded-lg w-fit">
+      <div className="flex gap-1 mb-4 bg-gray-50/80 p-1 rounded-lg w-fit">
         <button
           onClick={() => setTab("training")}
-          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === "training" ? "bg-white shadow text-blue-600" : "text-gray-600 hover:text-gray-900"}`}
+          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === "training" ? "bg-white shadow-sm text-blue-600" : "text-gray-500 hover:text-gray-800 hover:bg-white/50"}`}
         >
           훈련계획
         </button>
         <button
           onClick={() => setTab("trainees")}
-          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === "trainees" ? "bg-white shadow text-blue-600" : "text-gray-600 hover:text-gray-900"}`}
+          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === "trainees" ? "bg-white shadow-sm text-blue-600" : "text-gray-500 hover:text-gray-800 hover:bg-white/50"}`}
         >
           대상자 ({batch._count.users})
         </button>
         <button
           onClick={() => setTab("attendance")}
-          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === "attendance" ? "bg-white shadow text-blue-600" : "text-gray-600 hover:text-gray-900"}`}
+          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === "attendance" ? "bg-white shadow-sm text-blue-600" : "text-gray-500 hover:text-gray-800 hover:bg-white/50"}`}
         >
-          출석현황
+          참석신고
+        </button>
+        <button
+          onClick={() => setTab("trainingAttendance")}
+          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === "trainingAttendance" ? "bg-white shadow-sm text-blue-600" : "text-gray-500 hover:text-gray-800 hover:bg-white/50"}`}
+        >
+          훈련별 출석
         </button>
         <button
           onClick={() => setTab("commuting")}
-          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === "commuting" ? "bg-white shadow text-blue-600" : "text-gray-600 hover:text-gray-900"}`}
+          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === "commuting" ? "bg-white shadow-sm text-blue-600" : "text-gray-500 hover:text-gray-800 hover:bg-white/50"}`}
         >
           출퇴근
         </button>
         <button
           onClick={() => setTab("settings")}
-          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === "settings" ? "bg-white shadow text-blue-600" : "text-gray-600 hover:text-gray-900"}`}
+          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === "settings" ? "bg-white shadow-sm text-blue-600" : "text-gray-500 hover:text-gray-800 hover:bg-white/50"}`}
         >
           차수 설정
         </button>
@@ -1105,64 +1111,67 @@ export default function AdminBatchDetailPage() {
             </div>
           </div>
 
-          {/* 훈련별 출석 현황 */}
-          <div>
-            <h3 className="font-semibold text-sm mb-3 px-1">훈련별 출석 현황</h3>
-            {attendanceLoading ? (
-              <div className="text-center py-8 text-gray-400">로딩 중...</div>
-            ) : (
-              <div className="space-y-3">
-                {batch.trainings.length === 0 && (
-                  <p className="text-center py-8 text-gray-400">등록된 훈련이 없습니다.</p>
-                )}
-                {[...batch.trainings]
-                  .sort((a, b) => {
-                    const dateCompare = new Date(a.date).getTime() - new Date(b.date).getTime();
-                    if (dateCompare !== 0) return dateCompare;
-                    return (a.startTime || "").localeCompare(b.startTime || "");
-                  })
-                  .map((t) => {
-                  const summary = attendanceSummary?.byTraining.find((s) => s.trainingId === t.id);
-                  return (
-                    <div
-                      key={t.id}
-                      onClick={() => router.push(`/attendance/${t.id}`)}
-                      className="bg-white rounded-xl border p-4 hover:border-blue-300 hover:shadow-sm cursor-pointer transition-all"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h3 className="font-semibold text-sm">{t.title}</h3>
-                          <p className="text-xs text-gray-500 mt-1">
-                            {new Date(t.date).toLocaleDateString("ko-KR")}
-                            {t.startTime && t.endTime ? ` ${t.startTime}~${t.endTime}` : ""}
-                            {t.location ? ` | ${t.location}` : ""}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <div className="flex items-center gap-1 justify-end">
-                            <span className="px-2 py-0.5 bg-gray-100 rounded text-xs">{t.type}</span>
-                            {!t.attendanceEnabled && (
-                              <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded text-[10px]">출석부 OFF</span>
-                            )}
-                            {!t.countsTowardHours && (
-                              <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded text-[10px]">이수제외</span>
-                            )}
-                          </div>
-                          {summary && (
-                            <div className="flex gap-2 mt-1 text-xs">
-                              <span className="text-green-600">참석 {summary.present}</span>
-                              <span className="text-red-600">불참 {summary.absent}</span>
-                              <span className="text-yellow-600">미정 {summary.pending}</span>
-                            </div>
+        </div>
+      )}
+
+      {/* Training Attendance Tab */}
+      {tab === "trainingAttendance" && (
+        <div>
+          <h3 className="font-semibold text-sm mb-3 px-1">훈련별 출석 현황</h3>
+          {attendanceLoading ? (
+            <div className="text-center py-8 text-gray-400">로딩 중...</div>
+          ) : (
+            <div className="space-y-3">
+              {batch.trainings.length === 0 && (
+                <p className="text-center py-8 text-gray-400">등록된 훈련이 없습니다.</p>
+              )}
+              {[...batch.trainings]
+                .sort((a, b) => {
+                  const dateCompare = new Date(a.date).getTime() - new Date(b.date).getTime();
+                  if (dateCompare !== 0) return dateCompare;
+                  return (a.startTime || "").localeCompare(b.startTime || "");
+                })
+                .map((t) => {
+                const summary = attendanceSummary?.byTraining.find((s) => s.trainingId === t.id);
+                return (
+                  <div
+                    key={t.id}
+                    onClick={() => router.push(`/attendance/${t.id}`)}
+                    className="bg-white rounded-xl border p-4 hover:border-blue-300 hover:shadow-sm cursor-pointer transition-all"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="font-semibold text-sm">{t.title}</h3>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {new Date(t.date).toLocaleDateString("ko-KR")}
+                          {t.startTime && t.endTime ? ` ${t.startTime}~${t.endTime}` : ""}
+                          {t.location ? ` | ${t.location}` : ""}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <div className="flex items-center gap-1 justify-end">
+                          <span className="px-2 py-0.5 bg-gray-100 rounded text-xs">{t.type}</span>
+                          {!t.attendanceEnabled && (
+                            <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded text-[10px]">출석부 OFF</span>
+                          )}
+                          {!t.countsTowardHours && (
+                            <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded text-[10px]">이수제외</span>
                           )}
                         </div>
+                        {summary && (
+                          <div className="flex gap-2 mt-1 text-xs">
+                            <span className="text-green-600">참석 {summary.present}</span>
+                            <span className="text-red-600">불참 {summary.absent}</span>
+                            <span className="text-yellow-600">미정 {summary.pending}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 

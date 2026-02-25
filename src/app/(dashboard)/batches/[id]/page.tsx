@@ -554,7 +554,7 @@ export default function ReservistBatchDetailPage() {
       />
 
       {/* 탭 네비게이션 */}
-      <div className="flex gap-1 mb-4 bg-gray-100 p-1 rounded-lg overflow-x-auto">
+      <div className="flex gap-1 mb-4 bg-gray-50/80 p-1 rounded-lg overflow-x-auto">
         {tabs.map((t) => (
           <button
             key={t.key}
@@ -562,10 +562,10 @@ export default function ReservistBatchDetailPage() {
             disabled={t.disabled}
             className={`px-3 py-2 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
               tab === t.key
-                ? "bg-white shadow text-blue-600"
+                ? "bg-white shadow-sm text-blue-600"
                 : t.disabled
                   ? "text-gray-300 cursor-not-allowed"
-                  : "text-gray-600 hover:text-gray-900"
+                  : "text-gray-500 hover:text-gray-800 hover:bg-white/50"
             }`}
           >
             {t.label}

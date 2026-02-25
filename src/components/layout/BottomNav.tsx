@@ -89,7 +89,7 @@ export default function BottomNav() {
       )}
 
       {/* 하단 탭 바 */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 lg:hidden">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/80 backdrop-blur-lg border-t border-gray-100 lg:hidden">
         <div className="flex items-center justify-around h-16 px-1">
           {tabs.map((tab) => (
             <Link

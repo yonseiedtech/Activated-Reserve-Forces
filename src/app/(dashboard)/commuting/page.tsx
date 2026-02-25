@@ -251,15 +251,15 @@ function AdminReportView({ reports }: { reports: BatchReport[] }) {
   return (
     <>
       {/* 탭 네비게이션 */}
-      <div className="flex gap-1 mb-6 bg-gray-100 rounded-lg p-1 overflow-x-auto">
+      <div className="flex gap-1 mb-6 bg-gray-50/80 rounded-lg p-1 overflow-x-auto">
         {ADMIN_TABS.map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
             className={`flex-1 min-w-fit px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
               tab === t.key
-                ? "bg-white shadow text-blue-600"
-                : "text-gray-600 hover:text-gray-800"
+                ? "bg-white shadow-sm text-blue-600"
+                : "text-gray-500 hover:text-gray-800 hover:bg-white/50"
             }`}
           >
             {t.label}
