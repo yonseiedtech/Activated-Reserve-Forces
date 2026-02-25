@@ -409,7 +409,6 @@ export default function ProfilePage() {
               <InfoRow label="소속부대" value={profile.unit} />
               <InfoRow label="생년월일" value={profile.birthDate ? formatDate(profile.birthDate) : null} />
               <InfoRow label="병과" value={profile.branch} />
-              <InfoRow label="소속 차수" value={profile.batches.join(", ") || null} />
             </div>
             <SectionHeader title="전시편성" />
             <div className="divide-y">

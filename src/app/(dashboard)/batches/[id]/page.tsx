@@ -174,6 +174,7 @@ export default function ReservistBatchDetailPage() {
   const [reasonContent, setReasonContent] = useState("");
   const [reasonDate, setReasonDate] = useState("");
   const [reasonTime, setReasonTime] = useState("");
+  const [reasonCategory, setReasonCategory] = useState("");
   const [reasonSaving, setReasonSaving] = useState(false);
 
   // 식사 현황
@@ -389,6 +390,7 @@ export default function ReservistBatchDetailPage() {
       try {
         const parsed = JSON.parse(existing.content);
         setReasonContent(parsed.reason || "");
+        setReasonCategory(parsed.category || "");
         if (type === "EARLY_DEPARTURE") {
           setReasonDate(parsed.departureDate || "");
           setReasonTime(parsed.departureTime || "");
@@ -401,11 +403,13 @@ export default function ReservistBatchDetailPage() {
         }
       } catch {
         setReasonContent(existing.content);
+        setReasonCategory("");
         setReasonDate("");
         setReasonTime("");
       }
     } else {
       setReasonContent("");
+      setReasonCategory("");
       setReasonDate("");
       setReasonTime("");
     }
@@ -421,7 +425,7 @@ export default function ReservistBatchDetailPage() {
     } else if (reasonModalType === "LATE_ARRIVAL") {
       contentObj = { reason: reasonContent, arrivalDate: reasonDate, arrivalTime: reasonTime };
     } else {
-      contentObj = { reason: reasonContent };
+      contentObj = { reason: reasonContent, category: reasonCategory };
     }
     const content = JSON.stringify(contentObj);
     try {
@@ -628,18 +632,7 @@ export default function ReservistBatchDetailPage() {
               </div>
             )}
 
-            {attendanceStatus === "ABSENT" && (
-              <div>
-                <label className="text-xs font-medium text-gray-600">불참 사유</label>
-                <textarea
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
-                  placeholder="불참 사유를 입력해주세요."
-                  rows={2}
-                  className="mt-1 w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-red-500 outline-none resize-none"
-                />
-              </div>
-            )}
+            {/* 불참 사유 textarea 제거 - 불참 사유서로 대체 */}
 
             {attendanceStatus === "PENDING" && (
               <div>
@@ -1338,6 +1331,24 @@ export default function ReservistBatchDetailPage() {
                 </div>
               );
             })()}
+
+            {/* 사유 구분 - ABSENT */}
+            {reasonModalType === "ABSENT" && (
+              <div>
+                <label className="text-sm font-medium text-gray-700">사유 구분</label>
+                <select
+                  value={reasonCategory}
+                  onChange={(e) => setReasonCategory(e.target.value)}
+                  className="mt-1 w-full px-3 py-2 border rounded-lg text-sm bg-white"
+                >
+                  <option value="">선택하세요</option>
+                  <option value="주요업무">주요업무</option>
+                  <option value="건강">건강</option>
+                  <option value="무단">무단</option>
+                  <option value="기타">기타</option>
+                </select>
+              </div>
+            )}
 
             <div>
               <label className="text-sm font-medium text-gray-700">
