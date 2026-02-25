@@ -69,7 +69,7 @@ export default async function DashboardPage() {
   }
 
   // Reservist-specific data
-  let nextTraining: { id: string; title: string; batchName: string; date: Date; dDay: number } | null = null;
+  let nextTraining: { id: string; batchId: string; title: string; batchName: string; date: Date; dDay: number } | null = null;
   let mobileIdExpiringSoon = false;
 
   if (role === ROLES.RESERVIST) {
@@ -83,13 +83,14 @@ export default async function DashboardPage() {
       const nt = await prisma.training.findFirst({
         where: { batchId: { in: batchIds }, date: { gte: today } },
         orderBy: { date: "asc" },
-        select: { id: true, title: true, date: true, batch: { select: { name: true } } },
+        select: { id: true, title: true, date: true, batchId: true, batch: { select: { name: true } } },
       });
 
       if (nt) {
         const diffMs = nt.date.getTime() - today.getTime();
         nextTraining = {
           id: nt.id,
+          batchId: nt.batchId,
           title: nt.title,
           batchName: nt.batch.name,
           date: nt.date,
@@ -214,7 +215,7 @@ export default async function DashboardPage() {
 
       {/* 대상자: 다음 훈련 D-Day 카드 */}
       {role === ROLES.RESERVIST && (
-        <Link href="/trainings" className="block bg-white rounded-xl shadow-sm border p-6 hover:shadow-md transition-shadow">
+        <Link href={nextTraining ? `/batches/${nextTraining.batchId}` : "/batches"} className="block bg-white rounded-xl shadow-sm border p-6 hover:shadow-md transition-shadow">
           <div className="flex items-center gap-4">
             <span className="text-3xl">📅</span>
             <div>
