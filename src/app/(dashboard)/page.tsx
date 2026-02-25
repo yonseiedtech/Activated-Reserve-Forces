@@ -87,14 +87,16 @@ export default async function DashboardPage() {
       });
 
       if (nt) {
-        const diffMs = nt.date.getTime() - today.getTime();
+        const trainingDateOnly = new Date(nt.date.toISOString().slice(0, 10) + "T00:00:00");
+        const todayOnly = new Date(new Date().toISOString().slice(0, 10) + "T00:00:00");
+        const diffDays = Math.round((trainingDateOnly.getTime() - todayOnly.getTime()) / 86400000);
         nextTraining = {
           id: nt.id,
           batchId: nt.batchId,
           title: nt.title,
           batchName: nt.batch.name,
           date: nt.date,
-          dDay: Math.ceil(diffMs / 86400000),
+          dDay: diffDays,
         };
       }
     }
