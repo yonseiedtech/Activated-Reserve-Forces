@@ -219,7 +219,25 @@ export default function AdminUnitsPage() {
                       </p>
                     )}
                     {!unit.latitude && !unit.longitude && (
-                      <p className="text-xs text-orange-500 mt-1">좌표 미등록 (교통비 계산 불가)</p>
+                      <div className="mt-1">
+                        <p className="text-xs text-orange-500">좌표 미등록 (교통비 계산 불가)</p>
+                        {gpsLocations.length > 0 && (
+                          <button
+                            onClick={async () => {
+                              const loc = gpsLocations[0];
+                              const res = await fetch(`/api/units/${unit.id}`, {
+                                method: "PUT",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ latitude: loc.latitude, longitude: loc.longitude }),
+                              });
+                              if (res.ok) fetchUnits();
+                            }}
+                            className="text-xs text-blue-600 hover:text-blue-800 underline mt-0.5"
+                          >
+                            GPS 위치({gpsLocations[0].name})의 좌표로 설정
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                   <div className="flex items-center gap-2">

@@ -40,6 +40,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       location: body.location,
       description: body.description,
       instructorId: body.instructorId,
+      attendanceEnabled: body.attendanceEnabled,
+      countsTowardHours: body.countsTowardHours,
     },
   });
 

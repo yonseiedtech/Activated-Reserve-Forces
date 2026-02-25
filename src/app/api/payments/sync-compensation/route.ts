@@ -21,18 +21,21 @@ export async function POST(req: NextRequest) {
   const results = await Promise.all(
     trainings.map((t) => {
       const calc = calcCompensation(t);
+      // countsTowardHours가 false인 훈련(식사 등)은 이수시간·보상비 0으로 처리
+      const hours = t.countsTowardHours ? calc.trainingHours : 0;
+      const rate = t.countsTowardHours ? calc.dailyRate : 0;
       return prisma.trainingCompensation.upsert({
         where: { trainingId: t.id },
         create: {
           trainingId: t.id,
-          trainingHours: calc.trainingHours,
+          trainingHours: hours,
           isWeekend: calc.isWeekend,
-          dailyRate: calc.dailyRate,
+          dailyRate: rate,
         },
         update: {
-          trainingHours: calc.trainingHours,
+          trainingHours: hours,
           isWeekend: calc.isWeekend,
-          dailyRate: calc.dailyRate,
+          dailyRate: rate,
           // overrideRate는 유지 (관리자가 수동 설정한 값)
         },
       });

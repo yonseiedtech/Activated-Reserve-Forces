@@ -91,6 +91,8 @@ export async function POST(req: NextRequest) {
       description: body.description,
       batchId: body.batchId,
       instructorId: body.instructorId,
+      attendanceEnabled: body.attendanceEnabled ?? true,
+      countsTowardHours: body.countsTowardHours ?? true,
     },
   });
 

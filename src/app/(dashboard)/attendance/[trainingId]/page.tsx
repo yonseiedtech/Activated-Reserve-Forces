@@ -25,6 +25,7 @@ interface TrainingData {
   id: string;
   title: string;
   date: string;
+  attendanceEnabled: boolean;
   batch: { name: string; users: User[] };
 }
 
@@ -103,6 +104,13 @@ export default function AttendancePage() {
         title="출석 관리"
         description={`${training.title} - ${new Date(training.date).toLocaleDateString("ko-KR")}`}
       />
+
+      {/* 출석부 비활성화 안내 */}
+      {!training.attendanceEnabled && (
+        <div className="mb-4 px-4 py-3 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
+          이 훈련은 출석부 기능이 비활성화되어 있어, 별도 출석 체크 없이 이수시간에 자동 반영됩니다.
+        </div>
+      )}
 
       {/* 통계 */}
       <div className="flex gap-4 mb-4">
@@ -193,18 +201,22 @@ export default function AttendancePage() {
         })}
       </div>
 
-      {/* 저장 버튼 */}
-      <div className="sticky bottom-20 lg:bottom-4 mt-4 z-30 bg-white/80 backdrop-blur-sm py-2 rounded-xl">
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className={`w-full py-3 rounded-xl font-medium text-white transition-colors ${
-            saved ? "bg-green-600" : "bg-blue-600 hover:bg-blue-700"
-          } disabled:opacity-50`}
-        >
-          {saving ? "저장 중..." : saved ? "저장 완료!" : "출석 저장"}
-        </button>
+      {/* 저장 버튼 - 하단 고정 */}
+      <div className="fixed bottom-16 left-0 right-0 z-30 px-4 pb-2 pt-2 bg-white/90 backdrop-blur-sm border-t lg:static lg:border-t-0 lg:bg-transparent lg:backdrop-blur-none lg:px-0 lg:mt-4">
+        <div className="max-w-3xl mx-auto">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className={`w-full py-3 rounded-xl font-medium text-white transition-colors ${
+              saved ? "bg-green-600" : "bg-blue-600 hover:bg-blue-700"
+            } disabled:opacity-50`}
+          >
+            {saving ? "저장 중..." : saved ? "저장 완료!" : "출석 저장"}
+          </button>
+        </div>
       </div>
+      {/* 하단 고정 버튼 공간 확보 (모바일) */}
+      <div className="h-16 lg:hidden" />
     </div>
   );
 }

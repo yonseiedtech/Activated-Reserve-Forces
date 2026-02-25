@@ -22,6 +22,8 @@ interface Training {
   location: string | null;
   description: string | null;
   instructor: { id: string; name: string } | null;
+  attendanceEnabled: boolean;
+  countsTowardHours: boolean;
 }
 
 interface BatchUser {
@@ -194,12 +196,14 @@ export default function AdminBatchDetailPage() {
   const [trainingDate, setTrainingDate] = useState("");
   const [trainingForm, setTrainingForm] = useState({
     title: "", type: "기타", startTime: "", endTime: "", location: "", description: "", instructorId: "",
+    attendanceEnabled: true, countsTowardHours: true,
   });
 
   // Edit training state
   const [editingTraining, setEditingTraining] = useState<Training | null>(null);
   const [editForm, setEditForm] = useState({
     title: "", type: "기타", startTime: "", endTime: "", location: "", description: "", instructorId: "",
+    attendanceEnabled: true, countsTowardHours: true,
   });
 
   // Trainee assignment state
@@ -228,6 +232,19 @@ export default function AdminBatchDetailPage() {
   // 건강관리 문진표
   const [healthQuestionnaires, setHealthQuestionnaires] = useState<HealthQuestionnaireWithUser[]>([]);
   const [viewingHealth, setViewingHealth] = useState<HealthQuestionnaireWithUser | null>(null);
+
+  // 위병소 링크 관리
+  interface GuardPostTokenData {
+    id: string;
+    token: string;
+    label: string | null;
+    isActive: boolean;
+    expiresAt: string | null;
+    createdAt: string;
+  }
+  const [guardTokens, setGuardTokens] = useState<GuardPostTokenData[]>([]);
+  const [showTokenForm, setShowTokenForm] = useState(false);
+  const [tokenLabel, setTokenLabel] = useState("");
 
   // Settings tab state
   const [settingsForm, setSettingsForm] = useState({ name: "", year: 0, number: 0, startDate: "", endDate: "", location: "", requiredHours: "" });
@@ -308,6 +325,14 @@ export default function AdminBatchDetailPage() {
     const range = getDateRange(batch.startDate, batch.endDate);
     setCommutingDate(range.includes(today) ? today : range[0] || today);
   }, [batch, commutingDate]);
+
+  // Guard token fetch
+  useEffect(() => {
+    if (tab !== "commuting" || !batchId) return;
+    fetch(`/api/guard-post-tokens?batchId=${batchId}`)
+      .then((r) => r.json())
+      .then((data) => { if (Array.isArray(data)) setGuardTokens(data); });
+  }, [tab, batchId]);
 
   // Commuting tab data fetch
   useEffect(() => {
@@ -448,7 +473,7 @@ export default function AdminBatchDetailPage() {
 
   const handleAddTraining = (date: string) => {
     setTrainingFormDate(date);
-    setTrainingForm({ title: "", type: "기타", startTime: "", endTime: "", location: "", description: "", instructorId: "" });
+    setTrainingForm({ title: "", type: "기타", startTime: "", endTime: "", location: "", description: "", instructorId: "", attendanceEnabled: true, countsTowardHours: true });
     setShowTrainingForm(true);
   };
 
@@ -486,6 +511,8 @@ export default function AdminBatchDetailPage() {
       location: training.location || "",
       description: training.description || "",
       instructorId: training.instructor?.id || "",
+      attendanceEnabled: training.attendanceEnabled,
+      countsTowardHours: training.countsTowardHours,
     });
   };
 
@@ -584,6 +611,10 @@ export default function AdminBatchDetailPage() {
     const dateKey = t.date.split("T")[0];
     if (trainingsByDate[dateKey]) trainingsByDate[dateKey].push(t);
     else trainingsByDate[dateKey] = [t];
+  }
+  // 각 날짜 내 훈련을 시간순 정렬
+  for (const d of Object.keys(trainingsByDate)) {
+    trainingsByDate[d].sort((a, b) => (a.startTime || "").localeCompare(b.startTime || ""));
   }
 
   // Group unassigned users by unit
@@ -728,6 +759,8 @@ export default function AdminBatchDetailPage() {
                           <td className="px-4 py-2.5">
                             <span className="font-medium">{t.title}</span>
                             <span className="ml-2 px-1.5 py-0.5 text-xs bg-blue-50 text-blue-600 rounded">{t.type}</span>
+                            {!t.attendanceEnabled && <span className="ml-1 px-1.5 py-0.5 text-[10px] bg-yellow-100 text-yellow-700 rounded">출석부 OFF</span>}
+                            {!t.countsTowardHours && <span className="ml-1 px-1.5 py-0.5 text-[10px] bg-orange-100 text-orange-700 rounded">이수제외</span>}
                           </td>
                           <td className="px-4 py-2.5 text-gray-500">{t.location || "-"}</td>
                           <td className="px-4 py-2.5 text-gray-500">{t.instructor?.name || "-"}</td>
@@ -1009,7 +1042,15 @@ export default function AdminBatchDetailPage() {
                           </p>
                         </div>
                         <div className="text-right">
-                          <span className="px-2 py-0.5 bg-gray-100 rounded text-xs">{t.type}</span>
+                          <div className="flex items-center gap-1 justify-end">
+                            <span className="px-2 py-0.5 bg-gray-100 rounded text-xs">{t.type}</span>
+                            {!t.attendanceEnabled && (
+                              <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded text-[10px]">출석부 OFF</span>
+                            )}
+                            {!t.countsTowardHours && (
+                              <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded text-[10px]">이수제외</span>
+                            )}
+                          </div>
                           {summary && (
                             <div className="flex gap-2 mt-1 text-xs">
                               <span className="text-green-600">참석 {summary.present}</span>
@@ -1030,7 +1071,121 @@ export default function AdminBatchDetailPage() {
 
       {/* Commuting Tab */}
       {tab === "commuting" && (
-        <div>
+        <div className="space-y-4">
+          {/* 위병소 근무자용 링크 관리 */}
+          <div className="bg-white rounded-xl border overflow-hidden">
+            <div className="px-4 py-3 bg-gray-50 border-b flex items-center justify-between">
+              <h3 className="font-semibold text-sm">위병소 근무자용 링크</h3>
+              <button
+                onClick={() => setShowTokenForm(!showTokenForm)}
+                className="px-2.5 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                + 새 링크
+              </button>
+            </div>
+            <div className="p-4 space-y-3">
+              {showTokenForm && (
+                <div className="flex gap-2 items-end">
+                  <div className="flex-1">
+                    <label className="text-xs text-gray-500 mb-1 block">링크 이름 (선택)</label>
+                    <input
+                      value={tokenLabel}
+                      onChange={(e) => setTokenLabel(e.target.value)}
+                      placeholder="예: 정문 위병소"
+                      className="w-full px-3 py-1.5 border rounded-lg text-sm"
+                    />
+                  </div>
+                  <button
+                    onClick={async () => {
+                      const res = await fetch("/api/guard-post-tokens", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ batchId, label: tokenLabel || null }),
+                      });
+                      if (res.ok) {
+                        const newToken = await res.json();
+                        setGuardTokens((prev) => [newToken, ...prev]);
+                        setTokenLabel("");
+                        setShowTokenForm(false);
+                      }
+                    }}
+                    className="px-4 py-1.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 shrink-0"
+                  >
+                    생성
+                  </button>
+                  <button
+                    onClick={() => setShowTokenForm(false)}
+                    className="px-3 py-1.5 border rounded-lg text-sm text-gray-600 hover:bg-gray-50 shrink-0"
+                  >
+                    취소
+                  </button>
+                </div>
+              )}
+
+              {guardTokens.length === 0 && !showTokenForm && (
+                <p className="text-center py-3 text-xs text-gray-400">
+                  생성된 링크가 없습니다. 위병소 근무자에게 공유할 링크를 생성하세요.
+                </p>
+              )}
+
+              {guardTokens.map((gt) => {
+                const url = `${typeof window !== "undefined" ? window.location.origin : ""}/guard-post/${gt.token}`;
+                return (
+                  <div key={gt.id} className={`p-3 rounded-lg border ${gt.isActive ? "bg-green-50 border-green-200" : "bg-gray-50 border-gray-200 opacity-60"}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm">{gt.label || "공유 링크"}</span>
+                        <span className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${gt.isActive ? "bg-green-100 text-green-700" : "bg-gray-200 text-gray-500"}`}>
+                          {gt.isActive ? "활성" : "비활성"}
+                        </span>
+                      </div>
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(url);
+                            alert("링크가 복사되었습니다.");
+                          }}
+                          className="px-2 py-0.5 text-xs text-blue-600 border border-blue-200 rounded hover:bg-blue-50"
+                        >
+                          복사
+                        </button>
+                        <button
+                          onClick={async () => {
+                            const res = await fetch(`/api/guard-post-tokens/${gt.id}`, {
+                              method: "PUT",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ isActive: !gt.isActive }),
+                            });
+                            if (res.ok) {
+                              setGuardTokens((prev) => prev.map((t) => t.id === gt.id ? { ...t, isActive: !t.isActive } : t));
+                            }
+                          }}
+                          className={`px-2 py-0.5 text-xs rounded ${gt.isActive ? "text-orange-600 border border-orange-200 hover:bg-orange-50" : "text-green-600 border border-green-200 hover:bg-green-50"}`}
+                        >
+                          {gt.isActive ? "비활성화" : "활성화"}
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (!confirm("이 링크를 삭제하시겠습니까?")) return;
+                            await fetch(`/api/guard-post-tokens/${gt.id}`, { method: "DELETE" });
+                            setGuardTokens((prev) => prev.filter((t) => t.id !== gt.id));
+                          }}
+                          className="px-2 py-0.5 text-xs text-red-600 border border-red-200 rounded hover:bg-red-50"
+                        >
+                          삭제
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-500 break-all">{url}</p>
+                    {gt.expiresAt && (
+                      <p className="text-xs text-gray-400 mt-1">만료: {new Date(gt.expiresAt).toLocaleDateString("ko-KR")}</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
           {/* 차수 날짜 선택 — 2일 이상일 때만 표시 */}
           {dateRange.length > 1 && (
             <div className="flex gap-1.5 mb-4 flex-wrap">
@@ -1061,6 +1216,34 @@ export default function AdminBatchDetailPage() {
             </div>
           ) : (
             <>
+              {/* 일괄 출근/퇴근 버튼 */}
+              {commutingRows.length > 0 && (
+                <div className="flex gap-2 mb-4">
+                  <button
+                    onClick={() => {
+                      const now = getNowTime();
+                      setCommutingRows((prev) => prev.map((row) =>
+                        row.attendanceStatus === "ABSENT" || row.checkIn ? row : { ...row, checkIn: now }
+                      ));
+                    }}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700"
+                  >
+                    일괄 출근
+                  </button>
+                  <button
+                    onClick={() => {
+                      const now = getNowTime();
+                      setCommutingRows((prev) => prev.map((row) =>
+                        row.attendanceStatus === "ABSENT" || row.checkOut ? row : { ...row, checkOut: now }
+                      ));
+                    }}
+                    className="px-4 py-2 bg-orange-600 text-white rounded-lg text-sm font-medium hover:bg-orange-700"
+                  >
+                    일괄 퇴근
+                  </button>
+                </div>
+              )}
+
               {/* Desktop: 테이블 */}
               <div className="hidden lg:block bg-white rounded-xl border overflow-x-auto">
                 <table className="w-full text-sm">
@@ -1384,7 +1567,11 @@ export default function AdminBatchDetailPage() {
             />
             <select
               value={trainingForm.type}
-              onChange={(e) => setTrainingForm({ ...trainingForm, type: e.target.value })}
+              onChange={(e) => {
+                const newType = e.target.value;
+                const isMeal = newType === "식사";
+                setTrainingForm({ ...trainingForm, type: newType, countsTowardHours: isMeal ? false : trainingForm.countsTowardHours });
+              }}
               className="w-full px-3 py-2 border rounded-lg"
             >
               {trainingCategories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
@@ -1429,6 +1616,27 @@ export default function AdminBatchDetailPage() {
               onChange={(e) => setTrainingForm({ ...trainingForm, description: e.target.value })}
               className="w-full px-3 py-2 border rounded-lg"
             />
+            {/* 출석부 / 이수시간 옵션 */}
+            <div className="space-y-2 pt-1 border-t">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={trainingForm.attendanceEnabled}
+                  onChange={(e) => setTrainingForm({ ...trainingForm, attendanceEnabled: e.target.checked })}
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded"
+                />
+                <span className="text-sm text-gray-700">출석부 기능 활성화</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={trainingForm.countsTowardHours}
+                  onChange={(e) => setTrainingForm({ ...trainingForm, countsTowardHours: e.target.checked })}
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded"
+                />
+                <span className="text-sm text-gray-700">훈련 이수시간에 반영</span>
+              </label>
+            </div>
             <div className="flex gap-3 pt-2">
               <button onClick={handleCreateTraining} className="flex-1 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700">추가</button>
               <button onClick={() => setShowTrainingForm(false)} className="flex-1 py-2 border rounded-lg text-gray-700 hover:bg-gray-50">취소</button>
@@ -1805,7 +2013,11 @@ export default function AdminBatchDetailPage() {
             />
             <select
               value={editForm.type}
-              onChange={(e) => setEditForm({ ...editForm, type: e.target.value })}
+              onChange={(e) => {
+                const newType = e.target.value;
+                const isMeal = newType === "식사";
+                setEditForm({ ...editForm, type: newType, countsTowardHours: isMeal ? false : editForm.countsTowardHours });
+              }}
               className="w-full px-3 py-2 border rounded-lg"
             >
               {trainingCategories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
@@ -1850,6 +2062,27 @@ export default function AdminBatchDetailPage() {
               onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
               className="w-full px-3 py-2 border rounded-lg"
             />
+            {/* 출석부 / 이수시간 옵션 */}
+            <div className="space-y-2 pt-1 border-t">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={editForm.attendanceEnabled}
+                  onChange={(e) => setEditForm({ ...editForm, attendanceEnabled: e.target.checked })}
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded"
+                />
+                <span className="text-sm text-gray-700">출석부 기능 활성화</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={editForm.countsTowardHours}
+                  onChange={(e) => setEditForm({ ...editForm, countsTowardHours: e.target.checked })}
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded"
+                />
+                <span className="text-sm text-gray-700">훈련 이수시간에 반영</span>
+              </label>
+            </div>
             <div className="flex gap-3 pt-2">
               <button onClick={handleSaveEdit} className="flex-1 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700">저장</button>
               <button onClick={() => setEditingTraining(null)} className="flex-1 py-2 border rounded-lg text-gray-700 hover:bg-gray-50">취소</button>

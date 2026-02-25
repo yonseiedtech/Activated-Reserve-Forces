@@ -139,6 +139,7 @@ model Batch {
   refundProcess       RefundProcess?
   commutingRecords    CommutingRecord[]
   dinnerRequests      DinnerRequest[]
+  guardPostTokens     GuardPostToken[]
 }
 
 // ─── 훈련 일정 ───
@@ -153,9 +154,11 @@ model Training {
   description  String?
   batchId      String
   batch        Batch    @relation(fields: [batchId], references: [id], onDelete: Cascade)
-  instructorId String?
-  instructor   User?    @relation("InstructorTrainings", fields: [instructorId], references: [id])
-  createdAt    DateTime @default(now())
+  instructorId       String?
+  instructor         User?    @relation("InstructorTrainings", fields: [instructorId], references: [id])
+  attendanceEnabled  Boolean  @default(true)   // false면 출석체크 없이 이수시간 자동 반영
+  countsTowardHours  Boolean  @default(true)   // false면 훈련 이수시간에서 제외 (식사 등)
+  createdAt          DateTime @default(now())
 
   attendances  Attendance[]
   compensation TrainingCompensation?
@@ -456,4 +459,18 @@ model HealthQuestionnaire {
   submittedAt DateTime @default(now())
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+// ─── 위병소 근무자용 공유 토큰 ───
+model GuardPostToken {
+  id        String    @id @default(cuid())
+  batchId   String
+  batch     Batch     @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  token     String    @unique
+  label     String?   // 관리자 메모 (예: "정문 위병소")
+  isActive  Boolean   @default(true)
+  expiresAt DateTime?
+  createdBy String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 }

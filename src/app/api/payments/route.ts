@@ -64,7 +64,10 @@ export async function GET(req: NextRequest) {
 
   const compensations = trainings.map((t) => {
     const calc = calcCompensation(t);
-    const finalRate = t.compensation?.overrideRate ?? t.compensation?.dailyRate ?? calc.dailyRate;
+    // countsTowardHours가 false인 훈련(식사 등)은 이수시간·보상비 0으로 처리
+    const effectiveHours = t.countsTowardHours ? (t.compensation?.trainingHours ?? calc.trainingHours) : 0;
+    const effectiveRate = t.countsTowardHours ? (t.compensation?.dailyRate ?? calc.dailyRate) : 0;
+    const finalRate = t.countsTowardHours ? (t.compensation?.overrideRate ?? effectiveRate) : 0;
     return {
       trainingId: t.id,
       title: t.title,
@@ -72,39 +75,59 @@ export async function GET(req: NextRequest) {
       date: t.date,
       startTime: t.startTime,
       endTime: t.endTime,
-      trainingHours: t.compensation?.trainingHours ?? calc.trainingHours,
+      trainingHours: effectiveHours,
       isWeekend: t.compensation?.isWeekend ?? calc.isWeekend,
-      dailyRate: t.compensation?.dailyRate ?? calc.dailyRate,
-      overrideRate: t.compensation?.overrideRate ?? null,
+      dailyRate: effectiveRate,
+      overrideRate: t.countsTowardHours ? (t.compensation?.overrideRate ?? null) : null,
       finalRate,
+      attendanceEnabled: t.attendanceEnabled,
+      countsTowardHours: t.countsTowardHours,
     };
   });
 
   // 관리자용: 대상자별 보상비 행
-  const compensationsByUser = ["ADMIN", "MANAGER"].includes(session.user.role)
-    ? trainings.flatMap((t) => {
-        const calc = calcCompensation(t);
-        const baseRate = t.compensation?.dailyRate ?? calc.dailyRate;
-        const finalRate = t.compensation?.overrideRate ?? baseRate;
-        return t.attendances.map((att) => ({
-          trainingId: t.id,
-          title: t.title,
-          type: t.type,
-          date: t.date,
-          startTime: t.startTime,
-          endTime: t.endTime,
-          trainingHours: t.compensation?.trainingHours ?? calc.trainingHours,
-          isWeekend: t.compensation?.isWeekend ?? calc.isWeekend,
-          dailyRate: baseRate,
-          overrideRate: t.compensation?.overrideRate ?? null,
-          finalRate,
-          userId: att.user.id,
-          userName: att.user.name,
-          rank: att.user.rank,
-          serviceNumber: att.user.serviceNumber,
-        }));
-      })
-    : undefined;
+  let compensationsByUser;
+  if (["ADMIN", "MANAGER"].includes(session.user.role)) {
+    // attendanceEnabled가 false인 훈련이 있으면, 차수 배정 대상자(참석) 전체를 가져옴
+    const hasNonAttendance = trainings.some((t) => !t.attendanceEnabled);
+    let batchUsers: { userId: string; user: { id: string; name: string; rank: string | null; serviceNumber: string | null } }[] = [];
+    if (hasNonAttendance) {
+      batchUsers = await prisma.batchUser.findMany({
+        where: { batchId, status: "PRESENT" },
+        include: { user: { select: { id: true, name: true, rank: true, serviceNumber: true } } },
+      });
+    }
+
+    compensationsByUser = trainings.flatMap((t) => {
+      const calc = calcCompensation(t);
+      const effectiveHours = t.countsTowardHours ? (t.compensation?.trainingHours ?? calc.trainingHours) : 0;
+      const baseRate = t.countsTowardHours ? (t.compensation?.dailyRate ?? calc.dailyRate) : 0;
+      const finalRate = t.countsTowardHours ? (t.compensation?.overrideRate ?? baseRate) : 0;
+
+      // attendanceEnabled가 false이면 차수 배정 대상자 전원 포함
+      const users = t.attendanceEnabled
+        ? t.attendances.map((att) => att.user)
+        : batchUsers.map((bu) => bu.user);
+
+      return users.map((user) => ({
+        trainingId: t.id,
+        title: t.title,
+        type: t.type,
+        date: t.date,
+        startTime: t.startTime,
+        endTime: t.endTime,
+        trainingHours: effectiveHours,
+        isWeekend: t.compensation?.isWeekend ?? calc.isWeekend,
+        dailyRate: baseRate,
+        overrideRate: t.countsTowardHours ? (t.compensation?.overrideRate ?? null) : null,
+        finalRate,
+        userId: user.id,
+        userName: user.name,
+        rank: user.rank,
+        serviceNumber: user.serviceNumber,
+      }));
+    });
+  }
 
   // 교통비 (RESERVIST: 본인만, ADMIN: 전체)
   let transport;
