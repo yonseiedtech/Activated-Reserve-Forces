@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { getSession, json, unauthorized, forbidden, badRequest } from "@/lib/api-utils";
+import { getSession, json, unauthorized, forbidden, badRequest, notFound } from "@/lib/api-utils";
 import { NextRequest } from "next/server";
 
 // GET: 문진표 조회
@@ -64,4 +64,20 @@ export async function POST(req: NextRequest) {
   });
 
   return json(result);
+}
+
+// DELETE: 관리자가 문진표 삭제 (대상자가 다시 작성할 수 있도록)
+export async function DELETE(req: NextRequest) {
+  const session = await getSession();
+  if (!session) return unauthorized();
+  if (!["ADMIN", "MANAGER"].includes(session.user.role)) return forbidden();
+
+  const id = req.nextUrl.searchParams.get("id");
+  if (!id) return badRequest("id 파라미터가 필요합니다.");
+
+  const existing = await prisma.healthQuestionnaire.findUnique({ where: { id } });
+  if (!existing) return notFound("문진표를 찾을 수 없습니다.");
+
+  await prisma.healthQuestionnaire.delete({ where: { id } });
+  return json({ success: true });
 }

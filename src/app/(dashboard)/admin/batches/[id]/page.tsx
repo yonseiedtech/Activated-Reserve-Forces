@@ -36,6 +36,10 @@ interface BatchUser {
   birthDate?: string | null;
   bankName?: string | null;
   bankAccount?: string | null;
+  position?: string | null;
+  warBattalion?: string | null;
+  warCompany?: string | null;
+  warPlatoon?: string | null;
   batchUserId?: string;
   batchStatus?: string;
   batchSubStatus?: string | null;
@@ -1041,11 +1045,16 @@ export default function AdminBatchDetailPage() {
                   const userReports = reasonReports.filter((r) => r.batchUserId === u.batchUserId);
                   return (
                     <div key={u.id} className="px-4 py-2.5 flex items-center justify-between hover:bg-gray-50">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-sm shrink-0">
                           <span className="text-gray-500">{u.rank}</span> {u.name}
                         </span>
-                        <span className="text-xs text-gray-400">{u.serviceNumber}</span>
+                        <span className="text-xs text-gray-400 shrink-0">{u.serviceNumber}</span>
+                        {(u.warBattalion || u.warCompany || u.warPlatoon || u.position) && (
+                          <span className="text-xs text-gray-400 truncate" title={[u.warBattalion, u.warCompany, u.warPlatoon, u.position].filter(Boolean).join(" / ")}>
+                            {[u.warBattalion, u.warCompany, u.warPlatoon, u.position].filter(Boolean).join(" ")}
+                          </span>
+                        )}
                       </div>
                       <div className="flex items-center gap-2">
                         {u.batchReason && u.batchStatus === "ABSENT" && (
@@ -2013,6 +2022,21 @@ export default function AdminBatchDetailPage() {
                   className="px-3 py-1.5 text-xs bg-gray-600 text-white rounded hover:bg-gray-700"
                 >
                   인쇄
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!confirm(`${viewingHealth.batchUser.user.name}의 문진표를 삭제하시겠습니까?\n삭제 후 대상자가 다시 작성할 수 있습니다.`)) return;
+                    const res = await fetch(`/api/health-questionnaire?id=${viewingHealth.id}`, { method: "DELETE" });
+                    if (res.ok) {
+                      setHealthQuestionnaires((prev) => prev.filter((h) => h.id !== viewingHealth.id));
+                      setViewingHealth(null);
+                    } else {
+                      alert("삭제에 실패했습니다.");
+                    }
+                  }}
+                  className="px-3 py-1.5 text-xs bg-red-600 text-white rounded hover:bg-red-700"
+                >
+                  삭제
                 </button>
                 <button onClick={() => setViewingHealth(null)} className="px-3 py-1.5 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300">
                   닫기
