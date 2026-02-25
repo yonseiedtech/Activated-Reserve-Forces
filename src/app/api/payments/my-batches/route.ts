@@ -30,6 +30,7 @@ export async function GET() {
     const process = batch.paymentProcesses[0];
 
     const compensationTotal = batch.trainings.reduce((sum, t) => {
+      if (!t.countsTowardHours) return sum;
       const calc = calcCompensation(t);
       const finalRate = t.compensation?.overrideRate ?? t.compensation?.dailyRate ?? calc.dailyRate;
       return sum + finalRate;

@@ -34,8 +34,9 @@ export async function GET() {
     }, 0);
     const totalAttendance = batch.trainings.reduce((sum, t) => sum + t.attendances.length, 0);
 
-    // 보상비 합계
+    // 보상비 합계 (countsTowardHours가 false인 훈련은 제외)
     const compensationTotal = batch.trainings.reduce((sum, t) => {
+      if (!t.countsTowardHours) return sum;
       const calc = calcCompensation(t);
       const finalRate = t.compensation?.overrideRate ?? t.compensation?.dailyRate ?? calc.dailyRate;
       return sum + finalRate;

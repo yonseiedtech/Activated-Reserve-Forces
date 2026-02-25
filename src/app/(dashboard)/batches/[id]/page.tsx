@@ -706,48 +706,6 @@ export default function ReservistBatchDetailPage() {
             )}
           </div>
 
-          {/* 훈련별 출석 현황 */}
-          {(batch.trainings || []).length > 0 && (
-            <div className="bg-white rounded-xl border overflow-hidden">
-              <div className="px-4 py-3 bg-gray-50 border-b">
-                <h3 className="font-semibold text-sm text-gray-800">훈련별 출석 현황</h3>
-              </div>
-              <div className="divide-y">
-                {grouped.map(([, dayTrainings]) =>
-                  dayTrainings.map((t) => {
-                    const myAtt = t.attendances?.[0];
-                    const attStatus = myAtt?.status;
-                    return (
-                      <div key={t.id} className="px-4 py-3 flex items-center justify-between">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${TYPE_COLORS[t.type] || TYPE_COLORS["기타"]}`}>
-                              {t.type}
-                            </span>
-                            <span className="text-sm font-medium text-gray-900">{t.title}</span>
-                          </div>
-                          <p className="text-xs text-gray-500 mt-0.5">
-                            {formatDate(t.date)}
-                            {t.startTime && t.endTime && ` ${t.startTime}~${t.endTime}`}
-                          </p>
-                        </div>
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                          attStatus === "PRESENT" ? "bg-green-100 text-green-700" :
-                          attStatus === "ABSENT" ? "bg-red-100 text-red-700" :
-                          attStatus === "PENDING" ? "bg-yellow-100 text-yellow-700" :
-                          "bg-gray-100 text-gray-400"
-                        }`}>
-                          {attStatus === "PRESENT" ? "출석" :
-                           attStatus === "ABSENT" ? "결석" :
-                           attStatus === "PENDING" ? "대기" : "미기록"}
-                        </span>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-          )}
         </div>
       )}
 
@@ -767,13 +725,28 @@ export default function ReservistBatchDetailPage() {
                     <p className="text-xs text-gray-500">{dayTrainings.length}개 훈련</p>
                   </div>
                   <div className="divide-y">
-                    {dayTrainings.map((t) => (
+                    {dayTrainings.map((t) => {
+                      const myAtt = t.attendances?.[0];
+                      const attStatus = myAtt?.status;
+                      return (
                       <div key={t.id} className="px-4 py-3">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${TYPE_COLORS[t.type] || TYPE_COLORS["기타"]}`}>
-                            {t.type}
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${TYPE_COLORS[t.type] || TYPE_COLORS["기타"]}`}>
+                              {t.type}
+                            </span>
+                            <h4 className="font-semibold text-gray-900 text-sm">{t.title}</h4>
+                          </div>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                            attStatus === "PRESENT" ? "bg-green-100 text-green-700" :
+                            attStatus === "ABSENT" ? "bg-red-100 text-red-700" :
+                            attStatus === "PENDING" ? "bg-yellow-100 text-yellow-700" :
+                            "bg-gray-100 text-gray-400"
+                          }`}>
+                            {attStatus === "PRESENT" ? "출석" :
+                             attStatus === "ABSENT" ? "결석" :
+                             attStatus === "PENDING" ? "대기" : "미기록"}
                           </span>
-                          <h4 className="font-semibold text-gray-900 text-sm">{t.title}</h4>
                         </div>
                         <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
                           {t.startTime && t.endTime && (
@@ -782,7 +755,8 @@ export default function ReservistBatchDetailPage() {
                           {t.location && <span>{t.location}</span>}
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               ))}

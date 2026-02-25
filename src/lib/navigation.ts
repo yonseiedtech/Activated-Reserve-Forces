@@ -9,7 +9,7 @@ export interface NavItem {
 
 export const navItems: NavItem[] = [
   { href: "/", label: "대시보드", icon: "📊", roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.COOK, ROLES.INSTRUCTOR, ROLES.RESERVIST] },
-  { href: "/trainings", label: "훈련 과목", icon: "📅", roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.INSTRUCTOR, ROLES.RESERVIST] },
+  { href: "/trainings", label: "훈련 과목", icon: "📅", roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.INSTRUCTOR] },
   { href: "/batches", label: "차수현황", icon: "📋", roles: [ROLES.RESERVIST] },
   { href: "/admin/batches", label: "훈련차수", icon: "📋", roles: [ROLES.ADMIN, ROLES.MANAGER] },
   { href: "/commuting", label: "출석 리포트", icon: "📈", roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.INSTRUCTOR, ROLES.RESERVIST] },
