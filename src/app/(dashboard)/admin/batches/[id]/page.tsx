@@ -31,6 +31,9 @@ interface BatchUser {
   serviceNumber: string | null;
   phone: string | null;
   unit: string | null;
+  birthDate?: string | null;
+  bankName?: string | null;
+  bankAccount?: string | null;
   batchUserId?: string;
   batchStatus?: string;
   batchSubStatus?: string | null;
@@ -47,6 +50,16 @@ interface ReasonReportWithUser {
   batchUser: {
     user: { id: string; name: string; rank: string | null; serviceNumber: string | null; unit: string | null; branch: string | null };
     batch: { id: string; name: string; startDate: string; endDate: string };
+  };
+}
+
+interface HealthQuestionnaireWithUser {
+  id: string;
+  batchUserId: string;
+  answers: string;
+  submittedAt: string;
+  batchUser: {
+    user: { id: string; name: string; rank: string | null; serviceNumber: string | null; unit: string | null; birthDate: string | null };
   };
 }
 
@@ -173,7 +186,7 @@ export default function AdminBatchDetailPage() {
   const batchId = params.id as string;
 
   const [batch, setBatch] = useState<Batch | null>(null);
-  const [tab, setTab] = useState<"training" | "trainees" | "attendance" | "commuting" | "settings">("training");
+  const [tab, setTab] = useState<"training" | "trainees" | "attendance" | "commuting" | "bankAccount" | "settings">("training");
   const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [trainingCategories, setTrainingCategories] = useState<TrainingCategory[]>([]);
   const [showTrainingForm, setShowTrainingForm] = useState(false);
@@ -211,6 +224,10 @@ export default function AdminBatchDetailPage() {
   // 사유서 관련
   const [reasonReports, setReasonReports] = useState<ReasonReportWithUser[]>([]);
   const [viewingReport, setViewingReport] = useState<ReasonReportWithUser | null>(null);
+
+  // 건강관리 문진표
+  const [healthQuestionnaires, setHealthQuestionnaires] = useState<HealthQuestionnaireWithUser[]>([]);
+  const [viewingHealth, setViewingHealth] = useState<HealthQuestionnaireWithUser | null>(null);
 
   // Settings tab state
   const [settingsForm, setSettingsForm] = useState({ name: "", year: 0, number: 0, startDate: "", endDate: "", location: "", requiredHours: "" });
@@ -250,6 +267,12 @@ export default function AdminBatchDetailPage() {
       .then((data: ReasonReportWithUser[]) => setReasonReports(Array.isArray(data) ? data : []));
   }, [batchId]);
 
+  const fetchHealthQuestionnaires = useCallback(() => {
+    fetch(`/api/health-questionnaire?batchId=${batchId}`)
+      .then((r) => r.json())
+      .then((data: HealthQuestionnaireWithUser[]) => setHealthQuestionnaires(Array.isArray(data) ? data : []));
+  }, [batchId]);
+
   const isAuthorized = status === "authenticated" && ["ADMIN", "MANAGER"].includes(session?.user?.role ?? "");
 
   useEffect(() => {
@@ -265,8 +288,9 @@ export default function AdminBatchDetailPage() {
     if (tab === "attendance") {
       fetchAttendanceSummary();
       fetchReasonReports();
+      fetchHealthQuestionnaires();
     }
-  }, [tab, fetchAttendanceSummary, fetchReasonReports, isAuthorized]);
+  }, [tab, fetchAttendanceSummary, fetchReasonReports, fetchHealthQuestionnaires, isAuthorized]);
 
   // Training/Commuting: batch 로드 시 날짜 초기화
   useEffect(() => {
@@ -628,6 +652,12 @@ export default function AdminBatchDetailPage() {
           출퇴근
         </button>
         <button
+          onClick={() => setTab("bankAccount")}
+          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === "bankAccount" ? "bg-white shadow text-blue-600" : "text-gray-600 hover:text-gray-900"}`}
+        >
+          계좌현황
+        </button>
+        <button
           onClick={() => setTab("settings")}
           className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === "settings" ? "bg-white shadow text-blue-600" : "text-gray-600 hover:text-gray-900"}`}
         >
@@ -913,6 +943,20 @@ export default function AdminBatchDetailPage() {
                             {SUB_STATUS_LABELS[u.batchSubStatus]}
                           </span>
                         )}
+                        {(() => {
+                          const hq = healthQuestionnaires.find((h) => h.batchUserId === u.batchUserId);
+                          return hq ? (
+                            <button
+                              onClick={() => setViewingHealth(hq)}
+                              className="px-1.5 py-0.5 text-xs bg-teal-50 text-teal-600 rounded hover:bg-teal-100"
+                              title="문진표 보기"
+                            >
+                              문진표
+                            </button>
+                          ) : u.batchStatus === "PRESENT" ? (
+                            <span className="px-1.5 py-0.5 text-xs bg-gray-50 text-gray-400 rounded">문진표 미제출</span>
+                          ) : null;
+                        })()}
                         {userReports.length > 0 && (
                           <button
                             onClick={() => setViewingReport(userReports[0])}
@@ -1242,6 +1286,94 @@ export default function AdminBatchDetailPage() {
         </div>
       )}
 
+      {/* Bank Account Tab */}
+      {tab === "bankAccount" && (
+        <div className="space-y-4">
+          <div className="bg-white rounded-xl border overflow-hidden">
+            <div className="px-4 py-3 bg-gray-50 border-b flex items-center justify-between">
+              <h3 className="font-semibold text-sm">보상금 지급 계좌 현황</h3>
+              <button
+                onClick={() => {
+                  const printWindow = window.open("", "_blank");
+                  if (!printWindow) return;
+                  const rows = batch.users.map((u, i) => {
+                    const bd = u.birthDate ? new Date(u.birthDate).toLocaleDateString("ko-KR") : "";
+                    return `<tr><td style="padding:6px 10px;border:1px solid #333;text-align:center;font-size:13px;">${i + 1}</td><td style="padding:6px 10px;border:1px solid #333;font-size:13px;">${u.unit || ""}</td><td style="padding:6px 10px;border:1px solid #333;font-size:13px;">${u.name}</td><td style="padding:6px 10px;border:1px solid #333;font-size:13px;">${u.bankName || ""}</td><td style="padding:6px 10px;border:1px solid #333;font-size:13px;">${u.bankAccount || ""}</td><td style="padding:6px 10px;border:1px solid #333;font-size:13px;">${bd}</td></tr>`;
+                  }).join("");
+
+                  printWindow.document.write(`<!DOCTYPE html><html><head><title>보상금 지급 계좌 파악</title>
+                    <style>
+                      @page { size: A4 landscape; margin: 15mm; }
+                      body { font-family: 'Malgun Gothic', sans-serif; padding: 20px; font-size: 14px; }
+                      h1 { text-align: center; font-size: 22px; margin-bottom: 20px; letter-spacing: 6px; }
+                      table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+                      th { padding: 8px 10px; border: 1px solid #333; background: #f5f5f5; font-weight: bold; font-size: 13px; text-align: center; }
+                      .notice { margin-top: 24px; font-size: 12px; line-height: 1.8; }
+                      .notice li { margin-bottom: 4px; }
+                      @media print { body { padding: 0; } }
+                    </style></head><body>
+                    <h1>보상금 지급 계좌 파악</h1>
+                    <p style="text-align:right;font-size:13px;margin-bottom:10px;">${batch.name}</p>
+                    <table>
+                      <thead><tr><th>번호</th><th>소속예비군중대</th><th>성명</th><th>은행명</th><th>계좌번호</th><th>생년월일</th></tr></thead>
+                      <tbody>${rows}</tbody>
+                    </table>
+                    <div class="notice">
+                      <p><strong>※ 안내사항</strong></p>
+                      <ol>
+                        <li>1. 보상금은 본인 명의 계좌로만 지급 가능합니다.</li>
+                        <li>2. 계좌번호 오류 시 입금이 불가하오니 정확히 기재하여 주시기 바랍니다.</li>
+                        <li>3. 타인 명의 계좌 기재 시 보상금 지급이 불가합니다.</li>
+                        <li>4. 보상금 관련 문의: 행정보급관</li>
+                      </ol>
+                    </div>
+                  </body></html>`);
+                  printWindow.document.close();
+                  printWindow.focus();
+                  setTimeout(() => printWindow.print(), 300);
+                }}
+                className="px-3 py-1.5 text-xs bg-gray-600 text-white rounded hover:bg-gray-700"
+              >
+                인쇄
+              </button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="text-left px-4 py-2 font-medium text-xs">번호</th>
+                    <th className="text-left px-4 py-2 font-medium text-xs">소속</th>
+                    <th className="text-left px-4 py-2 font-medium text-xs">성명</th>
+                    <th className="text-left px-4 py-2 font-medium text-xs">은행명</th>
+                    <th className="text-left px-4 py-2 font-medium text-xs">계좌번호</th>
+                    <th className="text-left px-4 py-2 font-medium text-xs">생년월일</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {batch.users.length === 0 ? (
+                    <tr><td colSpan={6} className="text-center py-8 text-gray-400">배정된 대상자가 없습니다.</td></tr>
+                  ) : (
+                    batch.users.map((u, i) => (
+                      <tr key={u.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-2 text-gray-500">{i + 1}</td>
+                        <td className="px-4 py-2">{u.unit || "-"}</td>
+                        <td className="px-4 py-2 font-medium">{u.name}</td>
+                        <td className="px-4 py-2">{u.bankName || <span className="text-gray-300">미등록</span>}</td>
+                        <td className="px-4 py-2">{u.bankAccount || <span className="text-gray-300">미등록</span>}</td>
+                        <td className="px-4 py-2 text-gray-500">{u.birthDate ? new Date(u.birthDate).toLocaleDateString("ko-KR") : "-"}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="px-4 py-3 bg-gray-50 border-t text-xs text-gray-500">
+              계좌 등록: {batch.users.filter((u) => u.bankAccount).length}명 / 전체 {batch.users.length}명
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Settings Tab */}
       {tab === "settings" && (
         <div className="bg-white rounded-xl border p-6 max-w-lg space-y-4">
@@ -1398,49 +1530,134 @@ export default function AdminBatchDetailPage() {
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl w-full max-w-lg p-6 space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">{REASON_TYPE_LABELS[viewingReport.type] || "사유서"}</h3>
+              <h3 className="text-lg font-semibold">
+                {viewingReport.type === "EARLY_DEPARTURE" ? "조기퇴소 확인서" :
+                 viewingReport.type === "ABSENT" ? "불참 개인 사유서" :
+                 REASON_TYPE_LABELS[viewingReport.type] || "사유서"}
+              </h3>
               <div className="flex gap-2">
                 <button
                   onClick={() => {
                     const printWindow = window.open("", "_blank");
                     if (!printWindow) return;
-                    let parsedContent: { reason?: string; date?: string; time?: string } = {};
+                    let parsedContent: Record<string, string> = {};
                     try { parsedContent = JSON.parse(viewingReport.content); } catch { parsedContent = { reason: viewingReport.content }; }
                     const { user, batch: rBatch } = viewingReport.batchUser;
-                    const timeLabel = viewingReport.type === "LATE_ARRIVAL" ? "입소 예정 일시" : viewingReport.type === "EARLY_DEPARTURE" ? "퇴소 예정 일시" : "";
-                    printWindow.document.write(`<!DOCTYPE html><html><head><title>${REASON_TYPE_LABELS[viewingReport.type]}</title>
-                      <style>
-                        body { font-family: 'Malgun Gothic', sans-serif; padding: 40px; max-width: 700px; margin: 0 auto; }
-                        h1 { text-align: center; font-size: 22px; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 10px; }
-                        .info-table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
-                        .info-table td { border: 1px solid #999; padding: 8px 12px; font-size: 14px; }
-                        .info-table .label { background: #f5f5f5; font-weight: bold; width: 120px; }
-                        .reason-section { margin-top: 20px; }
-                        .reason-section h3 { font-size: 15px; margin-bottom: 10px; }
-                        .reason-box { border: 1px solid #999; padding: 16px; min-height: 120px; white-space: pre-wrap; font-size: 14px; line-height: 1.8; }
-                        .signature-area { margin-top: 40px; text-align: right; font-size: 14px; }
-                        .signature-area p { margin: 4px 0; }
-                        .date-line { margin-top: 30px; text-align: center; font-size: 14px; }
-                        @media print { body { padding: 20px; } }
-                      </style></head><body>
-                      <h1>${REASON_TYPE_LABELS[viewingReport.type]}</h1>
-                      <table class="info-table">
-                        <tr><td class="label">성명</td><td>${user.name}</td><td class="label">계급</td><td>${user.rank || "-"}</td></tr>
-                        <tr><td class="label">군번</td><td>${user.serviceNumber || "-"}</td><td class="label">소속</td><td>${user.unit || "-"}</td></tr>
-                        <tr><td class="label">훈련차수</td><td colspan="3">${rBatch.name}</td></tr>
-                        <tr><td class="label">훈련기간</td><td colspan="3">${new Date(rBatch.startDate).toLocaleDateString("ko-KR")} ~ ${new Date(rBatch.endDate).toLocaleDateString("ko-KR")}</td></tr>
-                        ${timeLabel ? `<tr><td class="label">${timeLabel}</td><td colspan="3">${parsedContent.date || "-"} ${parsedContent.time || ""}</td></tr>` : ""}
-                      </table>
-                      <div class="reason-section">
-                        <h3>사유</h3>
-                        <div class="reason-box">${parsedContent.reason || viewingReport.content}</div>
-                      </div>
-                      <div class="date-line">${new Date(viewingReport.createdAt).toLocaleDateString("ko-KR")}</div>
-                      <div class="signature-area">
-                        <p>위 사유서를 제출합니다.</p>
-                        <p style="margin-top: 20px;">성명: ${user.name} (인)</p>
-                      </div>
-                    </body></html>`);
+                    const createdDate = new Date(viewingReport.createdAt);
+                    const submittedAtStr = `${createdDate.getFullYear()}년 ${createdDate.getMonth() + 1}월 ${createdDate.getDate()}일 ${String(createdDate.getHours()).padStart(2, "0")}시 ${String(createdDate.getMinutes()).padStart(2, "0")}분 ${String(createdDate.getSeconds()).padStart(2, "0")}초`;
+
+                    let printHtml = "";
+
+                    if (viewingReport.type === "EARLY_DEPARTURE") {
+                      // 조기퇴소 확인서 - 참고 양식 그대로
+                      printHtml = `<!DOCTYPE html><html><head><title>조기퇴소 확인서</title>
+                        <style>
+                          @page { size: A4; margin: 20mm; }
+                          body { font-family: 'Malgun Gothic', sans-serif; padding: 20px; max-width: 700px; margin: 0 auto; font-size: 14px; }
+                          h1 { text-align: center; font-size: 24px; margin-bottom: 30px; letter-spacing: 8px; }
+                          table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+                          td, th { border: 1px solid #333; padding: 10px 14px; font-size: 14px; }
+                          .label { background: #f5f5f5; font-weight: bold; width: 120px; text-align: center; white-space: nowrap; }
+                          .reason-box { min-height: 180px; vertical-align: top; white-space: pre-wrap; line-height: 1.8; }
+                          .notice { font-size: 13px; line-height: 1.8; padding: 14px; }
+                          .signature-section { margin-top: 40px; text-align: center; font-size: 14px; }
+                          .signature-section p { margin: 6px 0; }
+                          .submitted-at { text-align: right; font-size: 11px; color: #666; margin-top: 10px; }
+                          @media print { body { padding: 0; } }
+                        </style></head><body>
+                        <h1>조 기 퇴 소   확 인 서</h1>
+                        <table>
+                          <tr><td class="label">소 속</td><td>${user.unit || ""}</td><td class="label">직 책</td><td>${(user as { branch?: string }).branch || ""}</td></tr>
+                          <tr><td class="label">성 명</td><td>${user.name}</td><td class="label">군 번</td><td>${user.serviceNumber || ""}</td></tr>
+                          <tr><td class="label">훈련일자</td><td colspan="3">${parsedContent.departureDate || ""}</td></tr>
+                          <tr><td class="label">조기퇴소<br/>시간</td><td colspan="3">${parsedContent.departureTime || ""}</td></tr>
+                          <tr><td class="label">조기 퇴소<br/>사유</td><td colspan="3" class="reason-box">${parsedContent.reason || ""}</td></tr>
+                        </table>
+                        <div class="notice">
+                          <p>1. 본인은 위 사유로 인하여 비상근 예비군 훈련에서 예정보다 일찍 퇴소하겠습니다.</p>
+                          <p>2. 본인은 조기퇴소에 대한 안내사항을 사전에 인지하였으며 시간당 평일 12,500원 주말 18,750원의 훈련비가 감액됨을 확인하였습니다.</p>
+                        </div>
+                        <div class="signature-section">
+                          <p>${createdDate.getFullYear()}년 &nbsp;&nbsp; ${createdDate.getMonth() + 1}월 &nbsp;&nbsp; ${createdDate.getDate()}일</p>
+                          <p style="margin-top: 20px;">작 성 자: &nbsp;&nbsp;&nbsp; ${user.name} &nbsp;&nbsp;&nbsp;&nbsp; (인/서명)</p>
+                          <p style="margin-top: 20px;">601수송대대장 귀하</p>
+                        </div>
+                        <div class="submitted-at">제출 시점: ${submittedAtStr}</div>
+                      </body></html>`;
+                    } else if (viewingReport.type === "ABSENT") {
+                      // 불참 개인 사유서 - 참고 양식 그대로
+                      printHtml = `<!DOCTYPE html><html><head><title>불참 개인 사유서</title>
+                        <style>
+                          @page { size: A4; margin: 20mm; }
+                          body { font-family: 'Malgun Gothic', sans-serif; padding: 20px; max-width: 700px; margin: 0 auto; font-size: 14px; }
+                          h1 { text-align: center; font-size: 24px; margin-bottom: 30px; letter-spacing: 8px; }
+                          table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+                          td, th { border: 1px solid #333; padding: 10px 14px; font-size: 14px; }
+                          .label { background: #f5f5f5; font-weight: bold; width: 100px; text-align: center; vertical-align: middle; }
+                          .sub-label { font-weight: bold; width: 90px; text-align: center; }
+                          .reason-box { min-height: 250px; vertical-align: top; white-space: pre-wrap; line-height: 1.8; }
+                          .signature-section { margin-top: 40px; text-align: center; font-size: 14px; }
+                          .signature-section p { margin: 6px 0; }
+                          .submitted-at { text-align: right; font-size: 11px; color: #666; margin-top: 10px; }
+                          @media print { body { padding: 0; } }
+                        </style></head><body>
+                        <h1>불 참  개 인  사 유 서</h1>
+                        <table>
+                          <tr>
+                            <td class="label" rowspan="2">인적사항</td>
+                            <td class="sub-label">성 명</td><td>${user.name}</td>
+                            <td class="sub-label">생년월일</td><td></td>
+                          </tr>
+                          <tr>
+                            <td class="sub-label">E-mail</td><td></td>
+                            <td class="sub-label">휴대폰번호</td><td></td>
+                          </tr>
+                          <tr>
+                            <td class="label">개인 사유<br/>내용 기술<br/><br/><span style="font-size:12px;color:#666;">(6하원칙에<br/>의거)</span></td>
+                            <td colspan="4" class="reason-box">${parsedContent.reason || ""}</td>
+                          </tr>
+                        </table>
+                        <div class="signature-section">
+                          <p>위와 같이 확인합니다.</p>
+                          <p style="margin-top: 16px;">${createdDate.getFullYear()}년 &nbsp;&nbsp; ${createdDate.getMonth() + 1}월 &nbsp;&nbsp; ${createdDate.getDate()}일</p>
+                          <p style="margin-top: 20px;">성명: &nbsp;&nbsp;&nbsp; ${user.name} &nbsp;&nbsp;&nbsp;&nbsp; 직인(서명)</p>
+                          <p style="margin-top: 20px;">601수송대대장 귀하</p>
+                        </div>
+                        <div class="submitted-at">제출 시점: ${submittedAtStr}</div>
+                      </body></html>`;
+                    } else {
+                      // 지연입소 사유서 - 기존 양식 유지 + 초 단위 시간
+                      printHtml = `<!DOCTYPE html><html><head><title>${REASON_TYPE_LABELS[viewingReport.type]}</title>
+                        <style>
+                          @page { size: A4; margin: 20mm; }
+                          body { font-family: 'Malgun Gothic', sans-serif; padding: 20px; max-width: 700px; margin: 0 auto; }
+                          h1 { text-align: center; font-size: 22px; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 10px; }
+                          table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+                          td { border: 1px solid #999; padding: 8px 12px; font-size: 14px; }
+                          .label { background: #f5f5f5; font-weight: bold; width: 120px; }
+                          .reason-box { border: 1px solid #999; padding: 16px; min-height: 120px; white-space: pre-wrap; font-size: 14px; line-height: 1.8; }
+                          .signature-area { margin-top: 40px; text-align: right; font-size: 14px; }
+                          .signature-area p { margin: 4px 0; }
+                          .date-line { margin-top: 30px; text-align: center; font-size: 14px; }
+                          .submitted-at { text-align: right; font-size: 11px; color: #666; margin-top: 10px; }
+                          @media print { body { padding: 0; } }
+                        </style></head><body>
+                        <h1>${REASON_TYPE_LABELS[viewingReport.type]}</h1>
+                        <table>
+                          <tr><td class="label">성명</td><td>${user.name}</td><td class="label">계급</td><td>${user.rank || "-"}</td></tr>
+                          <tr><td class="label">군번</td><td>${user.serviceNumber || "-"}</td><td class="label">소속</td><td>${user.unit || "-"}</td></tr>
+                          <tr><td class="label">훈련차수</td><td colspan="3">${rBatch.name}</td></tr>
+                          <tr><td class="label">훈련기간</td><td colspan="3">${new Date(rBatch.startDate).toLocaleDateString("ko-KR")} ~ ${new Date(rBatch.endDate).toLocaleDateString("ko-KR")}</td></tr>
+                          <tr><td class="label">입소 예정 일시</td><td colspan="3">${parsedContent.arrivalDate || parsedContent.date || "-"} ${parsedContent.arrivalTime || parsedContent.time || ""}</td></tr>
+                        </table>
+                        <div style="margin-top:20px;"><h3 style="font-size:15px;margin-bottom:10px;">사유</h3><div class="reason-box">${parsedContent.reason || viewingReport.content}</div></div>
+                        <div class="date-line">${createdDate.getFullYear()}년 ${createdDate.getMonth() + 1}월 ${createdDate.getDate()}일</div>
+                        <div class="signature-area"><p>위 사유서를 제출합니다.</p><p style="margin-top:20px;">성명: ${user.name} (인)</p></div>
+                        <div class="submitted-at">제출 시점: ${submittedAtStr}</div>
+                      </body></html>`;
+                    }
+
+                    printWindow.document.write(printHtml);
                     printWindow.document.close();
                     printWindow.focus();
                     setTimeout(() => printWindow.print(), 300);
@@ -1473,21 +1690,29 @@ export default function AdminBatchDetailPage() {
             </div>
 
             {(() => {
-              let parsed: { reason?: string; date?: string; time?: string } = {};
+              let parsed: Record<string, string> = {};
               try { parsed = JSON.parse(viewingReport.content); } catch { parsed = { reason: viewingReport.content }; }
               return (
                 <div className="space-y-3">
-                  {(viewingReport.type === "LATE_ARRIVAL" || viewingReport.type === "EARLY_DEPARTURE") && (parsed.date || parsed.time) && (
+                  {viewingReport.type === "LATE_ARRIVAL" && (parsed.arrivalDate || parsed.date) && (
                     <div className="text-sm">
-                      <span className="text-gray-500">{viewingReport.type === "LATE_ARRIVAL" ? "입소 예정:" : "퇴소 예정:"}</span>
-                      <span className="ml-2 font-medium">{parsed.date} {parsed.time}</span>
+                      <span className="text-gray-500">입소 예정:</span>
+                      <span className="ml-2 font-medium">{parsed.arrivalDate || parsed.date} {parsed.arrivalTime || parsed.time}</span>
+                    </div>
+                  )}
+                  {viewingReport.type === "EARLY_DEPARTURE" && (parsed.departureDate || parsed.departureTime) && (
+                    <div className="text-sm space-y-1">
+                      <div><span className="text-gray-500">훈련일자:</span> <span className="font-medium">{parsed.departureDate}</span></div>
+                      <div><span className="text-gray-500">퇴소시간:</span> <span className="font-medium">{parsed.departureTime}</span></div>
                     </div>
                   )}
                   <div>
                     <p className="text-sm text-gray-500 mb-1">사유</p>
                     <p className="text-sm bg-white border rounded-lg p-3 whitespace-pre-wrap">{parsed.reason || viewingReport.content}</p>
                   </div>
-                  <p className="text-xs text-gray-400">작성일: {new Date(viewingReport.createdAt).toLocaleString("ko-KR")}</p>
+                  <p className="text-xs text-gray-400">
+                    제출 시점: {new Date(viewingReport.createdAt).toLocaleString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}
+                  </p>
                 </div>
               );
             })()}
@@ -1503,12 +1728,154 @@ export default function AdminBatchDetailPage() {
                       onClick={() => setViewingReport(r)}
                       className="w-full text-left p-2 bg-gray-50 rounded text-xs hover:bg-gray-100"
                     >
-                      {REASON_TYPE_LABELS[r.type]} - {new Date(r.updatedAt).toLocaleDateString("ko-KR")}
+                      {REASON_TYPE_LABELS[r.type]} - 제출: {new Date(r.createdAt).toLocaleString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}
                     </button>
                   ))}
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* 건강관리 문진표 조회/인쇄 모달 */}
+      {viewingHealth && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl w-full max-w-lg p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">건강관리 문진표</h3>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    const printWindow = window.open("", "_blank");
+                    if (!printWindow) return;
+                    let answers: Record<string, boolean | string> = {};
+                    try { answers = JSON.parse(viewingHealth.answers); } catch { /* ignore */ }
+                    const { user } = viewingHealth.batchUser;
+                    const submittedDate = new Date(viewingHealth.submittedAt);
+                    const submittedAtStr = `${submittedDate.getFullYear()}년 ${submittedDate.getMonth() + 1}월 ${submittedDate.getDate()}일 ${String(submittedDate.getHours()).padStart(2, "0")}시 ${String(submittedDate.getMinutes()).padStart(2, "0")}분 ${String(submittedDate.getSeconds()).padStart(2, "0")}초`;
+
+                    const questions = [
+                      { key: "q1_chronic", label: "만성질환 여부", detail: "q1_chronic_detail" },
+                      { key: "q2_treating", label: "현재 치료 중 질병" },
+                      { key: "q3_medication", label: "과거 병력/약물 복용", detail: "q3_medication_detail" },
+                      { key: "q4_exercise_symptoms", label: "운동 중 증상 경험" },
+                      { key: "q5_blood_pressure_meds", label: "혈압약 복용" },
+                      { key: "q6_fatigue", label: "피로감/건강이상" },
+                      { key: "q7_mental", label: "정신과적 증상" },
+                      { key: "q8_family_history", label: "부모 심혈관 질환" },
+                      { key: "q10_training_issue", label: "훈련 지장 여부" },
+                    ];
+
+                    const qRows = questions.map((q) => {
+                      const val = answers[q.key] ? "예" : "아니요";
+                      const detail = q.detail && answers[q.detail] ? ` (${answers[q.detail]})` : "";
+                      return `<tr><td style="padding:6px 10px;border:1px solid #333;font-size:13px;">${q.label}</td><td style="padding:6px 10px;border:1px solid #333;text-align:center;font-size:13px;">${val}${detail}</td></tr>`;
+                    }).join("");
+
+                    const covidItems = ["q9_covid_1", "q9_covid_2", "q9_covid_3", "q9_covid_4"]
+                      .map((k) => answers[k] ? "예" : "아니요").join(" / ");
+
+                    printWindow.document.write(`<!DOCTYPE html><html><head><title>건강관리 문진표</title>
+                      <style>
+                        @page { size: A4; margin: 20mm; }
+                        body { font-family: 'Malgun Gothic', sans-serif; padding: 20px; max-width: 700px; margin: 0 auto; font-size: 14px; }
+                        h1 { text-align: center; font-size: 22px; margin-bottom: 20px; letter-spacing: 6px; }
+                        table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+                        .submitted-at { text-align: right; font-size: 11px; color: #666; margin-top: 10px; }
+                        @media print { body { padding: 0; } }
+                      </style></head><body>
+                      <h1>건 강 관 리  문 진 표</h1>
+                      <table>
+                        <tr><td style="padding:8px 12px;border:1px solid #333;background:#f5f5f5;font-weight:bold;width:100px;">성 명</td><td style="padding:8px 12px;border:1px solid #333;">${user.name}</td><td style="padding:8px 12px;border:1px solid #333;background:#f5f5f5;font-weight:bold;width:100px;">군 번</td><td style="padding:8px 12px;border:1px solid #333;">${user.serviceNumber || ""}</td></tr>
+                        <tr><td style="padding:8px 12px;border:1px solid #333;background:#f5f5f5;font-weight:bold;">소 속</td><td style="padding:8px 12px;border:1px solid #333;" colspan="3">${user.unit || ""}</td></tr>
+                      </table>
+                      <table>${qRows}
+                        <tr><td style="padding:6px 10px;border:1px solid #333;font-size:13px;">코로나 관련 (7일감염/1일감염/14일접촉/현재증상)</td><td style="padding:6px 10px;border:1px solid #333;text-align:center;font-size:13px;">${covidItems}</td></tr>
+                        <tr><td style="padding:6px 10px;border:1px solid #333;font-size:13px;">기타 참고사항</td><td style="padding:6px 10px;border:1px solid #333;font-size:13px;">${answers.q11_other || "-"}</td></tr>
+                        <tr><td style="padding:6px 10px;border:1px solid #333;font-size:13px;">혈압</td><td style="padding:6px 10px;border:1px solid #333;text-align:center;font-size:13px;">${answers.bloodPressure || "-"}</td></tr>
+                        <tr><td style="padding:6px 10px;border:1px solid #333;font-size:13px;">체온</td><td style="padding:6px 10px;border:1px solid #333;text-align:center;font-size:13px;">${answers.temperature || "-"}</td></tr>
+                      </table>
+                      <div class="submitted-at">제출 시점: ${submittedAtStr}</div>
+                    </body></html>`);
+                    printWindow.document.close();
+                    printWindow.focus();
+                    setTimeout(() => printWindow.print(), 300);
+                  }}
+                  className="px-3 py-1.5 text-xs bg-gray-600 text-white rounded hover:bg-gray-700"
+                >
+                  인쇄
+                </button>
+                <button onClick={() => setViewingHealth(null)} className="px-3 py-1.5 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300">
+                  닫기
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-1">
+              <div className="grid grid-cols-2 gap-2">
+                <div><span className="text-gray-500">성명:</span> {viewingHealth.batchUser.user.name}</div>
+                <div><span className="text-gray-500">군번:</span> {viewingHealth.batchUser.user.serviceNumber || "-"}</div>
+                <div><span className="text-gray-500">소속:</span> {viewingHealth.batchUser.user.unit || "-"}</div>
+              </div>
+            </div>
+
+            {(() => {
+              let answers: Record<string, boolean | string> = {};
+              try { answers = JSON.parse(viewingHealth.answers); } catch { /* ignore */ }
+              const questions = [
+                { key: "q1_chronic", label: "1. 만성질환", detail: "q1_chronic_detail" },
+                { key: "q2_treating", label: "2. 현재 치료 중" },
+                { key: "q3_medication", label: "3. 과거 병력/약물", detail: "q3_medication_detail" },
+                { key: "q4_exercise_symptoms", label: "4. 운동 중 증상" },
+                { key: "q5_blood_pressure_meds", label: "5. 혈압약 복용" },
+                { key: "q6_fatigue", label: "6. 피로감/건강이상" },
+                { key: "q7_mental", label: "7. 정신과적 증상" },
+                { key: "q8_family_history", label: "8. 부모 심혈관질환" },
+                { key: "q10_training_issue", label: "10. 훈련 지장" },
+              ];
+              return (
+                <div className="space-y-2 text-sm">
+                  {questions.map((q) => (
+                    <div key={q.key} className="flex justify-between items-center py-1 border-b">
+                      <span className="text-gray-700">{q.label}</span>
+                      <span className={`font-medium ${answers[q.key] ? "text-red-600" : "text-green-600"}`}>
+                        {answers[q.key] ? "예" : "아니요"}
+                        {q.detail && answers[q.detail] ? ` (${answers[q.detail]})` : ""}
+                      </span>
+                    </div>
+                  ))}
+                  <div className="py-1 border-b">
+                    <span className="text-gray-700">9. 코로나 관련</span>
+                    <div className="ml-4 text-xs text-gray-500 space-y-0.5 mt-1">
+                      {[
+                        { key: "q9_covid_1", label: "7일 내 감염" },
+                        { key: "q9_covid_2", label: "1일 내 감염" },
+                        { key: "q9_covid_3", label: "14일 내 접촉" },
+                        { key: "q9_covid_4", label: "현재 증상" },
+                      ].map((c) => (
+                        <div key={c.key} className="flex justify-between">
+                          <span>{c.label}</span>
+                          <span className={answers[c.key] ? "text-red-600 font-medium" : "text-green-600"}>{answers[c.key] ? "예" : "아니요"}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  {answers.q11_other && (
+                    <div className="py-1 border-b">
+                      <span className="text-gray-500">기타:</span> <span>{answers.q11_other as string}</span>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-2 gap-3 pt-1">
+                    <div><span className="text-gray-500">혈압:</span> <span className="font-medium">{(answers.bloodPressure as string) || "-"}</span></div>
+                    <div><span className="text-gray-500">체온:</span> <span className="font-medium">{(answers.temperature as string) || "-"}</span></div>
+                  </div>
+                  <p className="text-xs text-gray-400 pt-2">
+                    제출 시점: {new Date(viewingHealth.submittedAt).toLocaleString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}
+                  </p>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}

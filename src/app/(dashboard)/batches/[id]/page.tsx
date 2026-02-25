@@ -193,6 +193,27 @@ export default function ReservistBatchDetailPage() {
   const [commutingRecords, setCommutingRecords] = useState<CommutingRecord[]>([]);
   const [commutingLoading, setCommutingLoading] = useState(false);
 
+  // 건강관리 문진표
+  const [showHealthModal, setShowHealthModal] = useState(false);
+  const [healthAnswers, setHealthAnswers] = useState<Record<string, boolean | string>>({
+    q1_chronic: false, q1_chronic_detail: "",
+    q2_treating: false,
+    q3_medication: false, q3_medication_detail: "",
+    q4_exercise_symptoms: false,
+    q5_blood_pressure_meds: false,
+    q6_fatigue: false,
+    q7_mental: false,
+    q8_family_history: false,
+    q9_covid_1: false, q9_covid_2: false, q9_covid_3: false, q9_covid_4: false,
+    q10_training_issue: false,
+    q11_other: "",
+    bloodPressure: "",
+    temperature: "",
+  });
+  const [healthSubmitted, setHealthSubmitted] = useState(false);
+  const [healthSaving, setHealthSaving] = useState(false);
+  const [healthSubmittedAt, setHealthSubmittedAt] = useState<string | null>(null);
+
   // 설문조사
   const [surveys, setSurveys] = useState<Survey[]>([]);
   const [surveysLoading, setSurveysLoading] = useState(false);
@@ -201,6 +222,21 @@ export default function ReservistBatchDetailPage() {
     fetch(`/api/reason-reports?batchUserId=${buId}`)
       .then((r) => r.json())
       .then((data: ReasonReport[]) => setReasonReports(Array.isArray(data) ? data : []));
+  }, []);
+
+  const fetchHealthQuestionnaire = useCallback((buId: string) => {
+    fetch(`/api/health-questionnaire?batchUserId=${buId}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data && data.answers) {
+          try {
+            const parsed = JSON.parse(data.answers);
+            setHealthAnswers(parsed);
+          } catch { /* ignore */ }
+          setHealthSubmitted(true);
+          setHealthSubmittedAt(data.submittedAt || null);
+        }
+      });
   }, []);
 
   const fetchBatch = useCallback(() => {
@@ -218,11 +254,12 @@ export default function ReservistBatchDetailPage() {
           if (me.batchUserId) {
             setBatchUserId(me.batchUserId);
             fetchReasonReports(me.batchUserId);
+            fetchHealthQuestionnaire(me.batchUserId);
           }
         }
       })
       .finally(() => setLoading(false));
-  }, [batchId, fetchReasonReports]);
+  }, [batchId, fetchReasonReports, fetchHealthQuestionnaire]);
 
   useEffect(() => {
     fetchBatch();
@@ -358,8 +395,16 @@ export default function ReservistBatchDetailPage() {
       try {
         const parsed = JSON.parse(existing.content);
         setReasonContent(parsed.reason || "");
-        setReasonDate(parsed.date || "");
-        setReasonTime(parsed.time || "");
+        if (type === "EARLY_DEPARTURE") {
+          setReasonDate(parsed.departureDate || "");
+          setReasonTime(parsed.departureTime || "");
+        } else if (type === "LATE_ARRIVAL") {
+          setReasonDate(parsed.arrivalDate || parsed.date || "");
+          setReasonTime(parsed.arrivalTime || parsed.time || "");
+        } else {
+          setReasonDate("");
+          setReasonTime("");
+        }
       } catch {
         setReasonContent(existing.content);
         setReasonDate("");
@@ -376,11 +421,15 @@ export default function ReservistBatchDetailPage() {
   const handleSaveReason = async () => {
     if (!batchUserId || !reasonModalType) return;
     setReasonSaving(true);
-    const content = JSON.stringify({
-      reason: reasonContent,
-      date: reasonDate,
-      time: reasonTime,
-    });
+    let contentObj: Record<string, string>;
+    if (reasonModalType === "EARLY_DEPARTURE") {
+      contentObj = { reason: reasonContent, departureDate: reasonDate, departureTime: reasonTime };
+    } else if (reasonModalType === "LATE_ARRIVAL") {
+      contentObj = { reason: reasonContent, arrivalDate: reasonDate, arrivalTime: reasonTime };
+    } else {
+      contentObj = { reason: reasonContent };
+    }
+    const content = JSON.stringify(contentObj);
     try {
       const res = await fetch("/api/reason-reports", {
         method: "POST",
@@ -393,6 +442,25 @@ export default function ReservistBatchDetailPage() {
       }
     } catch { /* ignore */ }
     setReasonSaving(false);
+  };
+
+  const handleSaveHealth = async () => {
+    if (!batchUserId) return;
+    setHealthSaving(true);
+    const answersWithTime = { ...healthAnswers, submittedAt: new Date().toISOString() };
+    try {
+      const res = await fetch("/api/health-questionnaire", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ batchUserId, answers: JSON.stringify(answersWithTime) }),
+      });
+      if (res.ok) {
+        setShowHealthModal(false);
+        setHealthSubmitted(true);
+        setHealthSubmittedAt(new Date().toISOString());
+      }
+    } catch { /* ignore */ }
+    setHealthSaving(false);
   };
 
   if (loading || !batch) {
@@ -608,10 +676,44 @@ export default function ReservistBatchDetailPage() {
                   {reasonReports.map((r) => (
                     <div key={r.id} className="p-3 bg-gray-50 rounded-lg text-xs">
                       <span className="font-medium text-gray-700">{REASON_TYPE_LABELS[r.type] || r.type}</span>
-                      <span className="text-gray-400 ml-2">{new Date(r.updatedAt).toLocaleDateString("ko-KR")}</span>
+                      <span className="text-gray-400 ml-2">
+                        제출: {new Date(r.createdAt).toLocaleString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}
+                      </span>
                     </div>
                   ))}
                 </div>
+              )}
+            </div>
+          )}
+
+          {/* 건강관리 문진표 */}
+          {batchUserId && attendanceStatus === "PRESENT" && (
+            <div className="bg-white rounded-xl border p-5 space-y-3">
+              <h3 className="text-sm font-semibold text-gray-800">건강관리 문진표</h3>
+              {healthSubmitted ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-medium">제출 완료</span>
+                    {healthSubmittedAt && (
+                      <span className="text-xs text-gray-400">
+                        제출: {new Date(healthSubmittedAt).toLocaleString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setShowHealthModal(true)}
+                    className="w-full py-2.5 rounded-lg text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  >
+                    문진표 수정
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowHealthModal(true)}
+                  className="w-full py-2.5 rounded-lg text-sm font-medium bg-teal-600 text-white hover:bg-teal-700"
+                >
+                  건강관리 문진표 작성
+                </button>
               )}
             </div>
           )}
@@ -952,17 +1054,34 @@ export default function ReservistBatchDetailPage() {
       {showReasonModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl w-full max-w-md p-6 space-y-4 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-semibold">{REASON_TYPE_LABELS[reasonModalType] || "사유서"}</h3>
+            <h3 className="text-lg font-semibold">
+              {reasonModalType === "EARLY_DEPARTURE" ? "조기퇴소 확인서" :
+               reasonModalType === "ABSENT" ? "불참 개인 사유서" :
+               REASON_TYPE_LABELS[reasonModalType] || "사유서"}
+            </h3>
 
             {/* 인적사항 (자동) */}
             {session?.user && (
               <div className="bg-gray-50 rounded-lg p-3 text-sm space-y-1">
-                <div className="grid grid-cols-2 gap-2">
-                  <div><span className="text-gray-500">성명:</span> {session.user.name}</div>
-                  <div><span className="text-gray-500">계급:</span> {(session.user as { rank?: string }).rank || "-"}</div>
-                  <div><span className="text-gray-500">군번:</span> {(session.user as { serviceNumber?: string }).serviceNumber || "-"}</div>
-                  <div><span className="text-gray-500">소속:</span> {(session.user as { unit?: string }).unit || "-"}</div>
-                </div>
+                {reasonModalType === "ABSENT" ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div><span className="text-gray-500">성명:</span> {session.user.name}</div>
+                      <div><span className="text-gray-500">생년월일:</span> {session.user.birthDate ? new Date(session.user.birthDate).toLocaleDateString("ko-KR") : "-"}</div>
+                      <div><span className="text-gray-500">E-mail:</span> {session.user.email || "-"}</div>
+                      <div><span className="text-gray-500">휴대폰:</span> {session.user.phone || "-"}</div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div><span className="text-gray-500">소속:</span> {session.user.unit || "-"}</div>
+                      <div><span className="text-gray-500">직책:</span> {session.user.position || "-"}</div>
+                      <div><span className="text-gray-500">성명:</span> {session.user.name}</div>
+                      <div><span className="text-gray-500">군번:</span> {session.user.serviceNumber || "-"}</div>
+                    </div>
+                  </>
+                )}
                 {batch && (
                   <div className="pt-1 border-t mt-2">
                     <div><span className="text-gray-500">훈련차수:</span> {batch.name}</div>
@@ -972,56 +1091,53 @@ export default function ReservistBatchDetailPage() {
               </div>
             )}
 
-            {/* 날짜/시간 입력 */}
+            {/* 날짜/시간 입력 - LATE_ARRIVAL */}
             {reasonModalType === "LATE_ARRIVAL" && (
               <div>
                 <label className="text-sm font-medium text-gray-700">입소 예정 일시</label>
                 <div className="grid grid-cols-2 gap-2 mt-1">
-                  <input
-                    type="date"
-                    value={reasonDate}
-                    onChange={(e) => setReasonDate(e.target.value)}
-                    className="px-3 py-2 border rounded-lg text-sm"
-                  />
-                  <input
-                    type="time"
-                    value={reasonTime}
-                    onChange={(e) => setReasonTime(e.target.value)}
-                    className="px-3 py-2 border rounded-lg text-sm"
-                  />
+                  <input type="date" value={reasonDate} onChange={(e) => setReasonDate(e.target.value)} className="px-3 py-2 border rounded-lg text-sm" />
+                  <input type="time" value={reasonTime} onChange={(e) => setReasonTime(e.target.value)} className="px-3 py-2 border rounded-lg text-sm" />
                 </div>
               </div>
             )}
+
+            {/* 날짜/시간 입력 - EARLY_DEPARTURE */}
             {reasonModalType === "EARLY_DEPARTURE" && (
-              <div>
-                <label className="text-sm font-medium text-gray-700">퇴소 예정 일시</label>
-                <div className="grid grid-cols-2 gap-2 mt-1">
-                  <input
-                    type="date"
-                    value={reasonDate}
-                    onChange={(e) => setReasonDate(e.target.value)}
-                    className="px-3 py-2 border rounded-lg text-sm"
-                  />
-                  <input
-                    type="time"
-                    value={reasonTime}
-                    onChange={(e) => setReasonTime(e.target.value)}
-                    className="px-3 py-2 border rounded-lg text-sm"
-                  />
+              <div className="space-y-2">
+                <div>
+                  <label className="text-sm font-medium text-gray-700">훈련일자</label>
+                  <input type="date" value={reasonDate} onChange={(e) => setReasonDate(e.target.value)} className="mt-1 w-full px-3 py-2 border rounded-lg text-sm" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">조기퇴소 시간</label>
+                  <input type="time" value={reasonTime} onChange={(e) => setReasonTime(e.target.value)} className="mt-1 w-full px-3 py-2 border rounded-lg text-sm" />
                 </div>
               </div>
             )}
 
             <div>
-              <label className="text-sm font-medium text-gray-700">사유</label>
+              <label className="text-sm font-medium text-gray-700">
+                {reasonModalType === "EARLY_DEPARTURE" ? "조기 퇴소 사유 (본인이 직접 작성)" :
+                 reasonModalType === "ABSENT" ? "개인 사유 내용 기술" : "사유"}
+              </label>
               <textarea
                 value={reasonContent}
                 onChange={(e) => setReasonContent(e.target.value)}
-                placeholder="사유를 상세히 입력해주세요."
-                rows={4}
+                placeholder={reasonModalType === "ABSENT"
+                  ? "6하원칙(누가, 언제, 어디서, 무엇을, 어떻게, 왜)에 의거하여 상세히 작성해주세요."
+                  : "사유를 상세히 입력해주세요."}
+                rows={5}
                 className="mt-1 w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none"
               />
             </div>
+
+            {reasonModalType === "EARLY_DEPARTURE" && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-xs text-yellow-800 space-y-1">
+                <p>1. 본인은 위 사유로 인하여 비상근 예비군 훈련에서 예정보다 일찍 퇴소하겠습니다.</p>
+                <p>2. 본인은 조기퇴소에 대한 안내사항을 사전에 인지하였으며 시간당 평일 12,500원 주말 18,750원의 훈련비가 감액됨을 확인하였습니다.</p>
+              </div>
+            )}
 
             <div className="flex gap-3 pt-2">
               <button
@@ -1029,10 +1145,135 @@ export default function ReservistBatchDetailPage() {
                 disabled={reasonSaving || !reasonContent.trim()}
                 className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50"
               >
-                {reasonSaving ? "저장 중..." : "저장"}
+                {reasonSaving ? "저장 중..." : "제출"}
               </button>
               <button
                 onClick={() => setShowReasonModal(false)}
+                className="flex-1 py-2.5 border rounded-lg text-gray-700 hover:bg-gray-50"
+              >
+                취소
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 건강관리 문진표 모달 */}
+      {showHealthModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl w-full max-w-lg p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-semibold">건강관리 문진표</h3>
+
+            <div className="space-y-3 text-sm">
+              {[
+                { key: "q1_chronic", label: "1. 만성질환(고혈압, 당뇨, 심장질환 등)이 있습니까?", detail: "q1_chronic_detail", detailLabel: "질환명" },
+                { key: "q2_treating", label: "2. 현재 치료 중인 질병이 있습니까?" },
+                { key: "q3_medication", label: "3. 과거 병력 또는 현재 약물을 복용하고 있습니까?", detail: "q3_medication_detail", detailLabel: "질환명/약물" },
+                { key: "q4_exercise_symptoms", label: "4. 운동 중 흉통, 호흡곤란, 현기증 등의 증상을 경험한 적이 있습니까?" },
+                { key: "q5_blood_pressure_meds", label: "5. 혈압약을 복용하고 있습니까?" },
+                { key: "q6_fatigue", label: "6. 최근 지속적인 피로감이나 건강 이상을 느끼고 있습니까?" },
+                { key: "q7_mental", label: "7. 정신과적 증상(우울, 불안, 수면장애 등)이 있습니까?" },
+                { key: "q8_family_history", label: "8. 부모님 중 심혈관 질환(심근경색, 뇌졸중 등)으로 사망하신 분이 있습니까?" },
+              ].map((q) => (
+                <div key={q.key} className="bg-gray-50 rounded-lg p-3">
+                  <label className="flex items-start gap-2">
+                    <input
+                      type="checkbox"
+                      checked={!!healthAnswers[q.key]}
+                      onChange={(e) => setHealthAnswers({ ...healthAnswers, [q.key]: e.target.checked })}
+                      className="mt-0.5 rounded"
+                    />
+                    <span>{q.label}</span>
+                  </label>
+                  {q.detail && healthAnswers[q.key] && (
+                    <input
+                      type="text"
+                      value={(healthAnswers[q.detail] as string) || ""}
+                      onChange={(e) => setHealthAnswers({ ...healthAnswers, [q.detail!]: e.target.value })}
+                      placeholder={q.detailLabel}
+                      className="mt-2 w-full px-3 py-1.5 border rounded text-sm"
+                    />
+                  )}
+                </div>
+              ))}
+
+              <div className="bg-blue-50 rounded-lg p-3">
+                <p className="font-medium mb-2">9. 코로나 관련</p>
+                {[
+                  { key: "q9_covid_1", label: "7일 이내 코로나 감염 이력" },
+                  { key: "q9_covid_2", label: "1일 이내 감염 확인" },
+                  { key: "q9_covid_3", label: "14일 이내 확진자 접촉" },
+                  { key: "q9_covid_4", label: "현재 발열, 기침, 인후통 등 증상" },
+                ].map((q) => (
+                  <label key={q.key} className="flex items-center gap-2 mt-1.5">
+                    <input
+                      type="checkbox"
+                      checked={!!healthAnswers[q.key]}
+                      onChange={(e) => setHealthAnswers({ ...healthAnswers, [q.key]: e.target.checked })}
+                      className="rounded"
+                    />
+                    <span className="text-sm">{q.label}</span>
+                  </label>
+                ))}
+              </div>
+
+              <div className="bg-gray-50 rounded-lg p-3">
+                <label className="flex items-start gap-2">
+                  <input
+                    type="checkbox"
+                    checked={!!healthAnswers.q10_training_issue}
+                    onChange={(e) => setHealthAnswers({ ...healthAnswers, q10_training_issue: e.target.checked })}
+                    className="mt-0.5 rounded"
+                  />
+                  <span>10. 훈련 수행에 지장이 있는 사항이 있습니까?</span>
+                </label>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-gray-700">11. 기타 참고사항</label>
+                <textarea
+                  value={(healthAnswers.q11_other as string) || ""}
+                  onChange={(e) => setHealthAnswers({ ...healthAnswers, q11_other: e.target.value })}
+                  placeholder="기타 건강 관련 참고사항을 입력하세요."
+                  rows={2}
+                  className="mt-1 w-full px-3 py-2 text-sm border rounded-lg outline-none resize-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm font-medium text-gray-700">혈압</label>
+                  <input
+                    type="text"
+                    value={(healthAnswers.bloodPressure as string) || ""}
+                    onChange={(e) => setHealthAnswers({ ...healthAnswers, bloodPressure: e.target.value })}
+                    placeholder="예: 120/80"
+                    className="mt-1 w-full px-3 py-2 text-sm border rounded-lg outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">체온</label>
+                  <input
+                    type="text"
+                    value={(healthAnswers.temperature as string) || ""}
+                    onChange={(e) => setHealthAnswers({ ...healthAnswers, temperature: e.target.value })}
+                    placeholder="예: 36.5"
+                    className="mt-1 w-full px-3 py-2 text-sm border rounded-lg outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={handleSaveHealth}
+                disabled={healthSaving}
+                className="flex-1 py-2.5 bg-teal-600 text-white rounded-lg font-medium hover:bg-teal-700 disabled:opacity-50"
+              >
+                {healthSaving ? "제출 중..." : "제출"}
+              </button>
+              <button
+                onClick={() => setShowHealthModal(false)}
                 className="flex-1 py-2.5 border rounded-lg text-gray-700 hover:bg-gray-50"
               >
                 취소

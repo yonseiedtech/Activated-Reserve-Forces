@@ -38,6 +38,8 @@ export async function GET() {
       pendingAddressDetail: true,
       addressRejectedAt: true,
       addressRejectReason: true,
+      bankName: true,
+      bankAccount: true,
       noVehicle: true,
       vehicleType: true,
       vehiclePlateNumber: true,
@@ -68,7 +70,7 @@ export async function PATCH(req: NextRequest) {
 
   // 주소 필드와 그 외 필드를 분리
   const addressFields = ["zipCode", "address", "addressDetail"] as const;
-  const otherFields = ["phone", "vehicleType", "vehiclePlateNumber", "vehicleColor"] as const;
+  const otherFields = ["phone", "vehicleType", "vehiclePlateNumber", "vehicleColor", "bankName", "bankAccount"] as const;
 
   const data: Record<string, string | boolean | null> = {};
 
@@ -133,6 +135,8 @@ export async function PATCH(req: NextRequest) {
       vehicleType: true,
       vehiclePlateNumber: true,
       vehicleColor: true,
+      bankName: true,
+      bankAccount: true,
     },
   });
 

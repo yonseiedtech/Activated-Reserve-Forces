@@ -39,6 +39,12 @@ export const authOptions: NextAuthOptions = {
           email: user.email || "",
           username: user.username,
           role: user.role,
+          rank: user.rank,
+          serviceNumber: user.serviceNumber,
+          phone: user.phone,
+          unit: user.unit,
+          position: user.position,
+          birthDate: user.birthDate?.toISOString() || null,
         };
       },
     }),
@@ -46,17 +52,29 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.role = (user as { role: string }).role;
+        token.role = user.role;
         token.id = user.id;
         token.username = (user as { username: string }).username;
+        token.rank = (user as { rank?: string | null }).rank || null;
+        token.serviceNumber = (user as { serviceNumber?: string | null }).serviceNumber || null;
+        token.phone = (user as { phone?: string | null }).phone || null;
+        token.unit = (user as { unit?: string | null }).unit || null;
+        token.position = (user as { position?: string | null }).position || null;
+        token.birthDate = (user as { birthDate?: string | null }).birthDate || null;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
-        (session.user as { role: string }).role = token.role as string;
-        (session.user as { id: string }).id = token.id as string;
-        (session.user as { username: string }).username = token.username as string;
+        session.user.role = token.role as string;
+        session.user.id = token.id as string;
+        session.user.username = token.username as string;
+        session.user.rank = (token.rank as string) || null;
+        session.user.serviceNumber = (token.serviceNumber as string) || null;
+        session.user.phone = (token.phone as string) || null;
+        session.user.unit = (token.unit as string) || null;
+        session.user.position = (token.position as string) || null;
+        session.user.birthDate = (token.birthDate as string) || null;
       }
       return session;
     },

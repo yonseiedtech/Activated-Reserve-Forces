@@ -24,7 +24,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const batch = await prisma.batch.findUnique({
     where: { id },
     include: {
-      batchUsers: { select: { id: true, status: true, subStatus: true, reason: true, expectedConfirmAt: true, user: { select: { id: true, name: true, rank: true, serviceNumber: true, phone: true, unit: true } } } },
+      batchUsers: { select: { id: true, status: true, subStatus: true, reason: true, expectedConfirmAt: true, user: { select: { id: true, name: true, rank: true, serviceNumber: true, phone: true, unit: true, birthDate: true, bankName: true, bankAccount: true } } } },
       trainings: {
         orderBy: { date: "asc" },
         include: {

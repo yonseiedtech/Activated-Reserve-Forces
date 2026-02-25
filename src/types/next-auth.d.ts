@@ -4,6 +4,12 @@ declare module "next-auth" {
   interface User {
     role: string;
     username: string;
+    rank?: string | null;
+    serviceNumber?: string | null;
+    phone?: string | null;
+    unit?: string | null;
+    position?: string | null;
+    birthDate?: string | null;
   }
   interface Session {
     user: {
@@ -12,6 +18,12 @@ declare module "next-auth" {
       email: string;
       username: string;
       role: string;
+      rank?: string | null;
+      serviceNumber?: string | null;
+      phone?: string | null;
+      unit?: string | null;
+      position?: string | null;
+      birthDate?: string | null;
     };
   }
 }
@@ -21,5 +33,11 @@ declare module "next-auth/jwt" {
     role: string;
     id: string;
     username: string;
+    rank?: string | null;
+    serviceNumber?: string | null;
+    phone?: string | null;
+    unit?: string | null;
+    position?: string | null;
+    birthDate?: string | null;
   }
 }

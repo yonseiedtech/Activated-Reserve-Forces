@@ -80,6 +80,10 @@ model User {
   approvedIdCards      MobileIdCard[]     @relation("ApprovedByUser")
   transportAllowances  UserTransportAllowance[]
   dinnerRequests       DinnerRequest[]
+
+  // 보상금 계좌
+  bankName    String?  // 은행명
+  bankAccount String?  // 계좌번호
 }
 
 // ─── User-Batch M:N 조인 테이블 ───
@@ -95,6 +99,7 @@ model BatchUser {
   expectedConfirmAt DateTime? // 미정일 때 확정 예정 시점
   createdAt         DateTime  @default(now())
   reasonReports     ReasonReport[]
+  healthQuestionnaire HealthQuestionnaire?
   @@unique([userId, batchId])
 }
 
@@ -439,4 +444,16 @@ model DinnerRequest {
   updatedAt DateTime @updatedAt
 
   @@unique([userId, batchId, date])
+}
+
+// ─── 건강관리 문진표 ───
+model HealthQuestionnaire {
+  id          String   @id @default(cuid())
+  batchUserId String   @unique
+  batchUser   BatchUser @relation(fields: [batchUserId], references: [id], onDelete: Cascade)
+  answers     String   // JSON: 문항 yes/no + 혈압 + 체온 등
+  result      String?  // POSSIBLE, IMPOSSIBLE (군의관 소견)
+  submittedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

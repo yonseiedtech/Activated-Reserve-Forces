@@ -43,6 +43,8 @@ interface ProfileData {
   vehicleType: string | null;
   vehiclePlateNumber: string | null;
   vehicleColor: string | null;
+  bankName: string | null;
+  bankAccount: string | null;
   batches: string[];
 }
 
@@ -59,7 +61,7 @@ interface TransportResult {
   routeCoords: Array<{ lat: number; lng: number }>;
 }
 
-type Tab = "basic" | "contact" | "vehicle" | "password";
+type Tab = "basic" | "contact" | "vehicle" | "bankAccount" | "password";
 
 export default function ProfilePage() {
   const { data: session } = useSession();
@@ -80,6 +82,9 @@ export default function ProfilePage() {
   const [vehicleType, setVehicleType] = useState("");
   const [vehiclePlateNumber, setVehiclePlateNumber] = useState("");
   const [vehicleColor, setVehicleColor] = useState("");
+
+  const [bankName, setBankName] = useState("");
+  const [bankAccount, setBankAccount] = useState("");
 
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -107,6 +112,8 @@ export default function ProfilePage() {
         setVehicleType(data.vehicleType || "");
         setVehiclePlateNumber(data.vehiclePlateNumber || "");
         setVehicleColor(data.vehicleColor || "");
+        setBankName(data.bankName || "");
+        setBankAccount(data.bankAccount || "");
       }
     } finally {
       setLoading(false);
@@ -223,6 +230,28 @@ export default function ProfilePage() {
     }
   };
 
+  const handleSaveBankAccount = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bankName, bankAccount }),
+      });
+      if (res.ok) {
+        showMessage("success", "계좌 정보가 저장되었습니다.");
+        await fetchProfile();
+      } else {
+        const err = await res.json();
+        showMessage("error", err.error || "저장 실패");
+      }
+    } catch {
+      showMessage("error", "저장 중 오류가 발생했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleChangePassword = async () => {
     setPwMessage(null);
     if (newPassword.length < 6) {
@@ -289,6 +318,7 @@ export default function ProfilePage() {
     { key: "basic", label: "기본 정보" },
     { key: "contact", label: "연락처/주소" },
     { key: "vehicle", label: "차량 정보" },
+    { key: "bankAccount", label: "보상금 계좌" },
     { key: "password", label: "비밀번호" },
   ];
 
@@ -465,6 +495,38 @@ export default function ProfilePage() {
             <div className="px-6 py-4 bg-gray-50 border-t">
               <button onClick={handleSaveVehicle} disabled={saving} className="w-full py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors disabled:opacity-50">
                 {saving ? "저장 중..." : "차량 정보 저장"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 보상금 계좌 */}
+        {activeTab === "bankAccount" && (
+          <div>
+            <SectionHeader title="보상금 계좌 정보" editable />
+            <div className="px-6 py-3 space-y-3">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700 space-y-1">
+                <p>- 보상금은 <strong>본인 명의 계좌</strong>로만 지급 가능합니다.</p>
+                <p>- 계좌번호 오류 시 입금이 불가하오니 정확히 기재해주세요.</p>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-500 mb-1">은행</label>
+                <select
+                  value={bankName}
+                  onChange={(e) => setBankName(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">은행 선택</option>
+                  {["국민은행", "신한은행", "우리은행", "하나은행", "농협은행", "기업은행", "카카오뱅크", "토스뱅크", "SC제일은행", "대구은행", "부산은행", "경남은행", "광주은행", "전북은행", "제주은행", "수협은행", "우체국", "새마을금고", "신협", "산업은행"].map((b) => (
+                    <option key={b} value={b}>{b}</option>
+                  ))}
+                </select>
+              </div>
+              <InputField label="계좌번호" value={bankAccount} onChange={setBankAccount} placeholder="계좌번호를 입력하세요 (- 없이)" />
+            </div>
+            <div className="px-6 py-4 bg-gray-50 border-t">
+              <button onClick={handleSaveBankAccount} disabled={saving} className="w-full py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors disabled:opacity-50">
+                {saving ? "저장 중..." : "계좌 정보 저장"}
               </button>
             </div>
           </div>
