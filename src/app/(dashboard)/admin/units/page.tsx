@@ -22,8 +22,6 @@ interface GpsLocation {
   isActive: boolean;
 }
 
-const NAVER_CLIENT_ID = process.env.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID || "";
-
 export default function AdminUnitsPage() {
   const [units, setUnits] = useState<Unit[]>([]);
   const [showForm, setShowForm] = useState(false);
@@ -156,19 +154,14 @@ export default function AdminUnitsPage() {
 
   return (
     <div>
-      {NAVER_CLIENT_ID && (
-        <Script
-          src={`https://oapi.map.naver.com/openapi/v3/maps.js?ncpClientId=${NAVER_CLIENT_ID}`}
-          strategy="lazyOnload"
-          onLoad={() => {
-            try {
-              if (window.naver && window.naver.maps && window.naver.maps.LatLng) {
-                setMapReady(true);
-              }
-            } catch { /* Naver Maps API 인증 실패 시 무시 */ }
-          }}
-        />
-      )}
+      <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+      <Script
+        src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        strategy="lazyOnload"
+        onLoad={() => {
+          if (window.L) setMapReady(true);
+        }}
+      />
       <Script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js" strategy="lazyOnload" />
 
       <PageTitle
@@ -355,7 +348,7 @@ export default function AdminUnitsPage() {
   );
 }
 
-// ── GPS 위치 폼 (지도 포함) ──
+// ── GPS 위치 폼 (Leaflet 지도 포함) ──
 function GpsLocationForm({
   form,
   setForm,
@@ -376,84 +369,78 @@ function GpsLocationForm({
   saveLabel: string;
 }) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<unknown>(null);
-  const markerRef = useRef<unknown>(null);
-  const circleRef = useRef<unknown>(null);
+  const mapRef = useRef<LeafletMap | null>(null);
+  const markerRef = useRef<LeafletMarker | null>(null);
+  const circleRef = useRef<LeafletCircle | null>(null);
   const formRef = useRef(form);
   formRef.current = form;
 
   const updateMapMarker = useCallback((lat: number, lng: number, radius: number) => {
-    if (!mapReady || !mapContainerRef.current) return;
-    try {
-      const nmaps = window.naver?.maps;
-      if (!nmaps) return;
-      const position = new nmaps.LatLng(lat, lng);
+    if (!mapReady || !mapContainerRef.current || !window.L) return;
+    const L = window.L;
 
-      if (!mapRef.current) {
-        const map = new nmaps.Map(mapContainerRef.current, { center: position, zoom: 16 });
-        const marker = new nmaps.Marker({ position, map, draggable: true });
-        const circle = new (nmaps as any).Circle({
-          center: position,
-          radius,
-          strokeColor: "#3B82F6",
-          strokeWeight: 2,
-          strokeOpacity: 0.6,
-          fillColor: "#3B82F6",
-          fillOpacity: 0.15,
-          map,
-        });
+    if (!mapRef.current) {
+      const map = L.map(mapContainerRef.current).setView([lat, lng], 16);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        maxZoom: 19,
+      }).addTo(map);
 
-        mapRef.current = map;
-        markerRef.current = marker;
-        circleRef.current = circle;
+      const marker = L.marker([lat, lng], { draggable: true }).addTo(map);
+      const circle = L.circle([lat, lng], {
+        radius,
+        color: "#3B82F6",
+        weight: 2,
+        opacity: 0.6,
+        fillColor: "#3B82F6",
+        fillOpacity: 0.15,
+      }).addTo(map);
 
-        nmaps.Event.addListener(map, "click", (e: unknown) => {
-          const ev = e as { coord: { lat: () => number; lng: () => number } };
-          const clickLat = ev.coord.lat();
-          const clickLng = ev.coord.lng();
-          const newPos = new nmaps.LatLng(clickLat, clickLng);
-          marker.setPosition(newPos);
-          (circle as { setCenter: (p: unknown) => void }).setCenter(newPos);
-          setForm((prev) => ({ ...prev, latitude: clickLat, longitude: clickLng }));
-        });
+      mapRef.current = map;
+      markerRef.current = marker;
+      circleRef.current = circle;
 
-        nmaps.Event.addListener(marker, "dragend", () => {
-          const pos = marker.getPosition();
-          (circle as { setCenter: (p: unknown) => void }).setCenter(pos);
-          setForm((prev) => ({ ...prev, latitude: pos.lat(), longitude: pos.lng() }));
-        });
-      } else {
-        const map = mapRef.current as { setCenter: (p: unknown) => void };
-        const marker = markerRef.current as { setPosition: (p: unknown) => void };
-        const circle = circleRef.current as { setCenter: (p: unknown) => void; setRadius: (r: number) => void };
-        map.setCenter(position);
-        marker.setPosition(position);
-        circle.setCenter(position);
-        circle.setRadius(radius);
-      }
-    } catch { /* 지도 생성 실패 시 무시 */ }
+      map.on("click", (e: { latlng: { lat: number; lng: number } }) => {
+        const clickLat = e.latlng.lat;
+        const clickLng = e.latlng.lng;
+        marker.setLatLng([clickLat, clickLng]);
+        circle.setLatLng([clickLat, clickLng]);
+        setForm((prev) => ({ ...prev, latitude: clickLat, longitude: clickLng }));
+      });
+
+      marker.on("dragend", () => {
+        const pos = marker.getLatLng();
+        circle.setLatLng([pos.lat, pos.lng]);
+        setForm((prev) => ({ ...prev, latitude: pos.lat, longitude: pos.lng }));
+      });
+    } else {
+      mapRef.current.setView([lat, lng], 16);
+      markerRef.current?.setLatLng([lat, lng]);
+      circleRef.current?.setLatLng([lat, lng]);
+      circleRef.current?.setRadius(radius);
+    }
   }, [mapReady, setForm]);
 
-  // 좌표가 유효할 때 지도 표시
   useEffect(() => {
     if (form.latitude && form.longitude && mapReady) {
       updateMapMarker(form.latitude, form.longitude, form.radius);
     }
   }, [form.latitude, form.longitude, form.radius, mapReady, updateMapMarker]);
 
-  // 반경 변경 시 원 업데이트
   useEffect(() => {
     if (circleRef.current) {
-      (circleRef.current as { setRadius: (r: number) => void }).setRadius(form.radius);
+      circleRef.current.setRadius(form.radius);
     }
   }, [form.radius]);
 
-  // cleanup
   useEffect(() => {
     return () => {
-      mapRef.current = null;
-      markerRef.current = null;
-      circleRef.current = null;
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+        markerRef.current = null;
+        circleRef.current = null;
+      }
     };
   }, []);
 
@@ -556,7 +543,7 @@ function GpsLocationForm({
   );
 }
 
-// ── 주소 검색 + 네이버맵 컴포넌트 ──
+// ── 주소 검색 + Leaflet 지도 컴포넌트 ──
 function UnitAddressMap({
   address,
   latitude,
@@ -571,43 +558,41 @@ function UnitAddressMap({
   mapReady: boolean;
 }) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<unknown>(null);
-  const markerRef = useRef<unknown>(null);
+  const mapRef = useRef<LeafletMap | null>(null);
+  const markerRef = useRef<LeafletMarker | null>(null);
   const addressRef = useRef(address);
   addressRef.current = address;
 
   const initMap = useCallback((lat: number, lng: number) => {
-    if (!mapReady || !mapContainerRef.current) return;
-    try {
-      const nmaps = window.naver?.maps;
-      if (!nmaps) return;
-      const position = new nmaps.LatLng(lat, lng);
+    if (!mapReady || !mapContainerRef.current || !window.L) return;
+    const L = window.L;
 
-      if (!mapRef.current) {
-        const map = new nmaps.Map(mapContainerRef.current, { center: position, zoom: 16 });
-        const marker = new nmaps.Marker({ position, map, draggable: true });
-        mapRef.current = map;
-        markerRef.current = marker;
+    if (!mapRef.current) {
+      const map = L.map(mapContainerRef.current).setView([lat, lng], 16);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        maxZoom: 19,
+      }).addTo(map);
 
-        nmaps.Event.addListener(map, "click", (e: unknown) => {
-          const ev = e as { coord: { lat: () => number; lng: () => number } };
-          const clickLat = ev.coord.lat();
-          const clickLng = ev.coord.lng();
-          marker.setPosition(new nmaps.LatLng(clickLat, clickLng));
-          onChange(addressRef.current, clickLat, clickLng);
-        });
+      const marker = L.marker([lat, lng], { draggable: true }).addTo(map);
+      mapRef.current = map;
+      markerRef.current = marker;
 
-        nmaps.Event.addListener(marker, "dragend", () => {
-          const pos = marker.getPosition();
-          onChange(addressRef.current, pos.lat(), pos.lng());
-        });
-      } else {
-        const map = mapRef.current as { setCenter: (pos: unknown) => void };
-        const marker = markerRef.current as { setPosition: (pos: unknown) => void };
-        map.setCenter(position);
-        marker.setPosition(position);
-      }
-    } catch { /* 지도 생성 실패 시 무시 */ }
+      map.on("click", (e: { latlng: { lat: number; lng: number } }) => {
+        const clickLat = e.latlng.lat;
+        const clickLng = e.latlng.lng;
+        marker.setLatLng([clickLat, clickLng]);
+        onChange(addressRef.current, clickLat, clickLng);
+      });
+
+      marker.on("dragend", () => {
+        const pos = marker.getLatLng();
+        onChange(addressRef.current, pos.lat, pos.lng);
+      });
+    } else {
+      mapRef.current.setView([lat, lng], 16);
+      markerRef.current?.setLatLng([lat, lng]);
+    }
   }, [mapReady, onChange]);
 
   useEffect(() => {
@@ -615,6 +600,16 @@ function UnitAddressMap({
       initMap(latitude, longitude);
     }
   }, [latitude, longitude, mapReady, initMap]);
+
+  useEffect(() => {
+    return () => {
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+        markerRef.current = null;
+      }
+    };
+  }, []);
 
   const handleAddressSearch = () => {
     if (typeof window === "undefined" || !window.daum) return;
@@ -670,11 +665,8 @@ function UnitAddressMap({
           />
         </div>
       )}
-      {!mapReady && NAVER_CLIENT_ID && (
-        <p className="text-xs text-gray-400">네이버 지도를 불러오는 중...</p>
-      )}
-      {!NAVER_CLIENT_ID && (
-        <p className="text-xs text-orange-500">네이버 지도 API 키가 설정되지 않았습니다.</p>
+      {!mapReady && (
+        <p className="text-xs text-gray-400">지도를 불러오는 중...</p>
       )}
     </div>
   );

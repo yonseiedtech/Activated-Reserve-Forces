@@ -762,8 +762,74 @@ export default function AdminBatchDetailPage() {
 
       {/* Trainees Tab */}
       {tab === "trainees" && (
-        <div className="grid md:grid-cols-2 gap-4">
-          {/* Unassigned panel */}
+        <div className="space-y-4">
+          {/* Assigned panel (위) */}
+          <div className="bg-white rounded-xl border overflow-hidden">
+            <div className="px-4 py-3 bg-blue-50 border-b">
+              <h3 className="font-semibold text-sm text-blue-700">배정된 대상자 ({batch.users.length}명)</h3>
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={() => handleBulkUnassign(batch.users.map((u) => u.id))}
+                  disabled={bulkLoading || batch.users.length === 0}
+                  className="px-2.5 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+                >
+                  전체 해제 ({batch.users.length})
+                </button>
+                {selectedAssigned.size > 0 && (
+                  <button
+                    onClick={() => handleBulkUnassign(Array.from(selectedAssigned))}
+                    disabled={bulkLoading}
+                    className="px-2.5 py-1 text-xs bg-orange-600 text-white rounded hover:bg-orange-700 disabled:opacity-50"
+                  >
+                    선택 해제 ({selectedAssigned.size})
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="max-h-96 overflow-y-auto">
+              {batch.users.length > 0 ? (
+                batch.users.map((u) => (
+                  <div
+                    key={u.id}
+                    className="w-full text-left px-4 py-2.5 border-b hover:bg-red-50 transition-colors flex items-center justify-between"
+                  >
+                    <label className="flex items-center gap-2 flex-1 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedAssigned.has(u.id)}
+                        onChange={() => toggleAssignedSelect(u.id)}
+                        className="rounded"
+                      />
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm">{u.name}</span>
+                        <span className="text-xs text-gray-500">{u.rank} | {u.serviceNumber}</span>
+                        {u.unit && <span className="text-xs text-gray-400">{u.unit}</span>}
+                        {u.batchStatus && (
+                          <span className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${
+                            u.batchStatus === "PRESENT" ? "bg-green-100 text-green-700" :
+                            u.batchStatus === "ABSENT" ? "bg-red-100 text-red-700" :
+                            "bg-yellow-100 text-yellow-700"
+                          }`}>
+                            {u.batchStatus === "PRESENT" ? "참석" : u.batchStatus === "ABSENT" ? "불참" : "미정"}
+                          </span>
+                        )}
+                      </div>
+                    </label>
+                    <button
+                      onClick={() => handleUnassign(u.id)}
+                      className="text-red-500 text-xs hover:text-red-700"
+                    >
+                      &larr; 해제
+                    </button>
+                  </div>
+                ))
+              ) : (
+                <p className="px-4 py-6 text-sm text-gray-400 text-center">배정된 대상자가 없습니다.</p>
+              )}
+            </div>
+          </div>
+
+          {/* Unassigned panel (아래) */}
           <div className="bg-white rounded-xl border overflow-hidden">
             <div className="px-4 py-3 bg-gray-50 border-b">
               <h3 className="font-semibold text-sm mb-2">미배정 대상자</h3>
@@ -827,72 +893,6 @@ export default function AdminBatchDetailPage() {
                 ))
               ) : (
                 <p className="px-4 py-6 text-sm text-gray-400 text-center">미배정 대상자가 없습니다.</p>
-              )}
-            </div>
-          </div>
-
-          {/* Assigned panel */}
-          <div className="bg-white rounded-xl border overflow-hidden">
-            <div className="px-4 py-3 bg-blue-50 border-b">
-              <h3 className="font-semibold text-sm text-blue-700">배정된 대상자 ({batch.users.length}명)</h3>
-              <div className="flex gap-2 mt-2">
-                <button
-                  onClick={() => handleBulkUnassign(batch.users.map((u) => u.id))}
-                  disabled={bulkLoading || batch.users.length === 0}
-                  className="px-2.5 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
-                >
-                  전체 해제 ({batch.users.length})
-                </button>
-                {selectedAssigned.size > 0 && (
-                  <button
-                    onClick={() => handleBulkUnassign(Array.from(selectedAssigned))}
-                    disabled={bulkLoading}
-                    className="px-2.5 py-1 text-xs bg-orange-600 text-white rounded hover:bg-orange-700 disabled:opacity-50"
-                  >
-                    선택 해제 ({selectedAssigned.size})
-                  </button>
-                )}
-              </div>
-            </div>
-            <div className="max-h-96 overflow-y-auto">
-              {batch.users.length > 0 ? (
-                batch.users.map((u) => (
-                  <div
-                    key={u.id}
-                    className="w-full text-left px-4 py-2.5 border-b hover:bg-red-50 transition-colors flex items-center justify-between"
-                  >
-                    <label className="flex items-center gap-2 flex-1 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={selectedAssigned.has(u.id)}
-                        onChange={() => toggleAssignedSelect(u.id)}
-                        className="rounded"
-                      />
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-sm">{u.name}</span>
-                        <span className="text-xs text-gray-500">{u.rank} | {u.serviceNumber}</span>
-                        {u.unit && <span className="text-xs text-gray-400">{u.unit}</span>}
-                        {u.batchStatus && (
-                          <span className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${
-                            u.batchStatus === "PRESENT" ? "bg-green-100 text-green-700" :
-                            u.batchStatus === "ABSENT" ? "bg-red-100 text-red-700" :
-                            "bg-yellow-100 text-yellow-700"
-                          }`}>
-                            {u.batchStatus === "PRESENT" ? "참석" : u.batchStatus === "ABSENT" ? "불참" : "미정"}
-                          </span>
-                        )}
-                      </div>
-                    </label>
-                    <button
-                      onClick={() => handleUnassign(u.id)}
-                      className="text-red-500 text-xs hover:text-red-700"
-                    >
-                      &larr; 해제
-                    </button>
-                  </div>
-                ))
-              ) : (
-                <p className="px-4 py-6 text-sm text-gray-400 text-center">배정된 대상자가 없습니다.</p>
               )}
             </div>
           </div>
@@ -985,7 +985,13 @@ export default function AdminBatchDetailPage() {
                 {batch.trainings.length === 0 && (
                   <p className="text-center py-8 text-gray-400">등록된 훈련이 없습니다.</p>
                 )}
-                {batch.trainings.map((t) => {
+                {[...batch.trainings]
+                  .sort((a, b) => {
+                    const dateCompare = new Date(a.date).getTime() - new Date(b.date).getTime();
+                    if (dateCompare !== 0) return dateCompare;
+                    return (a.startTime || "").localeCompare(b.startTime || "");
+                  })
+                  .map((t) => {
                   const summary = attendanceSummary?.byTraining.find((s) => s.trainingId === t.id);
                   return (
                     <div

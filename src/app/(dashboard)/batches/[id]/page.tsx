@@ -87,7 +87,10 @@ function groupByDate(trainings: Training[]) {
     if (!groups[key]) groups[key] = [];
     groups[key].push(t);
   }
-  return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b));
+  // 날짜별로 정렬 후, 각 날짜 내 훈련을 시간순 정렬
+  return Object.entries(groups)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, dayTrainings]) => [key, dayTrainings.sort((a, b) => (a.startTime || "").localeCompare(b.startTime || ""))] as [string, Training[]]);
 }
 
 function formatTime(iso: string | null): string {
@@ -758,15 +761,16 @@ export default function ReservistBatchDetailPage() {
               등록된 훈련 과목이 없습니다.
             </div>
           ) : (
-            <div className="space-y-6">
+            <div className="space-y-4">
               {grouped.map(([dateKey, dayTrainings]) => (
-                <div key={dateKey}>
-                  <h3 className="text-sm font-semibold text-gray-700 mb-2 px-1">
-                    {formatDate(dayTrainings[0].date)}
-                  </h3>
-                  <div className="space-y-3">
+                <div key={dateKey} className="bg-white rounded-xl border overflow-hidden">
+                  <div className="px-4 py-3 bg-gray-50 border-b flex items-center justify-between">
+                    <h3 className="font-semibold text-sm">{formatDate(dayTrainings[0].date)}</h3>
+                    <p className="text-xs text-gray-500">{dayTrainings.length}개 훈련</p>
+                  </div>
+                  <div className="divide-y">
                     {dayTrainings.map((t) => (
-                      <div key={t.id} className="bg-white rounded-xl border p-4">
+                      <div key={t.id} className="px-4 py-3">
                         <div className="flex items-center gap-2 mb-1">
                           <span className={`px-2 py-0.5 rounded text-xs font-medium ${TYPE_COLORS[t.type] || TYPE_COLORS["기타"]}`}>
                             {t.type}

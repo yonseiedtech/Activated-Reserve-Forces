@@ -8,8 +8,6 @@ import PageTitle from "@/components/ui/PageTitle";
 import { ROLE_LABELS } from "@/lib/constants";
 import { formatPhone } from "@/lib/formatters";
 
-const NAVER_CLIENT_ID = process.env.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID || "";
-
 interface ProfileData {
   id: string;
   name: string;
@@ -325,13 +323,12 @@ export default function ProfilePage() {
   return (
     <div className="max-w-lg">
       <Script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js" strategy="lazyOnload" />
-      {NAVER_CLIENT_ID && (
-        <Script
-          src={`https://oapi.map.naver.com/openapi/v3/maps.js?ncpClientId=${NAVER_CLIENT_ID}`}
-          strategy="lazyOnload"
-          onLoad={() => setMapReady(true)}
-        />
-      )}
+      <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+      <Script
+        src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        strategy="lazyOnload"
+        onLoad={() => { if (window.L) setMapReady(true); }}
+      />
       <PageTitle title="내 정보" />
 
       {message && (
@@ -586,61 +583,55 @@ function TransportInfoCard({
   unit: string | null;
 }) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapInitialized = useRef(false);
+  const mapRef = useRef<LeafletMap | null>(null);
 
   useEffect(() => {
-    if (!transport || !mapReady || !mapContainerRef.current || mapInitialized.current) return;
+    if (!transport || !mapReady || !mapContainerRef.current || !window.L) return;
     if (transport.routeCoords.length === 0) return;
 
-    mapInitialized.current = true;
-    const nmaps = window.naver.maps;
+    // Cleanup previous map
+    if (mapRef.current) {
+      mapRef.current.remove();
+      mapRef.current = null;
+    }
 
-    const center = new nmaps.LatLng(
+    const L = window.L;
+    const center: [number, number] = [
       (transport.origin.lat + transport.destination.lat) / 2,
-      (transport.origin.lng + transport.destination.lng) / 2
-    );
-    const map = new nmaps.Map(mapContainerRef.current, { center, zoom: 10 });
+      (transport.origin.lng + transport.destination.lng) / 2,
+    ];
+    const map = L.map(mapContainerRef.current).setView(center, 10);
+    mapRef.current = map;
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxZoom: 19,
+    }).addTo(map);
 
     // 출발지 마커
-    new nmaps.Marker({
-      position: new nmaps.LatLng(transport.origin.lat, transport.origin.lng),
-      map,
-    });
+    L.marker([transport.origin.lat, transport.origin.lng]).addTo(map);
 
     // 도착지 마커
-    new nmaps.Marker({
-      position: new nmaps.LatLng(transport.destination.lat, transport.destination.lng),
-      map,
-    });
+    L.marker([transport.destination.lat, transport.destination.lng]).addTo(map);
 
     // 경로 폴리라인
-    const path = transport.routeCoords.map((c) => new nmaps.LatLng(c.lat, c.lng));
-    new nmaps.Polyline({
-      path,
-      strokeWeight: 4,
-      strokeColor: "#3B82F6",
-      strokeOpacity: 0.8,
-      strokeStyle: "solid",
-      map,
-    });
+    const path: [number, number][] = transport.routeCoords.map((c) => [c.lat, c.lng]);
+    const polyline = L.polyline(path, {
+      color: "#3B82F6",
+      weight: 4,
+      opacity: 0.8,
+    }).addTo(map);
 
     // bounds 설정
-    const bounds = new nmaps.LatLngBounds(
-      new nmaps.LatLng(
-        Math.min(transport.origin.lat, transport.destination.lat),
-        Math.min(transport.origin.lng, transport.destination.lng)
-      ),
-      new nmaps.LatLng(
-        Math.max(transport.origin.lat, transport.destination.lat),
-        Math.max(transport.origin.lng, transport.destination.lng)
-      )
-    );
-    map.fitBounds(bounds, { top: 30, right: 30, bottom: 30, left: 30 });
-  }, [transport, mapReady]);
+    map.fitBounds(polyline.getBounds(), { padding: [30, 30] });
 
-  useEffect(() => {
-    mapInitialized.current = false;
-  }, [transport?.km]);
+    return () => {
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
+    };
+  }, [transport, mapReady]);
 
   if (!address || !unit) return null;
 
