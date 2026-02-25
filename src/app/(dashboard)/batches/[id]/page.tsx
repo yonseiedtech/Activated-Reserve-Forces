@@ -1276,18 +1276,68 @@ export default function ReservistBatchDetailPage() {
             )}
 
             {/* 날짜/시간 입력 - EARLY_DEPARTURE */}
-            {reasonModalType === "EARLY_DEPARTURE" && (
-              <div className="space-y-2">
-                <div>
-                  <label className="text-sm font-medium text-gray-700">훈련일자</label>
-                  <input type="date" value={reasonDate} onChange={(e) => setReasonDate(e.target.value)} className="mt-1 w-full px-3 py-2 border rounded-lg text-sm" />
+            {reasonModalType === "EARLY_DEPARTURE" && batch && (() => {
+              const trainingDates = getDateRange(batch.startDate, batch.endDate);
+              const timeSlots = ["08:30", "09:30", "10:30", "11:30", "12:30", "13:30", "14:30", "15:30", "16:30"];
+              const calcHours = (time: string) => {
+                if (!time) return null;
+                const [h, m] = time.split(":").map(Number);
+                const mins = h * 60 + m;
+                const start = 8 * 60 + 30; // 08:30
+                if (mins <= start) return 0;
+                const lunchStart = 11 * 60 + 30; // 11:30
+                const lunchEnd = 12 * 60 + 30;   // 12:30
+                let worked = mins - start;
+                // 점심시간(11:30~12:30) 제외
+                if (mins > lunchEnd) {
+                  worked -= 60; // 점심 1시간 제외
+                } else if (mins > lunchStart) {
+                  worked -= (mins - lunchStart); // 점심시간 중 퇴소
+                }
+                return Math.max(0, Math.floor(worked / 60));
+              };
+              const hours = calcHours(reasonTime);
+              return (
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">훈련일자</label>
+                    <select
+                      value={reasonDate}
+                      onChange={(e) => setReasonDate(e.target.value)}
+                      className="mt-1 w-full px-3 py-2 border rounded-lg text-sm bg-white"
+                    >
+                      <option value="">선택하세요</option>
+                      {trainingDates.map((d) => (
+                        <option key={d} value={d}>
+                          {new Date(d + "T12:00:00").toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "short" })}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">조기퇴소 시간</label>
+                    <select
+                      value={reasonTime}
+                      onChange={(e) => setReasonTime(e.target.value)}
+                      className="mt-1 w-full px-3 py-2 border rounded-lg text-sm bg-white"
+                    >
+                      <option value="">선택하세요</option>
+                      {timeSlots.map((t) => (
+                        <option key={t} value={t}>{t}{t === "12:30" ? " (점심 후)" : ""}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {reasonTime && hours !== null && (
+                    <div className={`px-3 py-2 rounded-lg text-sm font-medium ${hours >= 4 ? "bg-blue-50 text-blue-700 border border-blue-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
+                      훈련 인정시간: <span className="font-bold">{hours}시간</span>
+                      <span className="text-xs font-normal ml-2">
+                        (08:30 ~ {reasonTime}{reasonTime > "12:30" ? ", 점심 1시간 제외" : reasonTime > "11:30" ? ", 점심시간 중 퇴소" : ""})
+                      </span>
+                    </div>
+                  )}
                 </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-700">조기퇴소 시간</label>
-                  <input type="time" value={reasonTime} onChange={(e) => setReasonTime(e.target.value)} className="mt-1 w-full px-3 py-2 border rounded-lg text-sm" />
-                </div>
-              </div>
-            )}
+              );
+            })()}
 
             <div>
               <label className="text-sm font-medium text-gray-700">
