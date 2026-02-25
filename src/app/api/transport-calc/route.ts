@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { getSession, json, unauthorized, badRequest } from "@/lib/api-utils";
 import { NextRequest } from "next/server";
 
-const NCP_CLIENT_ID = process.env.NAVER_MAP_CLIENT_ID || "";
+const NCP_CLIENT_ID = process.env.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID || "";
 const NCP_CLIENT_SECRET = process.env.NAVER_MAP_CLIENT_SECRET || "";
 
 const NCP_HEADERS = {
