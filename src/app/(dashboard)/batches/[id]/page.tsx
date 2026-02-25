@@ -604,15 +604,24 @@ export default function ReservistBatchDetailPage() {
                 </div>
 
                 {/* 신청 버튼 (아직 신청하지 않은 경우만) */}
-                {dinnerRequests.filter((dr) => dr.status === "PENDING" || dr.status === "APPROVED").length === 0 && (
-                  <button
-                    onClick={handleDinnerRequest}
-                    disabled={dinnerSubmitting}
-                    className="w-full py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 mb-3"
-                  >
-                    {dinnerSubmitting ? "신청 중..." : "석식 신청"}
-                  </button>
-                )}
+                {dinnerRequests.filter((dr) => dr.status === "PENDING" || dr.status === "APPROVED").length === 0 && (() => {
+                  const isExpired = dinnerDeadlines
+                    ? new Date().setHours(0, 0, 0, 0) > new Date(dinnerDeadlines.applyDeadline).setHours(0, 0, 0, 0)
+                    : false;
+                  return (
+                    <button
+                      onClick={isExpired ? undefined : handleDinnerRequest}
+                      disabled={dinnerSubmitting || isExpired}
+                      className={`w-full py-2.5 text-sm font-medium rounded-lg mb-3 ${
+                        isExpired
+                          ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                          : "bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                      }`}
+                    >
+                      {dinnerSubmitting ? "신청 중..." : isExpired ? "신청 제한(신청기한 지남)" : "석식 신청"}
+                    </button>
+                  );
+                })()}
 
                 {/* 내 석식 신청 내역 */}
                 {dinnerRequests.length > 0 && (
