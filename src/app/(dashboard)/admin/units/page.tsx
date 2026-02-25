@@ -13,6 +13,15 @@ interface Unit {
   address: string | null;
 }
 
+interface GpsLocation {
+  id: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  radius: number;
+  isActive: boolean;
+}
+
 const NAVER_CLIENT_ID = process.env.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID || "";
 
 export default function AdminUnitsPage() {
@@ -24,11 +33,21 @@ export default function AdminUnitsPage() {
 
   const [mapReady, setMapReady] = useState(false);
 
+  // GPS 위치 관리
+  const [gpsLocations, setGpsLocations] = useState<GpsLocation[]>([]);
+  const [showGpsForm, setShowGpsForm] = useState(false);
+  const [gpsForm, setGpsForm] = useState({ name: "", latitude: 0, longitude: 0, radius: 200 });
+  const [detectingGps, setDetectingGps] = useState(false);
+  const [editingGpsId, setEditingGpsId] = useState<string | null>(null);
+  const [editGpsForm, setEditGpsForm] = useState({ name: "", latitude: 0, longitude: 0, radius: 200 });
+
   useEffect(() => {
     fetchUnits();
+    fetchGpsLocations();
   }, []);
 
   const fetchUnits = () => fetch("/api/units").then((r) => r.json()).then(setUnits);
+  const fetchGpsLocations = () => fetch("/api/gps-locations").then((r) => r.json()).then(setGpsLocations);
 
   const handleCreate = async () => {
     const res = await fetch("/api/units", {
@@ -73,6 +92,67 @@ export default function AdminUnitsPage() {
     fetchUnits();
   };
 
+  // GPS 위치 핸들러
+  const handleDetectGps = () => {
+    setDetectingGps(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        if (editingGpsId) {
+          setEditGpsForm({ ...editGpsForm, latitude: pos.coords.latitude, longitude: pos.coords.longitude });
+        } else {
+          setGpsForm({ ...gpsForm, latitude: pos.coords.latitude, longitude: pos.coords.longitude });
+        }
+        setDetectingGps(false);
+      },
+      () => setDetectingGps(false),
+      { enableHighAccuracy: true }
+    );
+  };
+
+  const handleCreateGps = async () => {
+    const res = await fetch("/api/gps-locations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(gpsForm),
+    });
+    if (res.ok) {
+      setShowGpsForm(false);
+      setGpsForm({ name: "", latitude: 0, longitude: 0, radius: 200 });
+      fetchGpsLocations();
+    }
+  };
+
+  const handleEditGps = (loc: GpsLocation) => {
+    setEditingGpsId(loc.id);
+    setEditGpsForm({ name: loc.name, latitude: loc.latitude, longitude: loc.longitude, radius: loc.radius });
+  };
+
+  const handleUpdateGps = async () => {
+    if (!editingGpsId) return;
+    await fetch(`/api/gps-locations/${editingGpsId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(editGpsForm),
+    });
+    setEditingGpsId(null);
+    fetchGpsLocations();
+  };
+
+  const handleToggleGps = async (loc: GpsLocation) => {
+    await fetch(`/api/gps-locations/${loc.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...loc, isActive: !loc.isActive }),
+    });
+    fetchGpsLocations();
+  };
+
+  const handleDeleteGps = async (id: string) => {
+    if (!confirm("GPS 위치를 삭제하시겠습니까?")) return;
+    await fetch(`/api/gps-locations/${id}`, { method: "DELETE" });
+    fetchGpsLocations();
+  };
+
   return (
     <div>
       {NAVER_CLIENT_ID && (
@@ -86,7 +166,7 @@ export default function AdminUnitsPage() {
 
       <PageTitle
         title="부대 관리"
-        description="부대 정보를 등록/수정/삭제합니다."
+        description="부대 정보 및 GPS 출퇴근 위치를 관리합니다."
         actions={
           <button onClick={() => setShowForm(true)} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
             + 부대 추가
@@ -94,6 +174,7 @@ export default function AdminUnitsPage() {
         }
       />
 
+      {/* 부대 목록 */}
       <div className="space-y-3">
         {units.map((unit) => (
           <div key={unit.id} className="bg-white rounded-xl border p-4 flex items-center justify-between gap-4">
@@ -130,6 +211,80 @@ export default function AdminUnitsPage() {
         {units.length === 0 && <p className="text-center py-8 text-gray-400">등록된 부대가 없습니다.</p>}
       </div>
 
+      {/* GPS 위치 관리 섹션 */}
+      <div className="mt-10">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">GPS 위치 관리</h2>
+            <p className="text-sm text-gray-500 mt-0.5">출퇴근 기준 위치(위병소/훈련장)를 등록합니다.</p>
+          </div>
+          <button onClick={() => setShowGpsForm(true)} className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700">
+            + 위치 등록
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          {gpsLocations.map((loc) => (
+            <div key={loc.id} className="bg-white rounded-xl border p-4">
+              {editingGpsId === loc.id ? (
+                <div className="space-y-3">
+                  <input
+                    value={editGpsForm.name}
+                    onChange={(e) => setEditGpsForm({ ...editGpsForm, name: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg text-sm"
+                    placeholder="위치명"
+                  />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-medium text-gray-600">위도</label>
+                      <input type="number" step="any" value={editGpsForm.latitude} onChange={(e) => setEditGpsForm({ ...editGpsForm, latitude: parseFloat(e.target.value) })} className="w-full px-3 py-2 border rounded-lg text-sm" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-gray-600">경도</label>
+                      <input type="number" step="any" value={editGpsForm.longitude} onChange={(e) => setEditGpsForm({ ...editGpsForm, longitude: parseFloat(e.target.value) })} className="w-full px-3 py-2 border rounded-lg text-sm" />
+                    </div>
+                  </div>
+                  <button onClick={handleDetectGps} disabled={detectingGps} className="w-full py-2 border border-blue-300 text-blue-600 rounded-lg text-sm hover:bg-blue-50 disabled:opacity-50">
+                    {detectingGps ? "위치 확인 중..." : "현재 위치로 설정"}
+                  </button>
+                  <div>
+                    <label className="text-xs font-medium text-gray-600">허용 반경 (미터)</label>
+                    <input type="number" value={editGpsForm.radius} onChange={(e) => setEditGpsForm({ ...editGpsForm, radius: parseInt(e.target.value) })} className="w-full px-3 py-2 border rounded-lg text-sm" />
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={handleUpdateGps} className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">저장</button>
+                    <button onClick={() => setEditingGpsId(null)} className="px-3 py-1 border rounded text-sm text-gray-600 hover:bg-gray-50">취소</button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full ${loc.isActive ? "bg-green-500" : "bg-gray-400"}`} />
+                      <h3 className="font-semibold">{loc.name}</h3>
+                    </div>
+                    <p className="text-sm text-gray-500 mt-1">
+                      위도: {loc.latitude.toFixed(6)} | 경도: {loc.longitude.toFixed(6)} | 반경: {loc.radius}m
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleToggleGps(loc)}
+                      className={`px-3 py-1 text-sm rounded-lg ${loc.isActive ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}
+                    >
+                      {loc.isActive ? "활성" : "비활성"}
+                    </button>
+                    <button onClick={() => handleEditGps(loc)} className="px-3 py-1 text-blue-600 border border-blue-200 rounded-lg text-sm hover:bg-blue-50">수정</button>
+                    <button onClick={() => handleDeleteGps(loc.id)} className="px-3 py-1 text-red-600 border border-red-200 rounded-lg text-sm hover:bg-red-50">삭제</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+          {gpsLocations.length === 0 && <p className="text-center py-8 text-gray-400">등록된 GPS 위치가 없습니다.</p>}
+        </div>
+      </div>
+
       {/* 부대 추가 모달 */}
       {showForm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -149,6 +304,37 @@ export default function AdminUnitsPage() {
             <div className="flex gap-3 pt-2">
               <button onClick={handleCreate} className="flex-1 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700">등록</button>
               <button onClick={() => setShowForm(false)} className="flex-1 py-2 border rounded-lg text-gray-700 hover:bg-gray-50">취소</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* GPS 위치 등록 모달 */}
+      {showGpsForm && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl w-full max-w-md p-6 space-y-4">
+            <h3 className="text-lg font-semibold">GPS 위치 등록</h3>
+            <input placeholder="위치명 (예: 00사단 위병소)" value={gpsForm.name} onChange={(e) => setGpsForm({ ...gpsForm, name: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium">위도</label>
+                <input type="number" step="any" value={gpsForm.latitude} onChange={(e) => setGpsForm({ ...gpsForm, latitude: parseFloat(e.target.value) })} className="w-full px-3 py-2 border rounded-lg" />
+              </div>
+              <div>
+                <label className="text-sm font-medium">경도</label>
+                <input type="number" step="any" value={gpsForm.longitude} onChange={(e) => setGpsForm({ ...gpsForm, longitude: parseFloat(e.target.value) })} className="w-full px-3 py-2 border rounded-lg" />
+              </div>
+            </div>
+            <button onClick={handleDetectGps} disabled={detectingGps} className="w-full py-2 border border-blue-300 text-blue-600 rounded-lg text-sm hover:bg-blue-50 disabled:opacity-50">
+              {detectingGps ? "위치 확인 중..." : "현재 위치로 설정"}
+            </button>
+            <div>
+              <label className="text-sm font-medium">허용 반경 (미터)</label>
+              <input type="number" value={gpsForm.radius} onChange={(e) => setGpsForm({ ...gpsForm, radius: parseInt(e.target.value) })} className="w-full px-3 py-2 border rounded-lg" />
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button onClick={handleCreateGps} className="flex-1 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700">등록</button>
+              <button onClick={() => setShowGpsForm(false)} className="flex-1 py-2 border rounded-lg text-gray-700 hover:bg-gray-50">취소</button>
             </div>
           </div>
         </div>
