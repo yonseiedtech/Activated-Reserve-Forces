@@ -209,11 +209,19 @@ export default function PaymentDetailPage() {
             requiredHours={data.requiredHours}
           />
 
-          {/* 교통비 섹션 - 기능 일시 비활성화 */}
+          {isReservist ? (
+            <ReservistTransportSection amount={myTransport} address={myTransportAddress} />
+          ) : isAdmin ? (
+            <AdminTransportSection
+              batchId={batchId}
+              records={totalTransports}
+              onUpdate={fetchData}
+            />
+          ) : null}
 
           <SummarySection
             totalCompensation={totalCompensation}
-            transportAmount={0}
+            transportAmount={isReservist ? myTransport : totalTransports.reduce((s, r) => s + r.amount, 0)}
             isReservist={isReservist}
             personnelCount={isAdmin ? totalTransports.length : undefined}
             refund={refund}
@@ -709,34 +717,13 @@ function AdminTransportSection({
     <section className="bg-white rounded-xl border p-5">
       <div className="flex items-center justify-between mb-4">
         <h2 className="font-semibold text-gray-900">교통비</h2>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleAutoCalc}
-            disabled={autoCalcing}
-            className="text-xs text-green-600 hover:underline disabled:opacity-50"
-          >
-            {autoCalcing ? "계산 중..." : "자동 계산"}
-          </button>
-          <button
-            onClick={editing ? () => setEditing(false) : startEdit}
-            className="text-xs text-blue-600 hover:underline"
-          >
-            {editing ? "취소" : "수동 편집"}
-          </button>
-        </div>
+        <button
+          onClick={editing ? () => setEditing(false) : startEdit}
+          className="text-xs text-blue-600 hover:underline"
+        >
+          {editing ? "취소" : "편집"}
+        </button>
       </div>
-
-      {autoCalcError && (
-        <div className={`text-xs mb-3 px-3 py-2 rounded-lg ${
-          autoCalcError.includes("완료") ? "bg-yellow-50 text-yellow-700 border border-yellow-200" : "bg-red-50 text-red-600 border border-red-200"
-        }`}>
-          {autoCalcError}
-        </div>
-      )}
-
-      <p className="text-xs text-gray-400 mb-3">
-        30km 이하 4,000원 / 초과 시 연료비(km×1,486÷13.3)+통행료 자동 산출
-      </p>
 
       {!editing ? (
         <>
@@ -770,7 +757,7 @@ function AdminTransportSection({
               </table>
             </div>
           ) : (
-            <p className="text-sm text-gray-400">등록된 교통비가 없습니다. &quot;자동 계산&quot; 또는 &quot;수동 편집&quot;을 이용하세요.</p>
+            <p className="text-sm text-gray-400">등록된 교통비가 없습니다. &quot;편집&quot;을 눌러 교통비를 입력하세요.</p>
           )}
         </>
       ) : (
@@ -822,8 +809,8 @@ function SummarySection({
   personnelCount?: number;
   refund?: RefundProcess | null;
 }) {
-  const refundTotal = refund ? refund.compensationRefund : 0;
-  const grandTotal = totalCompensation - refundTotal;
+  const refundTotal = refund ? refund.compensationRefund + refund.transportRefund : 0;
+  const grandTotal = totalCompensation + transportAmount - refundTotal;
   const hasRefund = refundTotal > 0;
 
   return (
@@ -836,7 +823,13 @@ function SummarySection({
           <span className="text-blue-200">훈련 보상비</span>
           <span className="font-medium">{totalCompensation.toLocaleString()}원</span>
         </div>
-        {/* 교통비 - 기능 일시 비활성화 */}
+        <div className="flex justify-between text-sm">
+          <span className="text-blue-200">
+            교통비
+            {!isReservist && personnelCount !== undefined && ` (${personnelCount}명)`}
+          </span>
+          <span className="font-medium">{transportAmount.toLocaleString()}원</span>
+        </div>
         {hasRefund && refund && (
           <>
             {refund.compensationRefund > 0 && (
@@ -845,7 +838,12 @@ function SummarySection({
                 <span className="font-medium text-orange-300">-{refund.compensationRefund.toLocaleString()}원</span>
               </div>
             )}
-            {/* 교통비 환수 - 기능 일시 비활성화 */}
+            {refund.transportRefund > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-orange-300">교통비 환수</span>
+                <span className="font-medium text-orange-300">-{refund.transportRefund.toLocaleString()}원</span>
+              </div>
+            )}
           </>
         )}
         <div className="border-t border-blue-400 pt-2 flex justify-between">
@@ -976,7 +974,7 @@ function RefundSection({
     onUpdate();
   };
 
-  const refundTotal = compRefund;
+  const refundTotal = compRefund + transRefund;
 
   return (
     <div className="space-y-6">
@@ -1064,6 +1062,10 @@ function RefundSection({
                 <p className="text-xs text-gray-500 mb-1">훈련 보상비 환수</p>
                 <p className="text-sm font-medium">{compRefund.toLocaleString()}원</p>
               </div>
+              <div>
+                <p className="text-xs text-gray-500 mb-1">교통비 환수</p>
+                <p className="text-sm font-medium">{transRefund.toLocaleString()}원</p>
+              </div>
             </div>
             {refund.note && (
               <div>
@@ -1091,6 +1093,15 @@ function RefundSection({
                   type="number"
                   value={compRefund}
                   onChange={(e) => setCompRefund(parseInt(e.target.value) || 0)}
+                  className="w-full px-3 py-2 text-sm border rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">교통비 환수 (원)</label>
+                <input
+                  type="number"
+                  value={transRefund}
+                  onChange={(e) => setTransRefund(parseInt(e.target.value) || 0)}
                   className="w-full px-3 py-2 text-sm border rounded-lg"
                 />
               </div>
@@ -1122,6 +1133,10 @@ function RefundSection({
           <div className="flex justify-between text-sm">
             <span className="text-orange-200">훈련 보상비 환수</span>
             <span className="font-medium">{compRefund.toLocaleString()}원</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-orange-200">교통비 환수</span>
+            <span className="font-medium">{transRefund.toLocaleString()}원</span>
           </div>
           <div className="border-t border-orange-400 pt-2 flex justify-between">
             <span className="font-semibold">환수 총액</span>

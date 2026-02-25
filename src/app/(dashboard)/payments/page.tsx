@@ -111,6 +111,10 @@ export default function PaymentsPage() {
                     <p className="font-medium text-gray-700">{b.compensationTotal.toLocaleString()}원</p>
                   </div>
                   <div>
+                    <p className="text-gray-400">교통비</p>
+                    <p className="font-medium text-gray-700">{b.transportAmount.toLocaleString()}원</p>
+                  </div>
+                  <div>
                     <p className="text-gray-400">총액</p>
                     <p className="font-semibold text-gray-900">{b.grandTotal.toLocaleString()}원</p>
                   </div>
@@ -145,6 +149,7 @@ export default function PaymentsPage() {
               <th className="text-left px-4 py-3 font-medium">상태</th>
               <th className="text-left px-4 py-3 font-medium">차수</th>
               <th className="text-right px-4 py-3 font-medium">보상비</th>
+              <th className="text-right px-4 py-3 font-medium">교통비</th>
               <th className="text-right px-4 py-3 font-medium">총액</th>
             </tr>
           </thead>
@@ -177,6 +182,7 @@ export default function PaymentsPage() {
                 </td>
                 <td className="px-4 py-3 font-medium">{row.batchName}</td>
                 <td className="px-4 py-3 text-right">{row.compensationTotal.toLocaleString()}원</td>
+                <td className="px-4 py-3 text-right">{row.transportTotal.toLocaleString()}원</td>
                 <td className="px-4 py-3 text-right font-medium">{row.grandTotal.toLocaleString()}원</td>
               </tr>
             ))}
@@ -219,10 +225,14 @@ export default function PaymentsPage() {
                 )}
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-2 text-xs text-gray-500">
+            <div className="grid grid-cols-3 gap-2 text-xs text-gray-500">
               <div>
                 <p className="text-gray-400">보상비</p>
                 <p className="font-medium text-gray-700">{row.compensationTotal.toLocaleString()}원</p>
+              </div>
+              <div>
+                <p className="text-gray-400">교통비</p>
+                <p className="font-medium text-gray-700">{row.transportTotal.toLocaleString()}원</p>
               </div>
               <div>
                 <p className="text-gray-400">총액</p>
