@@ -186,7 +186,7 @@ export default function AdminBatchDetailPage() {
   const batchId = params.id as string;
 
   const [batch, setBatch] = useState<Batch | null>(null);
-  const [tab, setTab] = useState<"training" | "trainees" | "attendance" | "commuting" | "bankAccount" | "settings">("training");
+  const [tab, setTab] = useState<"training" | "trainees" | "attendance" | "commuting" | "settings">("training");
   const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [trainingCategories, setTrainingCategories] = useState<TrainingCategory[]>([]);
   const [showTrainingForm, setShowTrainingForm] = useState(false);
@@ -650,12 +650,6 @@ export default function AdminBatchDetailPage() {
           className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === "commuting" ? "bg-white shadow text-blue-600" : "text-gray-600 hover:text-gray-900"}`}
         >
           출퇴근
-        </button>
-        <button
-          onClick={() => setTab("bankAccount")}
-          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === "bankAccount" ? "bg-white shadow text-blue-600" : "text-gray-600 hover:text-gray-900"}`}
-        >
-          계좌현황
         </button>
         <button
           onClick={() => setTab("settings")}
@@ -1283,94 +1277,6 @@ export default function AdminBatchDetailPage() {
               )}
             </>
           )}
-        </div>
-      )}
-
-      {/* Bank Account Tab */}
-      {tab === "bankAccount" && (
-        <div className="space-y-4">
-          <div className="bg-white rounded-xl border overflow-hidden">
-            <div className="px-4 py-3 bg-gray-50 border-b flex items-center justify-between">
-              <h3 className="font-semibold text-sm">보상금 지급 계좌 현황</h3>
-              <button
-                onClick={() => {
-                  const printWindow = window.open("", "_blank");
-                  if (!printWindow) return;
-                  const rows = batch.users.map((u, i) => {
-                    const bd = u.birthDate ? new Date(u.birthDate).toLocaleDateString("ko-KR") : "";
-                    return `<tr><td style="padding:6px 10px;border:1px solid #333;text-align:center;font-size:13px;">${i + 1}</td><td style="padding:6px 10px;border:1px solid #333;font-size:13px;">${u.unit || ""}</td><td style="padding:6px 10px;border:1px solid #333;font-size:13px;">${u.name}</td><td style="padding:6px 10px;border:1px solid #333;font-size:13px;">${u.bankName || ""}</td><td style="padding:6px 10px;border:1px solid #333;font-size:13px;">${u.bankAccount || ""}</td><td style="padding:6px 10px;border:1px solid #333;font-size:13px;">${bd}</td></tr>`;
-                  }).join("");
-
-                  printWindow.document.write(`<!DOCTYPE html><html><head><title>보상금 지급 계좌 파악</title>
-                    <style>
-                      @page { size: A4 landscape; margin: 15mm; }
-                      body { font-family: 'Malgun Gothic', sans-serif; padding: 20px; font-size: 14px; }
-                      h1 { text-align: center; font-size: 22px; margin-bottom: 20px; letter-spacing: 6px; }
-                      table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
-                      th { padding: 8px 10px; border: 1px solid #333; background: #f5f5f5; font-weight: bold; font-size: 13px; text-align: center; }
-                      .notice { margin-top: 24px; font-size: 12px; line-height: 1.8; }
-                      .notice li { margin-bottom: 4px; }
-                      @media print { body { padding: 0; } }
-                    </style></head><body>
-                    <h1>보상금 지급 계좌 파악</h1>
-                    <p style="text-align:right;font-size:13px;margin-bottom:10px;">${batch.name}</p>
-                    <table>
-                      <thead><tr><th>번호</th><th>소속예비군중대</th><th>성명</th><th>은행명</th><th>계좌번호</th><th>생년월일</th></tr></thead>
-                      <tbody>${rows}</tbody>
-                    </table>
-                    <div class="notice">
-                      <p><strong>※ 안내사항</strong></p>
-                      <ol>
-                        <li>1. 보상금은 본인 명의 계좌로만 지급 가능합니다.</li>
-                        <li>2. 계좌번호 오류 시 입금이 불가하오니 정확히 기재하여 주시기 바랍니다.</li>
-                        <li>3. 타인 명의 계좌 기재 시 보상금 지급이 불가합니다.</li>
-                        <li>4. 보상금 관련 문의: 행정보급관</li>
-                      </ol>
-                    </div>
-                  </body></html>`);
-                  printWindow.document.close();
-                  printWindow.focus();
-                  setTimeout(() => printWindow.print(), 300);
-                }}
-                className="px-3 py-1.5 text-xs bg-gray-600 text-white rounded hover:bg-gray-700"
-              >
-                인쇄
-              </button>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="text-left px-4 py-2 font-medium text-xs">번호</th>
-                    <th className="text-left px-4 py-2 font-medium text-xs">소속</th>
-                    <th className="text-left px-4 py-2 font-medium text-xs">성명</th>
-                    <th className="text-left px-4 py-2 font-medium text-xs">은행명</th>
-                    <th className="text-left px-4 py-2 font-medium text-xs">계좌번호</th>
-                    <th className="text-left px-4 py-2 font-medium text-xs">생년월일</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {batch.users.length === 0 ? (
-                    <tr><td colSpan={6} className="text-center py-8 text-gray-400">배정된 대상자가 없습니다.</td></tr>
-                  ) : (
-                    batch.users.map((u, i) => (
-                      <tr key={u.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-2 text-gray-500">{i + 1}</td>
-                        <td className="px-4 py-2">{u.unit || "-"}</td>
-                        <td className="px-4 py-2 font-medium">{u.name}</td>
-                        <td className="px-4 py-2">{u.bankName || <span className="text-gray-300">미등록</span>}</td>
-                        <td className="px-4 py-2">{u.bankAccount || <span className="text-gray-300">미등록</span>}</td>
-                        <td className="px-4 py-2 text-gray-500">{u.birthDate ? new Date(u.birthDate).toLocaleDateString("ko-KR") : "-"}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-            <div className="px-4 py-3 bg-gray-50 border-t text-xs text-gray-500">
-              계좌 등록: {batch.users.filter((u) => u.bankAccount).length}명 / 전체 {batch.users.length}명
-            </div>
-          </div>
         </div>
       )}
 
