@@ -2,6 +2,7 @@
 
 import { useSession, signOut } from "next-auth/react";
 import Link from "next/link";
+import Image from "next/image";
 import { ROLE_LABELS } from "@/lib/constants";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 
@@ -12,19 +13,13 @@ export default function Header({ onMenuToggle }: { onMenuToggle: () => void }) {
   return (
     <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-lg border-b border-gray-100 shadow-sm px-4 py-3">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={onMenuToggle}
-            className="hidden p-2 rounded-md hover:bg-gray-100"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
-          <h2 className="text-lg font-semibold text-gray-800 hidden sm:block">
+        <Link href="/" className="flex items-center gap-2">
+          <Image src="/logo.svg" alt="로고" width={28} height={28} className="shrink-0" />
+          <span className="text-sm font-bold text-gray-800 sm:hidden">상비예비군</span>
+          <span className="text-lg font-semibold text-gray-800 hidden sm:block">
             상비예비군 소집훈련 관리 시스템
-          </h2>
-        </div>
+          </span>
+        </Link>
         <div className="flex items-center gap-4">
           {session?.user && (
             <>
