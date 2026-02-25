@@ -649,8 +649,8 @@ function TransportInfoCard({
         )}
         {transportError && (
           <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
-            <p className="text-sm text-orange-700 font-medium">{transportError}</p>
-            <p className="text-xs text-orange-500 mt-1">프로필의 주소를 도로명 주소(예: 서울시 용산구 이태원로 22)로 수정하면 해결될 수 있습니다.</p>
+            <p className="text-sm text-orange-700 font-medium">교통비 자동 계산 불가</p>
+            <p className="text-xs text-orange-500 mt-1">관리자에게 문의하시거나, 주소가 정확한지 확인해주세요.</p>
           </div>
         )}
         {transport && (
