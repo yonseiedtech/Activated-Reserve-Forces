@@ -3,20 +3,26 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import PageTitle from "@/components/ui/PageTitle";
-import { TRAINING_TYPES } from "@/lib/constants";
 
 interface Batch {
   id: string;
   name: string;
 }
 
+interface TrainingCategory {
+  id: string;
+  name: string;
+  order: number;
+}
+
 export default function NewTrainingPage() {
   const router = useRouter();
   const [batches, setBatches] = useState<Batch[]>([]);
+  const [categories, setCategories] = useState<TrainingCategory[]>([]);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     title: "",
-    type: "사격",
+    type: "",
     date: "",
     startTime: "08:00",
     endTime: "17:00",
@@ -29,6 +35,15 @@ export default function NewTrainingPage() {
     fetch("/api/batches")
       .then((r) => r.json())
       .then(setBatches);
+    fetch("/api/training-categories")
+      .then((r) => r.json())
+      .then((cats: TrainingCategory[]) => {
+        setCategories(cats);
+        if (cats.length > 0 && !form.type) {
+          setForm((prev) => ({ ...prev, type: cats[0].name }));
+        }
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -87,8 +102,8 @@ export default function NewTrainingPage() {
               onChange={(e) => setForm({ ...form, type: e.target.value })}
               className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
             >
-              {TRAINING_TYPES.map((t) => (
-                <option key={t} value={t}>{t}</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.name}>{c.name}</option>
               ))}
             </select>
           </div>

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { ATTENDANCE_STATUS_LABELS } from "@/lib/constants";
 import Link from "next/link";
 import PageTitle from "@/components/ui/PageTitle";
+import CategoryManager from "./CategoryManager";
 
 function calcDuration(startTime: string | null, endTime: string | null): number {
   if (!startTime || !endTime) return 0;
@@ -82,12 +83,15 @@ export default async function TrainingsPage({
         description="차수별 세부 훈련 과목표입니다."
         actions={
           ["ADMIN", "MANAGER"].includes(session.user.role) ? (
-            <Link
-              href="/trainings/new"
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-            >
-              + 훈련 추가
-            </Link>
+            <div className="flex gap-2">
+              {session.user.role === "ADMIN" && <CategoryManager />}
+              <Link
+                href="/trainings/new"
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+              >
+                + 훈련 추가
+              </Link>
+            </div>
           ) : undefined
         }
       />

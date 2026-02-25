@@ -4,7 +4,13 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import PageTitle from "@/components/ui/PageTitle";
-import { BATCH_STATUS_LABELS, TRAINING_TYPES } from "@/lib/constants";
+import { BATCH_STATUS_LABELS } from "@/lib/constants";
+
+interface TrainingCategory {
+  id: string;
+  name: string;
+  order: number;
+}
 
 interface Training {
   id: string;
@@ -142,6 +148,7 @@ export default function AdminBatchDetailPage() {
   const [batch, setBatch] = useState<Batch | null>(null);
   const [tab, setTab] = useState<"training" | "trainees" | "attendance" | "commuting" | "settings">("training");
   const [instructors, setInstructors] = useState<Instructor[]>([]);
+  const [trainingCategories, setTrainingCategories] = useState<TrainingCategory[]>([]);
   const [showTrainingForm, setShowTrainingForm] = useState(false);
   const [trainingFormDate, setTrainingFormDate] = useState("");
   const [trainingDate, setTrainingDate] = useState("");
@@ -213,6 +220,7 @@ export default function AdminBatchDetailPage() {
     fetchBatch();
     fetchInstructors();
     fetchUnassigned();
+    fetch("/api/training-categories").then((r) => r.json()).then(setTrainingCategories);
   }, [fetchBatch, fetchInstructors, fetchUnassigned, isAuthorized]);
 
   useEffect(() => {
@@ -1276,7 +1284,7 @@ export default function AdminBatchDetailPage() {
               onChange={(e) => setTrainingForm({ ...trainingForm, type: e.target.value })}
               className="w-full px-3 py-2 border rounded-lg"
             >
-              {TRAINING_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+              {trainingCategories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
             </select>
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -1342,7 +1350,7 @@ export default function AdminBatchDetailPage() {
               onChange={(e) => setEditForm({ ...editForm, type: e.target.value })}
               className="w-full px-3 py-2 border rounded-lg"
             >
-              {TRAINING_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+              {trainingCategories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
             </select>
             <div className="grid grid-cols-2 gap-4">
               <div>

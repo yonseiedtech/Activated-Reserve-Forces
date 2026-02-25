@@ -78,7 +78,8 @@ export default async function DailySchedulePage({ params, searchParams }: Props)
     };
   }
 
-  const typeColors: Record<string, string> = {
+  // 기본 카테고리 색상 + 추가 카테고리용 색상 풀
+  const defaultTypeColors: Record<string, string> = {
     "사격": "bg-red-100 text-red-700 border-red-200",
     "화생방": "bg-yellow-100 text-yellow-700 border-yellow-200",
     "전술": "bg-green-100 text-green-700 border-green-200",
@@ -86,6 +87,28 @@ export default async function DailySchedulePage({ params, searchParams }: Props)
     "정신교육": "bg-purple-100 text-purple-700 border-purple-200",
     "기타": "bg-gray-100 text-gray-700 border-gray-200",
   };
+
+  const extraColorPool = [
+    "bg-pink-100 text-pink-700 border-pink-200",
+    "bg-indigo-100 text-indigo-700 border-indigo-200",
+    "bg-teal-100 text-teal-700 border-teal-200",
+    "bg-orange-100 text-orange-700 border-orange-200",
+    "bg-cyan-100 text-cyan-700 border-cyan-200",
+    "bg-lime-100 text-lime-700 border-lime-200",
+    "bg-amber-100 text-amber-700 border-amber-200",
+    "bg-emerald-100 text-emerald-700 border-emerald-200",
+  ];
+
+  // 알려진 유형은 기존 색상, 새 유형은 풀에서 순환 할당
+  const typeColors: Record<string, string> = { ...defaultTypeColors };
+  let extraIdx = 0;
+  const uniqueTypes = [...new Set(trainings.map((t) => t.type))];
+  for (const t of uniqueTypes) {
+    if (!typeColors[t]) {
+      typeColors[t] = extraColorPool[extraIdx % extraColorPool.length];
+      extraIdx++;
+    }
+  }
 
   return (
     <div className="max-w-3xl">

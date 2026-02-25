@@ -404,6 +404,14 @@ model TrainingTemplateItem {
   createdAt   DateTime @default(now())
 }
 
+// ─── 훈련 카테고리 ───
+model TrainingCategory {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
 // ─── 석식 신청 ───
 model DinnerRequest {
   id        String   @id @default(cuid())
