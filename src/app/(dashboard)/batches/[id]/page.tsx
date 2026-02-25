@@ -196,18 +196,10 @@ export default function ReservistBatchDetailPage() {
   const [commutingRecords, setCommutingRecords] = useState<CommutingRecord[]>([]);
   const [commutingLoading, setCommutingLoading] = useState(false);
 
-  // 건강관리 문진표
-  const [healthAnswers, setHealthAnswers] = useState<Record<string, boolean | string>>({
-    q1_chronic: false, q1_chronic_detail: "",
-    q2_treating: false,
-    q3_medication: false, q3_medication_detail: "",
-    q4_exercise_symptoms: false,
-    q5_blood_pressure_meds: false,
-    q6_fatigue: false,
-    q7_mental: false,
-    q8_family_history: false,
-    q9_covid_1: false, q9_covid_2: false, q9_covid_3: false, q9_covid_4: false,
-    q10_training_issue: false,
+  // 건강관리 문진표 (boolean 문항은 undefined = 미선택)
+  const [healthAnswers, setHealthAnswers] = useState<Record<string, boolean | string | undefined>>({
+    q1_chronic_detail: "",
+    q3_medication_detail: "",
     q11_other: "",
     bloodPressure: "",
     temperature: "",
@@ -448,6 +440,19 @@ export default function ReservistBatchDetailPage() {
 
   const handleSaveHealth = async () => {
     if (!batchUserId) return;
+
+    // 필수 문항 선택 여부 검증
+    const requiredKeys = [
+      "q1_chronic", "q2_treating", "q3_medication", "q4_exercise_symptoms",
+      "q5_blood_pressure_meds", "q6_fatigue", "q7_mental", "q8_family_history",
+      "q9_covid_1", "q9_covid_2", "q9_covid_3", "q9_covid_4", "q10_training_issue",
+    ];
+    const unanswered = requiredKeys.filter((k) => healthAnswers[k] === undefined);
+    if (unanswered.length > 0) {
+      alert("모든 문항에 응답해주세요.");
+      return;
+    }
+
     setHealthSaving(true);
     const answersWithTime = { ...healthAnswers, submittedAt: new Date().toISOString() };
     try {
@@ -834,28 +839,28 @@ export default function ReservistBatchDetailPage() {
                     <div key={q.key} className="bg-gray-50 rounded-lg p-3">
                       <p className="text-sm text-gray-800 mb-2">{q.label}</p>
                       <div className="flex gap-3">
-                        <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border cursor-pointer text-sm ${healthAnswers[q.key] ? "border-red-400 bg-red-50 text-red-700" : "border-gray-200 hover:bg-gray-100"}`}>
+                        <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border cursor-pointer text-sm ${healthAnswers[q.key] === true ? "border-red-400 bg-red-50 text-red-700" : "border-gray-200 hover:bg-gray-100"}`}>
                           <input
                             type="radio"
                             name={q.key}
-                            checked={!!healthAnswers[q.key]}
+                            checked={healthAnswers[q.key] === true}
                             onChange={() => setHealthAnswers({ ...healthAnswers, [q.key]: true })}
                             className="text-red-600"
                           />
                           있음
                         </label>
-                        <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border cursor-pointer text-sm ${!healthAnswers[q.key] ? "border-green-400 bg-green-50 text-green-700" : "border-gray-200 hover:bg-gray-100"}`}>
+                        <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border cursor-pointer text-sm ${healthAnswers[q.key] === false ? "border-green-400 bg-green-50 text-green-700" : "border-gray-200 hover:bg-gray-100"}`}>
                           <input
                             type="radio"
                             name={q.key}
-                            checked={!healthAnswers[q.key]}
+                            checked={healthAnswers[q.key] === false}
                             onChange={() => setHealthAnswers({ ...healthAnswers, [q.key]: false })}
                             className="text-green-600"
                           />
                           없음
                         </label>
                       </div>
-                      {q.detail && healthAnswers[q.key] && (
+                      {q.detail && healthAnswers[q.key] === true && (
                         <input
                           type="text"
                           value={(healthAnswers[q.detail] as string) || ""}
@@ -878,21 +883,21 @@ export default function ReservistBatchDetailPage() {
                       <div key={q.key} className="mt-2">
                         <p className="text-sm text-gray-800 mb-1">{q.label}</p>
                         <div className="flex gap-3">
-                          <label className={`flex items-center gap-1.5 px-3 py-1 rounded-lg border cursor-pointer text-xs ${healthAnswers[q.key] ? "border-red-400 bg-red-50 text-red-700" : "border-gray-200 hover:bg-gray-100"}`}>
+                          <label className={`flex items-center gap-1.5 px-3 py-1 rounded-lg border cursor-pointer text-xs ${healthAnswers[q.key] === true ? "border-red-400 bg-red-50 text-red-700" : "border-gray-200 hover:bg-gray-100"}`}>
                             <input
                               type="radio"
                               name={q.key}
-                              checked={!!healthAnswers[q.key]}
+                              checked={healthAnswers[q.key] === true}
                               onChange={() => setHealthAnswers({ ...healthAnswers, [q.key]: true })}
                               className="text-red-600"
                             />
                             있음
                           </label>
-                          <label className={`flex items-center gap-1.5 px-3 py-1 rounded-lg border cursor-pointer text-xs ${!healthAnswers[q.key] ? "border-green-400 bg-green-50 text-green-700" : "border-gray-200 hover:bg-gray-100"}`}>
+                          <label className={`flex items-center gap-1.5 px-3 py-1 rounded-lg border cursor-pointer text-xs ${healthAnswers[q.key] === false ? "border-green-400 bg-green-50 text-green-700" : "border-gray-200 hover:bg-gray-100"}`}>
                             <input
                               type="radio"
                               name={q.key}
-                              checked={!healthAnswers[q.key]}
+                              checked={healthAnswers[q.key] === false}
                               onChange={() => setHealthAnswers({ ...healthAnswers, [q.key]: false })}
                               className="text-green-600"
                             />
@@ -906,21 +911,21 @@ export default function ReservistBatchDetailPage() {
                   <div className="bg-gray-50 rounded-lg p-3">
                     <p className="text-sm text-gray-800 mb-2">10. 훈련 수행에 지장이 있는 사항이 있습니까?</p>
                     <div className="flex gap-3">
-                      <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border cursor-pointer text-sm ${healthAnswers.q10_training_issue ? "border-red-400 bg-red-50 text-red-700" : "border-gray-200 hover:bg-gray-100"}`}>
+                      <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border cursor-pointer text-sm ${healthAnswers.q10_training_issue === true ? "border-red-400 bg-red-50 text-red-700" : "border-gray-200 hover:bg-gray-100"}`}>
                         <input
                           type="radio"
                           name="q10_training_issue"
-                          checked={!!healthAnswers.q10_training_issue}
+                          checked={healthAnswers.q10_training_issue === true}
                           onChange={() => setHealthAnswers({ ...healthAnswers, q10_training_issue: true })}
                           className="text-red-600"
                         />
                         있음
                       </label>
-                      <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border cursor-pointer text-sm ${!healthAnswers.q10_training_issue ? "border-green-400 bg-green-50 text-green-700" : "border-gray-200 hover:bg-gray-100"}`}>
+                      <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border cursor-pointer text-sm ${healthAnswers.q10_training_issue === false ? "border-green-400 bg-green-50 text-green-700" : "border-gray-200 hover:bg-gray-100"}`}>
                         <input
                           type="radio"
                           name="q10_training_issue"
-                          checked={!healthAnswers.q10_training_issue}
+                          checked={healthAnswers.q10_training_issue === false}
                           onChange={() => setHealthAnswers({ ...healthAnswers, q10_training_issue: false })}
                           className="text-green-600"
                         />
