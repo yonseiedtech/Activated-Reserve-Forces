@@ -215,29 +215,32 @@ export default async function DashboardPage() {
 
       {/* 대상자: 다음 훈련 D-Day 카드 */}
       {role === ROLES.RESERVIST && (
-        <Link href={nextTraining ? `/batches/${nextTraining.batchId}` : "/batches"} className="block bg-white rounded-xl shadow-sm border p-6 hover:shadow-md transition-shadow">
-          <div className="flex items-center gap-4">
-            <span className="text-3xl">📅</span>
-            <div>
-              {nextTraining ? (
-                <>
-                  <p className="text-2xl font-bold text-blue-700">
-                    D{nextTraining.dDay === 0 ? "-Day" : `-${nextTraining.dDay}`}
-                  </p>
-                  <p className="text-sm text-gray-700 font-medium">{nextTraining.batchName}</p>
-                  <p className="text-xs text-gray-400">
-                    {new Date(nextTraining.date).toLocaleDateString("ko-KR")}
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="text-lg font-medium text-gray-500">예정된 훈련 없음</p>
-                  <p className="text-xs text-gray-400">다음 훈련 일정이 등록되면 여기에 표시됩니다.</p>
-                </>
-              )}
+        <div>
+          <h2 className="text-lg font-semibold mb-3">다음 훈련</h2>
+          <Link href={nextTraining ? `/batches/${nextTraining.batchId}` : "/batches"} className="block bg-white rounded-xl shadow-sm border p-6 hover:shadow-md transition-shadow">
+            <div className="flex items-center gap-4">
+              <span className="text-3xl">📅</span>
+              <div>
+                {nextTraining ? (
+                  <>
+                    <p className="text-2xl font-bold text-blue-700">
+                      D{nextTraining.dDay === 0 ? "-Day" : `-${nextTraining.dDay}`}
+                    </p>
+                    <p className="text-sm text-gray-700 font-medium">{nextTraining.batchName}</p>
+                    <p className="text-xs text-gray-400">
+                      {new Date(nextTraining.date).toLocaleDateString("ko-KR")}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-lg font-medium text-gray-500">예정된 훈련 없음</p>
+                    <p className="text-xs text-gray-400">다음 훈련 일정이 등록되면 여기에 표시됩니다.</p>
+                  </>
+                )}
+              </div>
             </div>
-          </div>
-        </Link>
+          </Link>
+        </div>
       )}
 
       {/* 모바일 신분증 만료 경고 */}
