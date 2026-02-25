@@ -68,12 +68,12 @@ export async function POST(req: NextRequest) {
       where: {
         userId_date: {
           userId: body.userId,
-          date: new Date(new Date(body.date).toDateString()),
+          date: new Date(body.date.split("T")[0] + "T00:00:00.000Z"),
         },
       },
       create: {
         userId: body.userId,
-        date: new Date(new Date(body.date).toDateString()),
+        date: new Date(body.date.split("T")[0] + "T00:00:00.000Z"),
         checkInAt: body.checkInAt ? new Date(body.checkInAt) : undefined,
         checkOutAt: body.checkOutAt ? new Date(body.checkOutAt) : undefined,
         isManual: true,
@@ -103,8 +103,11 @@ export async function POST(req: NextRequest) {
 
   if (!inRange) return json({ error: "허용된 위치 범위 밖입니다.", allowed: false }, 400);
 
-  const today = new Date(new Date().toDateString());
+  // 오늘 날짜 (KST)
   const now = new Date();
+  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  const todayStr = kst.toISOString().split("T")[0];
+  const today = new Date(todayStr + "T00:00:00.000Z");
 
   // 현재 활성 배치 자동 탐지
   const activeBatchUser = await prisma.batchUser.findFirst({

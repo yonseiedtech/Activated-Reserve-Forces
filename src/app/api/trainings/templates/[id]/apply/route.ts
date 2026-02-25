@@ -79,6 +79,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           location: item.location,
           description: item.description,
           batchId: body.batchId,
+          // 식사 유형은 이수시간에서 자동 제외
+          countsTowardHours: (item.type || "기타") !== "식사",
         },
       })
     )
