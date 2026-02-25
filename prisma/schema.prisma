@@ -90,10 +90,23 @@ model BatchUser {
   batchId           String
   batch             Batch     @relation(fields: [batchId], references: [id], onDelete: Cascade)
   status            String    @default("PENDING") // PRESENT, ABSENT, PENDING
+  subStatus         String?   // NORMAL, LATE_ARRIVAL, EARLY_DEPARTURE (참석일 때 세부 상태)
   reason            String?   // 불참 사유
   expectedConfirmAt DateTime? // 미정일 때 확정 예정 시점
   createdAt         DateTime  @default(now())
+  reasonReports     ReasonReport[]
   @@unique([userId, batchId])
+}
+
+// ─── 사유서 (지연입소/조기퇴소/불참) ───
+model ReasonReport {
+  id          String    @id @default(cuid())
+  batchUserId String
+  batchUser   BatchUser @relation(fields: [batchUserId], references: [id], onDelete: Cascade)
+  type        String    // LATE_ARRIVAL, EARLY_DEPARTURE, ABSENT
+  content     String    // 사유서 본문 (JSON: { reason, date, arrivalTime/departureTime 등 })
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }
 
 // ─── 차수 (훈련 기수) ───

@@ -31,9 +31,36 @@ interface BatchUser {
   serviceNumber: string | null;
   phone: string | null;
   unit: string | null;
+  batchUserId?: string;
   batchStatus?: string;
+  batchSubStatus?: string | null;
   batchReason?: string | null;
 }
+
+interface ReasonReportWithUser {
+  id: string;
+  batchUserId: string;
+  type: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+  batchUser: {
+    user: { id: string; name: string; rank: string | null; serviceNumber: string | null; unit: string | null; branch: string | null };
+    batch: { id: string; name: string; startDate: string; endDate: string };
+  };
+}
+
+const SUB_STATUS_LABELS: Record<string, string> = {
+  NORMAL: "정상",
+  LATE_ARRIVAL: "지연입소",
+  EARLY_DEPARTURE: "조기퇴소",
+};
+
+const REASON_TYPE_LABELS: Record<string, string> = {
+  LATE_ARRIVAL: "지연입소 사유서",
+  EARLY_DEPARTURE: "조기퇴소 사유서",
+  ABSENT: "불참 사유서",
+};
 
 interface Batch {
   id: string;
@@ -181,6 +208,10 @@ export default function AdminBatchDetailPage() {
   const [commutingLoading, setCommutingLoading] = useState(false);
   const [commutingSaving, setCommutingSaving] = useState(false);
 
+  // 사유서 관련
+  const [reasonReports, setReasonReports] = useState<ReasonReportWithUser[]>([]);
+  const [viewingReport, setViewingReport] = useState<ReasonReportWithUser | null>(null);
+
   // Settings tab state
   const [settingsForm, setSettingsForm] = useState({ name: "", year: 0, number: 0, startDate: "", endDate: "", location: "", requiredHours: "" });
   const [settingsSaving, setSettingsSaving] = useState(false);
@@ -213,6 +244,12 @@ export default function AdminBatchDetailPage() {
       .finally(() => setAttendanceLoading(false));
   }, [batchId]);
 
+  const fetchReasonReports = useCallback(() => {
+    fetch(`/api/reason-reports?batchId=${batchId}`)
+      .then((r) => r.json())
+      .then((data: ReasonReportWithUser[]) => setReasonReports(Array.isArray(data) ? data : []));
+  }, [batchId]);
+
   const isAuthorized = status === "authenticated" && ["ADMIN", "MANAGER"].includes(session?.user?.role ?? "");
 
   useEffect(() => {
@@ -225,8 +262,11 @@ export default function AdminBatchDetailPage() {
 
   useEffect(() => {
     if (!isAuthorized) return;
-    if (tab === "attendance") fetchAttendanceSummary();
-  }, [tab, fetchAttendanceSummary, isAuthorized]);
+    if (tab === "attendance") {
+      fetchAttendanceSummary();
+      fetchReasonReports();
+    }
+  }, [tab, fetchAttendanceSummary, fetchReasonReports, isAuthorized]);
 
   // Training/Commuting: batch 로드 시 날짜 초기화
   useEffect(() => {
@@ -852,28 +892,47 @@ export default function AdminBatchDetailPage() {
               {batch.users.length === 0 ? (
                 <p className="px-4 py-6 text-sm text-gray-400 text-center">배정된 대상자가 없습니다.</p>
               ) : (
-                batch.users.map((u) => (
-                  <div key={u.id} className="px-4 py-2.5 flex items-center justify-between hover:bg-gray-50">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm">
-                        <span className="text-gray-500">{u.rank}</span> {u.name}
-                      </span>
-                      <span className="text-xs text-gray-400">{u.serviceNumber}</span>
+                batch.users.map((u) => {
+                  const userReports = reasonReports.filter((r) => r.batchUserId === u.batchUserId);
+                  return (
+                    <div key={u.id} className="px-4 py-2.5 flex items-center justify-between hover:bg-gray-50">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">
+                          <span className="text-gray-500">{u.rank}</span> {u.name}
+                        </span>
+                        <span className="text-xs text-gray-400">{u.serviceNumber}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {u.batchReason && u.batchStatus === "ABSENT" && (
+                          <span className="text-xs text-gray-400 max-w-[150px] truncate" title={u.batchReason}>{u.batchReason}</span>
+                        )}
+                        {u.batchSubStatus && u.batchSubStatus !== "NORMAL" && (
+                          <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
+                            u.batchSubStatus === "LATE_ARRIVAL" ? "bg-yellow-50 text-yellow-600" : "bg-orange-50 text-orange-600"
+                          }`}>
+                            {SUB_STATUS_LABELS[u.batchSubStatus]}
+                          </span>
+                        )}
+                        {userReports.length > 0 && (
+                          <button
+                            onClick={() => setViewingReport(userReports[0])}
+                            className="px-1.5 py-0.5 text-xs bg-blue-50 text-blue-600 rounded hover:bg-blue-100"
+                            title="사유서 보기"
+                          >
+                            사유서 ({userReports.length})
+                          </button>
+                        )}
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                          u.batchStatus === "PRESENT" ? "bg-green-100 text-green-700" :
+                          u.batchStatus === "ABSENT" ? "bg-red-100 text-red-700" :
+                          "bg-yellow-100 text-yellow-700"
+                        }`}>
+                          {u.batchStatus === "PRESENT" ? "참석" : u.batchStatus === "ABSENT" ? "불참" : "미정"}
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {u.batchReason && u.batchStatus === "ABSENT" && (
-                        <span className="text-xs text-gray-400 max-w-[150px] truncate" title={u.batchReason}>{u.batchReason}</span>
-                      )}
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                        u.batchStatus === "PRESENT" ? "bg-green-100 text-green-700" :
-                        u.batchStatus === "ABSENT" ? "bg-red-100 text-red-700" :
-                        "bg-yellow-100 text-yellow-700"
-                      }`}>
-                        {u.batchStatus === "PRESENT" ? "참석" : u.batchStatus === "ABSENT" ? "불참" : "미정"}
-                      </span>
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
@@ -1330,6 +1389,126 @@ export default function AdminBatchDetailPage() {
               <button onClick={handleCreateTraining} className="flex-1 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700">추가</button>
               <button onClick={() => setShowTrainingForm(false)} className="flex-1 py-2 border rounded-lg text-gray-700 hover:bg-gray-50">취소</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 사유서 조회/인쇄 모달 */}
+      {viewingReport && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl w-full max-w-lg p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">{REASON_TYPE_LABELS[viewingReport.type] || "사유서"}</h3>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    const printWindow = window.open("", "_blank");
+                    if (!printWindow) return;
+                    let parsedContent: { reason?: string; date?: string; time?: string } = {};
+                    try { parsedContent = JSON.parse(viewingReport.content); } catch { parsedContent = { reason: viewingReport.content }; }
+                    const { user, batch: rBatch } = viewingReport.batchUser;
+                    const timeLabel = viewingReport.type === "LATE_ARRIVAL" ? "입소 예정 일시" : viewingReport.type === "EARLY_DEPARTURE" ? "퇴소 예정 일시" : "";
+                    printWindow.document.write(`<!DOCTYPE html><html><head><title>${REASON_TYPE_LABELS[viewingReport.type]}</title>
+                      <style>
+                        body { font-family: 'Malgun Gothic', sans-serif; padding: 40px; max-width: 700px; margin: 0 auto; }
+                        h1 { text-align: center; font-size: 22px; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 10px; }
+                        .info-table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+                        .info-table td { border: 1px solid #999; padding: 8px 12px; font-size: 14px; }
+                        .info-table .label { background: #f5f5f5; font-weight: bold; width: 120px; }
+                        .reason-section { margin-top: 20px; }
+                        .reason-section h3 { font-size: 15px; margin-bottom: 10px; }
+                        .reason-box { border: 1px solid #999; padding: 16px; min-height: 120px; white-space: pre-wrap; font-size: 14px; line-height: 1.8; }
+                        .signature-area { margin-top: 40px; text-align: right; font-size: 14px; }
+                        .signature-area p { margin: 4px 0; }
+                        .date-line { margin-top: 30px; text-align: center; font-size: 14px; }
+                        @media print { body { padding: 20px; } }
+                      </style></head><body>
+                      <h1>${REASON_TYPE_LABELS[viewingReport.type]}</h1>
+                      <table class="info-table">
+                        <tr><td class="label">성명</td><td>${user.name}</td><td class="label">계급</td><td>${user.rank || "-"}</td></tr>
+                        <tr><td class="label">군번</td><td>${user.serviceNumber || "-"}</td><td class="label">소속</td><td>${user.unit || "-"}</td></tr>
+                        <tr><td class="label">훈련차수</td><td colspan="3">${rBatch.name}</td></tr>
+                        <tr><td class="label">훈련기간</td><td colspan="3">${new Date(rBatch.startDate).toLocaleDateString("ko-KR")} ~ ${new Date(rBatch.endDate).toLocaleDateString("ko-KR")}</td></tr>
+                        ${timeLabel ? `<tr><td class="label">${timeLabel}</td><td colspan="3">${parsedContent.date || "-"} ${parsedContent.time || ""}</td></tr>` : ""}
+                      </table>
+                      <div class="reason-section">
+                        <h3>사유</h3>
+                        <div class="reason-box">${parsedContent.reason || viewingReport.content}</div>
+                      </div>
+                      <div class="date-line">${new Date(viewingReport.createdAt).toLocaleDateString("ko-KR")}</div>
+                      <div class="signature-area">
+                        <p>위 사유서를 제출합니다.</p>
+                        <p style="margin-top: 20px;">성명: ${user.name} (인)</p>
+                      </div>
+                    </body></html>`);
+                    printWindow.document.close();
+                    printWindow.focus();
+                    setTimeout(() => printWindow.print(), 300);
+                  }}
+                  className="px-3 py-1.5 text-xs bg-gray-600 text-white rounded hover:bg-gray-700"
+                >
+                  인쇄
+                </button>
+                <button
+                  onClick={() => setViewingReport(null)}
+                  className="px-3 py-1.5 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+                >
+                  닫기
+                </button>
+              </div>
+            </div>
+
+            {/* 사유서 내용 표시 */}
+            <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <div><span className="text-gray-500">성명:</span> {viewingReport.batchUser.user.name}</div>
+                <div><span className="text-gray-500">계급:</span> {viewingReport.batchUser.user.rank || "-"}</div>
+                <div><span className="text-gray-500">군번:</span> {viewingReport.batchUser.user.serviceNumber || "-"}</div>
+                <div><span className="text-gray-500">소속:</span> {viewingReport.batchUser.user.unit || "-"}</div>
+              </div>
+              <div className="border-t pt-2 mt-2">
+                <div><span className="text-gray-500">훈련차수:</span> {viewingReport.batchUser.batch.name}</div>
+                <div><span className="text-gray-500">훈련기간:</span> {new Date(viewingReport.batchUser.batch.startDate).toLocaleDateString("ko-KR")} ~ {new Date(viewingReport.batchUser.batch.endDate).toLocaleDateString("ko-KR")}</div>
+              </div>
+            </div>
+
+            {(() => {
+              let parsed: { reason?: string; date?: string; time?: string } = {};
+              try { parsed = JSON.parse(viewingReport.content); } catch { parsed = { reason: viewingReport.content }; }
+              return (
+                <div className="space-y-3">
+                  {(viewingReport.type === "LATE_ARRIVAL" || viewingReport.type === "EARLY_DEPARTURE") && (parsed.date || parsed.time) && (
+                    <div className="text-sm">
+                      <span className="text-gray-500">{viewingReport.type === "LATE_ARRIVAL" ? "입소 예정:" : "퇴소 예정:"}</span>
+                      <span className="ml-2 font-medium">{parsed.date} {parsed.time}</span>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-sm text-gray-500 mb-1">사유</p>
+                    <p className="text-sm bg-white border rounded-lg p-3 whitespace-pre-wrap">{parsed.reason || viewingReport.content}</p>
+                  </div>
+                  <p className="text-xs text-gray-400">작성일: {new Date(viewingReport.createdAt).toLocaleString("ko-KR")}</p>
+                </div>
+              );
+            })()}
+
+            {/* 해당 사용자의 다른 사유서 목록 */}
+            {reasonReports.filter((r) => r.batchUserId === viewingReport.batchUserId && r.id !== viewingReport.id).length > 0 && (
+              <div className="border-t pt-3">
+                <p className="text-xs font-medium text-gray-500 mb-2">동일 대상자의 다른 사유서</p>
+                <div className="space-y-1">
+                  {reasonReports.filter((r) => r.batchUserId === viewingReport.batchUserId && r.id !== viewingReport.id).map((r) => (
+                    <button
+                      key={r.id}
+                      onClick={() => setViewingReport(r)}
+                      className="w-full text-left p-2 bg-gray-50 rounded text-xs hover:bg-gray-100"
+                    >
+                      {REASON_TYPE_LABELS[r.type]} - {new Date(r.updatedAt).toLocaleDateString("ko-KR")}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

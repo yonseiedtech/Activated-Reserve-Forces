@@ -10,14 +10,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const { id: batchId } = await params;
   const body = await req.json();
-  const { status, reason, expectedConfirmAt } = body as {
+  const { status, subStatus, reason, expectedConfirmAt } = body as {
     status: string;
+    subStatus?: string;
     reason?: string;
     expectedConfirmAt?: string;
   };
 
   if (!status) return badRequest("status가 필요합니다.");
   if (!["PRESENT", "ABSENT", "PENDING"].includes(status)) return badRequest("유효하지 않은 상태입니다.");
+  if (subStatus && !["NORMAL", "LATE_ARRIVAL", "EARLY_DEPARTURE"].includes(subStatus)) return badRequest("유효하지 않은 세부 상태입니다.");
 
   // 본인이 해당 차수에 배정되어 있는지 확인
   const batchUser = await prisma.batchUser.findUnique({
@@ -25,13 +27,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   });
   if (!batchUser) return forbidden();
 
-  const data: { status: string; reason: string | null; expectedConfirmAt: Date | null } = {
+  const data: { status: string; subStatus: string | null; reason: string | null; expectedConfirmAt: Date | null } = {
     status,
+    subStatus: null,
     reason: null,
     expectedConfirmAt: null,
   };
 
-  if (status === "ABSENT") {
+  if (status === "PRESENT") {
+    data.subStatus = subStatus || "NORMAL";
+  } else if (status === "ABSENT") {
     data.reason = reason || null;
   } else if (status === "PENDING") {
     data.expectedConfirmAt = expectedConfirmAt ? new Date(expectedConfirmAt) : null;

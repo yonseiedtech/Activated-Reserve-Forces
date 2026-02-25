@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 import PageTitle from "@/components/ui/PageTitle";
 import { BATCH_STATUS_LABELS } from "@/lib/constants";
@@ -32,7 +33,7 @@ interface Batch {
   status: string;
   location: string | null;
   trainings: Training[];
-  users: { batchStatus?: string; batchReason?: string | null; batchExpectedConfirmAt?: string | null }[];
+  users: { id: string; name: string; rank?: string | null; serviceNumber?: string | null; unit?: string | null; batchUserId?: string; batchStatus?: string; batchSubStatus?: string | null; batchReason?: string | null; batchExpectedConfirmAt?: string | null }[];
 }
 
 interface Meal {
@@ -121,10 +122,32 @@ interface Survey {
   _count: { responses: number };
 }
 
+interface ReasonReport {
+  id: string;
+  batchUserId: string;
+  type: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+const SUB_STATUS_LABELS: Record<string, string> = {
+  NORMAL: "정상",
+  LATE_ARRIVAL: "지연입소",
+  EARLY_DEPARTURE: "조기퇴소",
+};
+
+const REASON_TYPE_LABELS: Record<string, string> = {
+  LATE_ARRIVAL: "지연입소 사유서",
+  EARLY_DEPARTURE: "조기퇴소 사유서",
+  ABSENT: "불참 사유서",
+};
+
 type TabType = "attendance" | "training" | "meals" | "commuting" | "payment" | "survey";
 
 export default function ReservistBatchDetailPage() {
   const params = useParams();
+  const { data: session } = useSession();
   const batchId = params.id as string;
 
   const [batch, setBatch] = useState<Batch | null>(null);
@@ -133,11 +156,22 @@ export default function ReservistBatchDetailPage() {
 
   // 참석 신고 상태
   const [attendanceStatus, setAttendanceStatus] = useState<string>("PENDING");
+  const [subStatus, setSubStatus] = useState<string>("NORMAL");
   const [reason, setReason] = useState("");
   const [expectedConfirmAt, setExpectedConfirmAt] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
+
+  // 사유서 관련
+  const [batchUserId, setBatchUserId] = useState<string>("");
+  const [reasonReports, setReasonReports] = useState<ReasonReport[]>([]);
+  const [showReasonModal, setShowReasonModal] = useState(false);
+  const [reasonModalType, setReasonModalType] = useState<string>("");
+  const [reasonContent, setReasonContent] = useState("");
+  const [reasonDate, setReasonDate] = useState("");
+  const [reasonTime, setReasonTime] = useState("");
+  const [reasonSaving, setReasonSaving] = useState(false);
 
   // 식사 현황
   const [meals, setMeals] = useState<Meal[]>([]);
@@ -163,21 +197,32 @@ export default function ReservistBatchDetailPage() {
   const [surveys, setSurveys] = useState<Survey[]>([]);
   const [surveysLoading, setSurveysLoading] = useState(false);
 
+  const fetchReasonReports = useCallback((buId: string) => {
+    fetch(`/api/reason-reports?batchUserId=${buId}`)
+      .then((r) => r.json())
+      .then((data: ReasonReport[]) => setReasonReports(Array.isArray(data) ? data : []));
+  }, []);
+
   const fetchBatch = useCallback(() => {
     setLoading(true);
     fetch(`/api/batches/${batchId}`)
       .then((r) => r.json())
       .then((data: Batch) => {
         setBatch(data);
-        const me = data.users?.find((u) => u.batchStatus !== undefined);
+        const me = data.users?.[0];
         if (me) {
           setAttendanceStatus(me.batchStatus || "PENDING");
+          setSubStatus(me.batchSubStatus || "NORMAL");
           setReason(me.batchReason || "");
           setExpectedConfirmAt(me.batchExpectedConfirmAt ? new Date(me.batchExpectedConfirmAt).toISOString().slice(0, 16) : "");
+          if (me.batchUserId) {
+            setBatchUserId(me.batchUserId);
+            fetchReasonReports(me.batchUserId);
+          }
         }
       })
       .finally(() => setLoading(false));
-  }, [batchId]);
+  }, [batchId, fetchReasonReports]);
 
   useEffect(() => {
     fetchBatch();
@@ -281,6 +326,7 @@ export default function ReservistBatchDetailPage() {
     setError("");
 
     const body: Record<string, string | undefined> = { status: attendanceStatus };
+    if (attendanceStatus === "PRESENT") body.subStatus = subStatus || "NORMAL";
     if (attendanceStatus === "ABSENT") body.reason = reason || undefined;
     if (attendanceStatus === "PENDING") body.expectedConfirmAt = expectedConfirmAt || undefined;
 
@@ -296,12 +342,57 @@ export default function ReservistBatchDetailPage() {
       } else {
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
+        fetchBatch();
       }
     } catch {
       setError("네트워크 오류가 발생했습니다.");
     } finally {
       setSaving(false);
     }
+  };
+
+  const openReasonModal = (type: string) => {
+    setReasonModalType(type);
+    const existing = reasonReports.find((r) => r.type === type);
+    if (existing) {
+      try {
+        const parsed = JSON.parse(existing.content);
+        setReasonContent(parsed.reason || "");
+        setReasonDate(parsed.date || "");
+        setReasonTime(parsed.time || "");
+      } catch {
+        setReasonContent(existing.content);
+        setReasonDate("");
+        setReasonTime("");
+      }
+    } else {
+      setReasonContent("");
+      setReasonDate("");
+      setReasonTime("");
+    }
+    setShowReasonModal(true);
+  };
+
+  const handleSaveReason = async () => {
+    if (!batchUserId || !reasonModalType) return;
+    setReasonSaving(true);
+    const content = JSON.stringify({
+      reason: reasonContent,
+      date: reasonDate,
+      time: reasonTime,
+    });
+    try {
+      const res = await fetch("/api/reason-reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ batchUserId, type: reasonModalType, content }),
+      });
+      if (res.ok) {
+        setShowReasonModal(false);
+        fetchReasonReports(batchUserId);
+      }
+    } catch { /* ignore */ }
+    setReasonSaving(false);
   };
 
   if (loading || !batch) {
@@ -404,6 +495,36 @@ export default function ReservistBatchDetailPage() {
               </button>
             </div>
 
+            {attendanceStatus === "PRESENT" && (
+              <div>
+                <label className="text-xs font-medium text-gray-600 mb-2 block">세부 상태</label>
+                <div className="space-y-2">
+                  {[
+                    { value: "NORMAL", label: "정상" },
+                    { value: "LATE_ARRIVAL", label: "지연입소" },
+                    { value: "EARLY_DEPARTURE", label: "조기퇴소" },
+                  ].map((opt) => (
+                    <label
+                      key={opt.value}
+                      className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                        subStatus === opt.value ? "border-green-500 bg-green-50" : "border-gray-200 hover:bg-gray-50"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="subStatus"
+                        value={opt.value}
+                        checked={subStatus === opt.value}
+                        onChange={(e) => { setSubStatus(e.target.value); setSaved(false); setError(""); }}
+                        className="text-green-600"
+                      />
+                      <span className="text-sm font-medium text-gray-700">{opt.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {attendanceStatus === "ABSENT" && (
               <div>
                 <label className="text-xs font-medium text-gray-600">불참 사유</label>
@@ -444,6 +565,56 @@ export default function ReservistBatchDetailPage() {
               {saving ? "저장 중..." : saved ? "저장 완료!" : "저장"}
             </button>
           </div>
+
+          {/* 사유서 작성 버튼 */}
+          {batchUserId && (
+            <div className="bg-white rounded-xl border p-5 space-y-3">
+              <h3 className="text-sm font-semibold text-gray-800">사유서 작성</h3>
+              {attendanceStatus === "PRESENT" && subStatus === "LATE_ARRIVAL" && (
+                <button
+                  onClick={() => openReasonModal("LATE_ARRIVAL")}
+                  className="w-full py-2.5 rounded-lg text-sm font-medium bg-yellow-500 text-white hover:bg-yellow-600"
+                >
+                  {reasonReports.find((r) => r.type === "LATE_ARRIVAL") ? "지연입소 사유서 수정" : "지연입소 사유서 작성"}
+                </button>
+              )}
+              {attendanceStatus === "PRESENT" && subStatus === "EARLY_DEPARTURE" && (
+                <button
+                  onClick={() => openReasonModal("EARLY_DEPARTURE")}
+                  className="w-full py-2.5 rounded-lg text-sm font-medium bg-orange-500 text-white hover:bg-orange-600"
+                >
+                  {reasonReports.find((r) => r.type === "EARLY_DEPARTURE") ? "조기퇴소 사유서 수정" : "조기퇴소 사유서 작성"}
+                </button>
+              )}
+              {attendanceStatus === "ABSENT" && (
+                <button
+                  onClick={() => openReasonModal("ABSENT")}
+                  className="w-full py-2.5 rounded-lg text-sm font-medium bg-red-500 text-white hover:bg-red-600"
+                >
+                  {reasonReports.find((r) => r.type === "ABSENT") ? "불참 사유서 수정" : "불참 사유서 작성"}
+                </button>
+              )}
+              {attendanceStatus === "PRESENT" && subStatus === "NORMAL" && (
+                <p className="text-xs text-gray-400 text-center py-2">정상 참석 시 사유서가 필요하지 않습니다.</p>
+              )}
+              {attendanceStatus === "PENDING" && (
+                <p className="text-xs text-gray-400 text-center py-2">참석 여부를 확정한 후 사유서를 작성할 수 있습니다.</p>
+              )}
+
+              {/* 기존 사유서 목록 */}
+              {reasonReports.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  <p className="text-xs font-medium text-gray-500">작성된 사유서</p>
+                  {reasonReports.map((r) => (
+                    <div key={r.id} className="p-3 bg-gray-50 rounded-lg text-xs">
+                      <span className="font-medium text-gray-700">{REASON_TYPE_LABELS[r.type] || r.type}</span>
+                      <span className="text-gray-400 ml-2">{new Date(r.updatedAt).toLocaleDateString("ko-KR")}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* 훈련별 출석 현황 */}
           {(batch.trainings || []).length > 0 && (
@@ -775,6 +946,100 @@ export default function ReservistBatchDetailPage() {
             </div>
           )}
         </>
+      )}
+
+      {/* 사유서 작성 모달 */}
+      {showReasonModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl w-full max-w-md p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-semibold">{REASON_TYPE_LABELS[reasonModalType] || "사유서"}</h3>
+
+            {/* 인적사항 (자동) */}
+            {session?.user && (
+              <div className="bg-gray-50 rounded-lg p-3 text-sm space-y-1">
+                <div className="grid grid-cols-2 gap-2">
+                  <div><span className="text-gray-500">성명:</span> {session.user.name}</div>
+                  <div><span className="text-gray-500">계급:</span> {(session.user as { rank?: string }).rank || "-"}</div>
+                  <div><span className="text-gray-500">군번:</span> {(session.user as { serviceNumber?: string }).serviceNumber || "-"}</div>
+                  <div><span className="text-gray-500">소속:</span> {(session.user as { unit?: string }).unit || "-"}</div>
+                </div>
+                {batch && (
+                  <div className="pt-1 border-t mt-2">
+                    <div><span className="text-gray-500">훈련차수:</span> {batch.name}</div>
+                    <div><span className="text-gray-500">훈련기간:</span> {new Date(batch.startDate).toLocaleDateString("ko-KR")} ~ {new Date(batch.endDate).toLocaleDateString("ko-KR")}</div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 날짜/시간 입력 */}
+            {reasonModalType === "LATE_ARRIVAL" && (
+              <div>
+                <label className="text-sm font-medium text-gray-700">입소 예정 일시</label>
+                <div className="grid grid-cols-2 gap-2 mt-1">
+                  <input
+                    type="date"
+                    value={reasonDate}
+                    onChange={(e) => setReasonDate(e.target.value)}
+                    className="px-3 py-2 border rounded-lg text-sm"
+                  />
+                  <input
+                    type="time"
+                    value={reasonTime}
+                    onChange={(e) => setReasonTime(e.target.value)}
+                    className="px-3 py-2 border rounded-lg text-sm"
+                  />
+                </div>
+              </div>
+            )}
+            {reasonModalType === "EARLY_DEPARTURE" && (
+              <div>
+                <label className="text-sm font-medium text-gray-700">퇴소 예정 일시</label>
+                <div className="grid grid-cols-2 gap-2 mt-1">
+                  <input
+                    type="date"
+                    value={reasonDate}
+                    onChange={(e) => setReasonDate(e.target.value)}
+                    className="px-3 py-2 border rounded-lg text-sm"
+                  />
+                  <input
+                    type="time"
+                    value={reasonTime}
+                    onChange={(e) => setReasonTime(e.target.value)}
+                    className="px-3 py-2 border rounded-lg text-sm"
+                  />
+                </div>
+              </div>
+            )}
+
+            <div>
+              <label className="text-sm font-medium text-gray-700">사유</label>
+              <textarea
+                value={reasonContent}
+                onChange={(e) => setReasonContent(e.target.value)}
+                placeholder="사유를 상세히 입력해주세요."
+                rows={4}
+                className="mt-1 w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+              />
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={handleSaveReason}
+                disabled={reasonSaving || !reasonContent.trim()}
+                className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50"
+              >
+                {reasonSaving ? "저장 중..." : "저장"}
+              </button>
+              <button
+                onClick={() => setShowReasonModal(false)}
+                className="flex-1 py-2.5 border rounded-lg text-gray-700 hover:bg-gray-50"
+              >
+                취소
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -24,7 +24,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const batch = await prisma.batch.findUnique({
     where: { id },
     include: {
-      batchUsers: { select: { status: true, reason: true, expectedConfirmAt: true, user: { select: { id: true, name: true, rank: true, serviceNumber: true, phone: true, unit: true } } } },
+      batchUsers: { select: { id: true, status: true, subStatus: true, reason: true, expectedConfirmAt: true, user: { select: { id: true, name: true, rank: true, serviceNumber: true, phone: true, unit: true } } } },
       trainings: {
         orderBy: { date: "asc" },
         include: {
@@ -41,9 +41,17 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   if (!batch) return notFound("차수를 찾을 수 없습니다.");
 
   const { batchUsers, _count, ...rest } = batch;
+
+  // RESERVIST: 본인 데이터만 반환 (다른 사용자 정보는 불필요)
+  const mappedUsers = isReservist
+    ? batchUsers
+        .filter((bu) => bu.user.id === session.user.id)
+        .map((bu) => ({ ...bu.user, batchUserId: bu.id, batchStatus: bu.status, batchSubStatus: bu.subStatus, batchReason: bu.reason, batchExpectedConfirmAt: bu.expectedConfirmAt }))
+    : batchUsers.map((bu) => ({ ...bu.user, batchUserId: bu.id, batchStatus: bu.status, batchSubStatus: bu.subStatus, batchReason: bu.reason, batchExpectedConfirmAt: bu.expectedConfirmAt }));
+
   return json({
     ...rest,
-    users: batchUsers.map((bu) => ({ ...bu.user, batchStatus: bu.status, batchReason: bu.reason, batchExpectedConfirmAt: bu.expectedConfirmAt })),
+    users: mappedUsers,
     _count: { users: _count.batchUsers, trainings: _count.trainings },
     status: computeBatchStatus(batch.startDate, batch.endDate),
   });

@@ -117,9 +117,6 @@ export default function ReservistBatchesPage() {
                       {ATTENDANCE_STATUS_LABELS[b.myAttendanceStatus] || b.myAttendanceStatus}
                     </span>
                   )}
-                  <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[b.status] || "bg-gray-100"}`}>
-                    {BATCH_STATUS_LABELS[b.status] || b.status}
-                  </span>
                 </div>
               </div>
             </Link>
