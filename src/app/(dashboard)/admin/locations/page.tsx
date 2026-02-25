@@ -103,7 +103,7 @@ export default function AdminLocationsPage() {
           <div className="bg-white rounded-xl w-full max-w-md p-6 space-y-4">
             <h3 className="text-lg font-semibold">GPS 위치 등록</h3>
             <input placeholder="위치명 (예: 00사단 위병소)" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium">위도</label>
                 <input type="number" step="any" value={form.latitude} onChange={(e) => setForm({ ...form, latitude: parseFloat(e.target.value) })} className="w-full px-3 py-2 border rounded-lg" />

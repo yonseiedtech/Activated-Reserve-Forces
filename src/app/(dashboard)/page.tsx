@@ -119,14 +119,14 @@ export default async function DashboardPage() {
 
       {/* 통계 카드 */}
       {isAdmin && (
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <StatCard label="훈련 대상자" value={totalReservists} icon="👥" color="blue" href="/admin/users" />
           <StatCard label="진행중 차수" value={activeBatches} icon="📋" color="green" href="/admin/batches" />
           <StatCard label="읽지 않은 쪽지" value={unreadMessages} icon="✉️" color="red" href="/messages" />
         </div>
       )}
       {isInstructor && (
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <StatCard label="훈련 대상자" value={totalReservists} icon="👥" color="blue" />
           <StatCard label="진행중 차수" value={activeBatches} icon="📋" color="green" href="/batches" />
           <StatCard label="읽지 않은 쪽지" value={unreadMessages} icon="✉️" color="red" href="/messages" />

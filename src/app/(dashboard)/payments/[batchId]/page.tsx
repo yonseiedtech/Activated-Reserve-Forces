@@ -320,7 +320,7 @@ function PaymentProcessSection({
               <div className={`h-2.5 rounded-full transition-colors ${
                 done ? isCurrent && !isLast ? "bg-blue-500 animate-pulse" : "bg-blue-600" : "bg-gray-200"
               }`} />
-              <p className={`text-[11px] mt-1.5 text-center ${
+              <p className={`text-xs mt-1.5 text-center ${
                 done ? "text-blue-700 font-semibold" : "text-gray-400"
               }`}>
                 {PAYMENT_STATUS_LABELS[status]}
@@ -476,7 +476,7 @@ function CompensationSection({
                   <tr key={`${c.trainingId}-${c.userId}-${i}`} className="border-b border-gray-50">
                     <td className="py-2.5 pr-3 text-gray-800 whitespace-nowrap text-xs">{c.rank} {c.userName}</td>
                     <td className="py-2.5 pr-3">
-                      <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${
                         c.isWeekend ? "bg-orange-100 text-orange-700" : "bg-blue-50 text-blue-700"
                       }`}>
                         {c.isWeekend ? "주말" : "평일"}
@@ -534,7 +534,7 @@ function CompensationSection({
                 return (
                   <tr key={c.trainingId} className="border-b border-gray-50">
                     <td className="py-2.5 pr-3">
-                      <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${
                         c.isWeekend ? "bg-orange-100 text-orange-700" : "bg-blue-50 text-blue-700"
                       }`}>
                         {c.isWeekend ? "주말" : "평일"}
@@ -994,7 +994,7 @@ function RefundSection({
                 <div className={`h-2.5 rounded-full transition-colors ${
                   done ? isCurrent && !isLast ? "bg-orange-500 animate-pulse" : "bg-orange-600" : "bg-gray-200"
                 }`} />
-                <p className={`text-[11px] mt-1.5 text-center ${
+                <p className={`text-xs mt-1.5 text-center ${
                   done ? "text-orange-700 font-semibold" : "text-gray-400"
                 }`}>
                   {REFUND_STATUS_LABELS[status]}

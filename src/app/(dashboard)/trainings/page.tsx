@@ -201,14 +201,14 @@ export default async function TrainingsPage({
                                           {training.startTime || "—"} ~ {training.endTime || "—"}
                                         </div>
                                         {duration > 0 && (
-                                          <span className="text-[11px] text-gray-400">({duration}&apos;)</span>
+                                          <span className="text-xs text-gray-400">({duration}&apos;)</span>
                                         )}
                                       </Link>
                                     </td>
                                     <td className="px-4 py-2.5 align-top">
                                       <Link href={linkHref} className="block">
                                         <div className="flex items-center gap-2 mb-0.5">
-                                          <span className="inline-block px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] rounded font-medium">
+                                          <span className="inline-block px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs rounded font-medium">
                                             {training.type}
                                           </span>
                                           <span className="font-semibold text-gray-900">{training.title}</span>
@@ -275,7 +275,7 @@ export default async function TrainingsPage({
                                     )}
                                   </div>
                                   {isReservist && myAttendance && (
-                                    <span className={`px-2 py-0.5 text-[10px] rounded-full font-medium ${
+                                    <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${
                                       myAttendance.status === "PRESENT" ? "bg-green-100 text-green-700" :
                                       myAttendance.status === "ABSENT" ? "bg-red-100 text-red-700" :
                                       "bg-gray-100 text-gray-600"
@@ -288,7 +288,7 @@ export default async function TrainingsPage({
                                   )}
                                 </div>
                                 <div className="flex items-center gap-1.5 mb-1">
-                                  <span className="inline-block px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] rounded font-medium">
+                                  <span className="inline-block px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs rounded font-medium">
                                     {training.type}
                                   </span>
                                   <span className="font-semibold text-sm text-gray-900">{training.title}</span>

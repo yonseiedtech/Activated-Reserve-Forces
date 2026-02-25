@@ -45,7 +45,7 @@ export default function Header({ onMenuToggle }: { onMenuToggle: () => void }) {
                 </div>
                 <button
                   onClick={() => signOut({ callbackUrl: "/login" })}
-                  className="text-sm text-gray-500 hover:text-red-600 px-2 py-1 rounded"
+                  className="text-sm text-gray-500 hover:text-red-600 px-3 py-2 rounded-lg"
                 >
                   로그아웃
                 </button>

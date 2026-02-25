@@ -90,7 +90,7 @@ function DayTypeCard({ label, stat, badge }: { label: string; stat: DayTypeAgg |
     <div className="bg-white rounded-xl border p-4">
       <div className="flex items-center gap-2 mb-2">
         <h4 className="font-semibold text-sm">{label}</h4>
-        {badge && <span className="text-[10px] text-gray-400">{badge}</span>}
+        {badge && <span className="text-xs text-gray-400">{badge}</span>}
       </div>
       <p className="text-sm text-gray-400">데이터 없음</p>
     </div>
@@ -100,7 +100,7 @@ function DayTypeCard({ label, stat, badge }: { label: string; stat: DayTypeAgg |
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <h4 className="font-semibold text-sm">{label}</h4>
-          {badge && <span className="text-[10px] text-gray-400">{badge}</span>}
+          {badge && <span className="text-xs text-gray-400">{badge}</span>}
         </div>
         <RateBadge rate={stat.rate} />
       </div>
@@ -251,7 +251,7 @@ function AdminReportView({ reports }: { reports: BatchReport[] }) {
   return (
     <>
       {/* 탭 네비게이션 */}
-      <div className="flex gap-1 mb-6 bg-gray-50/80 rounded-lg p-1 overflow-x-auto">
+      <div className="flex gap-1 mb-6 bg-gray-50/80 rounded-lg p-1 overflow-x-auto scrollbar-hide">
         {ADMIN_TABS.map((t) => (
           <button
             key={t.key}
@@ -301,7 +301,7 @@ function AdminReportView({ reports }: { reports: BatchReport[] }) {
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <h4 className="font-semibold text-sm">{r.batchName}</h4>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${STATUS_COLORS[r.status] || "bg-gray-100"}`}>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[r.status] || "bg-gray-100"}`}>
                       {STATUS_LABELS[r.status] || r.status}
                     </span>
                   </div>
@@ -326,7 +326,7 @@ function AdminReportView({ reports }: { reports: BatchReport[] }) {
                   </div>
                 </div>
                 <RateBar rate={r.summary.rate} />
-                <p className="text-[11px] text-gray-400 mt-2">
+                <p className="text-xs text-gray-400 mt-2">
                   {r.startDate.split("T")[0]} ~ {r.endDate.split("T")[0]}
                 </p>
               </div>
@@ -392,7 +392,7 @@ function AdminReportView({ reports }: { reports: BatchReport[] }) {
           {reports.map((r) => (
             <div key={r.batchId}>
               <div className="flex items-center gap-2 mb-2">
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${STATUS_COLORS[r.status] || "bg-gray-100"}`}>
+                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[r.status] || "bg-gray-100"}`}>
                   {STATUS_LABELS[r.status] || r.status}
                 </span>
               </div>
@@ -530,7 +530,7 @@ function ReservistReportView({ reports, userId }: { reports: BatchReport[]; user
               <div key={r.batchId} className="px-4 py-3">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${r.batchDayType === "weekend" ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-700"}`}>
+                    <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${r.batchDayType === "weekend" ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-700"}`}>
                       {r.batchDayType === "weekend" ? "주말" : "평일"}
                     </span>
                     <span className="font-medium text-sm">{r.batchName}</span>

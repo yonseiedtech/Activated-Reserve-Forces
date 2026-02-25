@@ -661,7 +661,7 @@ export default function AdminBatchDetailPage() {
       />
 
       {/* Tab navigation */}
-      <div className="flex gap-1 mb-4 bg-gray-50/80 p-1 rounded-lg w-fit">
+      <div className="flex gap-1 mb-4 bg-gray-50/80 p-1 rounded-lg overflow-x-auto scrollbar-hide">
         <button
           onClick={() => setTab("training")}
           className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === "training" ? "bg-white shadow-sm text-blue-600" : "text-gray-500 hover:text-gray-800 hover:bg-white/50"}`}
@@ -769,8 +769,8 @@ export default function AdminBatchDetailPage() {
                           <td className="px-4 py-2.5">
                             <span className="font-medium">{t.title}</span>
                             <span className="ml-2 px-1.5 py-0.5 text-xs bg-blue-50 text-blue-600 rounded">{t.type}</span>
-                            {!t.attendanceEnabled && <span className="ml-1 px-1.5 py-0.5 text-[10px] bg-yellow-100 text-yellow-700 rounded">출석부 OFF</span>}
-                            {!t.countsTowardHours && <span className="ml-1 px-1.5 py-0.5 text-[10px] bg-orange-100 text-orange-700 rounded">이수제외</span>}
+                            {!t.attendanceEnabled && <span className="ml-1 px-1.5 py-0.5 text-xs bg-yellow-100 text-yellow-700 rounded">출석부 OFF</span>}
+                            {!t.countsTowardHours && <span className="ml-1 px-1.5 py-0.5 text-xs bg-orange-100 text-orange-700 rounded">이수제외</span>}
                           </td>
                           <td className="px-4 py-2.5 text-gray-500">{t.location || "-"}</td>
                           <td className="px-4 py-2.5 text-gray-500">{t.instructor?.name || "-"}</td>
@@ -1152,10 +1152,10 @@ export default function AdminBatchDetailPage() {
                         <div className="flex items-center gap-1 justify-end">
                           <span className="px-2 py-0.5 bg-gray-100 rounded text-xs">{t.type}</span>
                           {!t.attendanceEnabled && (
-                            <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded text-[10px]">출석부 OFF</span>
+                            <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded text-xs">출석부 OFF</span>
                           )}
                           {!t.countsTowardHours && (
-                            <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded text-[10px]">이수제외</span>
+                            <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded text-xs">이수제외</span>
                           )}
                         </div>
                         {summary && (
@@ -1587,7 +1587,7 @@ export default function AdminBatchDetailPage() {
               className="w-full px-3 py-2 border rounded-lg mt-1"
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium text-gray-700">연도</label>
               <input
@@ -1607,7 +1607,7 @@ export default function AdminBatchDetailPage() {
               />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium text-gray-700">시작일</label>
               <input
@@ -1682,7 +1682,7 @@ export default function AdminBatchDetailPage() {
             >
               {trainingCategories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
             </select>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium">시작 시간</label>
                 <input
@@ -2143,7 +2143,7 @@ export default function AdminBatchDetailPage() {
             >
               {trainingCategories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
             </select>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium">시작 시간</label>
                 <input

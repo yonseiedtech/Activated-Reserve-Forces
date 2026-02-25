@@ -82,7 +82,7 @@ export default function ReservistBatchesPage() {
           >
             {t.label}
             {(counts[t.key] || 0) > 0 && (
-              <span className="ml-1 text-[10px] text-gray-400">({counts[t.key]})</span>
+              <span className="ml-1 text-xs text-gray-400">({counts[t.key]})</span>
             )}
           </button>
         ))}

@@ -497,13 +497,13 @@ export default function AdminUsersPage() {
               <div className="flex gap-2">
                 <button
                   onClick={() => handleEditOpen(u)}
-                  className="flex-1 px-3 py-1.5 text-xs bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 font-medium"
+                  className="flex-1 px-3 py-2.5 text-xs bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 font-medium"
                 >
                   편집
                 </button>
                 <button
                   onClick={() => setResetTarget(u)}
-                  className="flex-1 px-3 py-1.5 text-xs bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 font-medium"
+                  className="flex-1 px-3 py-2.5 text-xs bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 font-medium"
                 >
                   비밀번호
                 </button>

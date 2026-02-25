@@ -647,7 +647,7 @@ function TransportInfoCard({
         )}
         {transport && (
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="bg-blue-50 rounded-lg p-3">
                 <p className="text-xs text-blue-600 font-medium">이동거리</p>
                 <p className="text-lg font-bold text-blue-900">{transport.km} km</p>
@@ -684,7 +684,7 @@ function SectionHeader({ title, editable }: { title: string; editable?: boolean 
   return (
     <div className="px-6 py-2.5 bg-gray-50 border-t border-b flex items-center justify-between">
       <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{title}</h3>
-      {editable && <span className="text-[10px] text-blue-500 font-medium">수정 가능</span>}
+      {editable && <span className="text-xs text-blue-500 font-medium">수정 가능</span>}
     </div>
   );
 }

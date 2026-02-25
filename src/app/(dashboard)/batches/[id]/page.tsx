@@ -554,7 +554,7 @@ export default function ReservistBatchDetailPage() {
       />
 
       {/* 탭 네비게이션 */}
-      <div className="flex gap-1 mb-4 bg-gray-50/80 p-1 rounded-lg overflow-x-auto">
+      <div className="flex gap-1 mb-4 bg-gray-50/80 p-1 rounded-lg overflow-x-auto scrollbar-hide">
         {tabs.map((t) => (
           <button
             key={t.key}

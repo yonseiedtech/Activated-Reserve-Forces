@@ -56,7 +56,7 @@ export default function AdminNotificationsPage() {
       {/* 빠른 발송 버튼 */}
       <div className="bg-white rounded-xl border p-5 mb-6">
         <h3 className="font-semibold mb-3">빠른 발송</h3>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {presets.map((p) => (
             <button
               key={p.label}
@@ -81,7 +81,7 @@ export default function AdminNotificationsPage() {
           <label className="block text-sm font-medium mb-1">내용</label>
           <textarea value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} rows={3} className="w-full px-3 py-2 border rounded-lg resize-none" />
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium mb-1">대상 역할</label>
             <select value={form.targetRole} onChange={(e) => setForm({ ...form, targetRole: e.target.value })} className="w-full px-3 py-2 border rounded-lg">

@@ -199,7 +199,7 @@ export default function AdminBatchesPage() {
 
       <div className="space-y-3">
         {batches.map((b) => (
-          <div key={b.id} className="bg-white rounded-xl border p-4 flex items-center justify-between gap-4">
+          <div key={b.id} className="bg-white rounded-xl border p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <Link href={`/admin/batches/${b.id}`} className="flex-1 min-w-0">
               <h3 className="font-semibold hover:text-blue-600">{b.name}</h3>
               <p className="text-sm text-gray-500">
@@ -217,13 +217,13 @@ export default function AdminBatchesPage() {
                 </p>
               )}
             </Link>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[b.status] || "bg-gray-100"}`}>
                 {BATCH_STATUS_LABELS[b.status] || b.status}
               </span>
-              <button onClick={() => handleEditOpen(b)} className="px-3 py-1 text-gray-600 border border-gray-200 rounded text-sm hover:bg-gray-50">수정</button>
-              <button onClick={() => handleDuplicateOpen(b)} className="px-3 py-1 text-blue-600 border border-blue-200 rounded text-sm hover:bg-blue-50">복제</button>
-              <button onClick={() => handleDelete(b.id)} className="px-3 py-1 text-red-600 border border-red-200 rounded text-sm hover:bg-red-50">삭제</button>
+              <button onClick={() => handleEditOpen(b)} className="px-3 py-2 text-gray-600 border border-gray-200 rounded-lg text-sm hover:bg-gray-50">수정</button>
+              <button onClick={() => handleDuplicateOpen(b)} className="px-3 py-2 text-blue-600 border border-blue-200 rounded-lg text-sm hover:bg-blue-50">복제</button>
+              <button onClick={() => handleDelete(b.id)} className="px-3 py-2 text-red-600 border border-red-200 rounded-lg text-sm hover:bg-red-50">삭제</button>
             </div>
           </div>
         ))}
@@ -318,7 +318,7 @@ function BatchFormModal({
         </div>
 
         {/* 연도 + 차수 번호 */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="text-sm font-medium">연도</label>
             <input type="number" value={form.year} onChange={(e) => setForm((f) => ({ ...f, year: parseInt(e.target.value) }))} className="w-full px-3 py-2 border rounded-lg mt-1" />
@@ -349,7 +349,7 @@ function BatchFormModal({
 
         {/* 날짜 */}
         {form.isMultiDay ? (
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium">시작일</label>
               <input type="date" value={form.startDate} onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))} className="w-full px-3 py-2 border rounded-lg mt-1" />
@@ -367,7 +367,7 @@ function BatchFormModal({
         )}
 
         {/* 시작 시간 / 종료 시간 */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="text-sm font-medium">시작 시간</label>
             <input type="time" value={form.startTime} onChange={(e) => setForm((f) => ({ ...f, startTime: e.target.value }))} className="w-full px-3 py-2 border rounded-lg mt-1" />
