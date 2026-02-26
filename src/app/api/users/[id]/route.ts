@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getSession, json, unauthorized, forbidden, notFound, badRequest } from "@/lib/api-utils";
 import { NextRequest } from "next/server";
+import { parseDate } from "@/lib/date-utils";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -35,7 +36,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       serviceNumber: body.serviceNumber !== undefined ? (body.serviceNumber || null) : undefined,
       unit: body.unit !== undefined ? (body.unit || null) : undefined,
       phone: body.phone !== undefined ? (body.phone || null) : undefined,
-      birthDate: body.birthDate !== undefined ? (body.birthDate ? new Date(body.birthDate) : null) : undefined,
+      birthDate: body.birthDate !== undefined ? (body.birthDate ? parseDate(body.birthDate) : null) : undefined,
       branch: body.branch !== undefined ? (body.branch || null) : undefined,
       warBattalion: body.warBattalion !== undefined ? (body.warBattalion || null) : undefined,
       warCompany: body.warCompany !== undefined ? (body.warCompany || null) : undefined,

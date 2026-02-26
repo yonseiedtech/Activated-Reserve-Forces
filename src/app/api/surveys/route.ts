@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getSession, json, unauthorized, forbidden } from "@/lib/api-utils";
 import { NextRequest } from "next/server";
+import { parseDate } from "@/lib/date-utils";
 
 export async function GET() {
   const session = await getSession();
@@ -25,8 +26,8 @@ export async function POST(req: NextRequest) {
       title: body.title,
       description: body.description,
       questions: JSON.stringify(body.questions),
-      startDate: body.startDate ? new Date(body.startDate) : null,
-      endDate: body.endDate ? new Date(body.endDate) : null,
+      startDate: body.startDate ? parseDate(body.startDate) : null,
+      endDate: body.endDate ? parseDate(body.endDate) : null,
     },
   });
 

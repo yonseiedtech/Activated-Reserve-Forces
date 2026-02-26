@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getSession, json, unauthorized, forbidden, badRequest } from "@/lib/api-utils";
 import { NextRequest } from "next/server";
+import { parseDate } from "@/lib/date-utils";
 
 // 전체 신분증 목록 (관리자용)
 export async function GET() {
@@ -71,8 +72,8 @@ export async function PATCH(req: NextRequest) {
         approvedById: session.user.id,
         rejectedAt: null,
         rejectReason: null,
-        ...(validFrom ? { validFrom: new Date(validFrom) } : {}),
-        ...(validUntil ? { validUntil: new Date(validUntil) } : {}),
+        ...(validFrom ? { validFrom: parseDate(validFrom) } : {}),
+        ...(validUntil ? { validUntil: parseDate(validUntil) } : {}),
         ...(approvalNumber ? { approvalNumber } : {}),
       },
     });

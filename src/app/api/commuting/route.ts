@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { getSession, json, unauthorized, forbidden, badRequest } from "@/lib/api-utils";
 import { getDistance } from "@/lib/gps";
 import { NextRequest } from "next/server";
+import { parseDate } from "@/lib/date-utils";
 
 // GET: 출퇴근 기록 조회
 export async function GET(req: NextRequest) {
@@ -16,8 +17,7 @@ export async function GET(req: NextRequest) {
   const where: Record<string, unknown> = {};
 
   if (date) {
-    const d = new Date(date);
-    where.date = d;
+    where.date = parseDate(date);
   }
 
   // 대상자는 자기 기록만 조회

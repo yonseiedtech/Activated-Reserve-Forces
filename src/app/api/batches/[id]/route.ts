@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getSession, json, unauthorized, forbidden, notFound } from "@/lib/api-utils";
 import { NextRequest } from "next/server";
+import { parseDate } from "@/lib/date-utils";
 
 function computeBatchStatus(startDate: Date, endDate: Date): string {
   const today = new Date();
@@ -70,8 +71,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       name: body.name,
       year: body.year,
       number: body.number,
-      startDate: body.startDate ? new Date(body.startDate) : undefined,
-      endDate: body.endDate ? new Date(body.endDate) : undefined,
+      startDate: body.startDate ? parseDate(body.startDate) : undefined,
+      endDate: body.endDate ? parseDate(body.endDate) : undefined,
       location: body.location,
       requiredHours: body.requiredHours !== undefined ? (body.requiredHours != null && body.requiredHours !== "" ? parseFloat(body.requiredHours) : null) : undefined,
       startTime: body.startTime !== undefined ? (body.startTime || null) : undefined,

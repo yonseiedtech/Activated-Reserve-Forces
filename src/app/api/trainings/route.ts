@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getSession, json, unauthorized, forbidden } from "@/lib/api-utils";
 import { NextRequest, NextResponse } from "next/server";
+import { parseDate } from "@/lib/date-utils";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -45,7 +46,7 @@ export async function POST(req: NextRequest) {
 
   // Time conflict check: same batch, same date, overlapping times
   if (body.startTime && body.endTime && body.batchId) {
-    const trainingDate = new Date(body.date);
+    const trainingDate = parseDate(body.date);
     const dayStart = new Date(trainingDate);
     dayStart.setHours(0, 0, 0, 0);
     const dayEnd = new Date(dayStart.getTime() + 86400000);
@@ -84,7 +85,7 @@ export async function POST(req: NextRequest) {
     data: {
       title: body.title,
       type: body.type,
-      date: new Date(body.date),
+      date: parseDate(body.date),
       startTime: body.startTime,
       endTime: body.endTime,
       location: body.location,

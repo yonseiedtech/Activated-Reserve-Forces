@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getSession, json, unauthorized, forbidden } from "@/lib/api-utils";
 import { NextRequest } from "next/server";
+import { parseDate } from "@/lib/date-utils";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -12,7 +13,7 @@ export async function GET(req: NextRequest) {
 
   const where: Record<string, unknown> = {};
   if (batchId) where.batchId = batchId;
-  if (date) where.date = new Date(date);
+  if (date) where.date = parseDate(date);
 
   const meals = await prisma.meal.findMany({
     where,
@@ -33,13 +34,13 @@ export async function POST(req: NextRequest) {
     where: {
       batchId_date_type: {
         batchId: body.batchId,
-        date: new Date(body.date),
+        date: parseDate(body.date),
         type: body.type,
       },
     },
     create: {
       batchId: body.batchId,
-      date: new Date(body.date),
+      date: parseDate(body.date),
       type: body.type,
       menuInfo: body.menuInfo,
       menuFile: body.menuFile,

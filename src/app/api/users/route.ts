@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { getSession, json, unauthorized, forbidden } from "@/lib/api-utils";
 import { NextRequest } from "next/server";
 import bcrypt from "bcryptjs";
+import { parseDate } from "@/lib/date-utils";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -72,7 +73,7 @@ export async function POST(req: NextRequest) {
       serviceNumber: body.serviceNumber || null,
       phone: body.phone || null,
       unit: body.unit || null,
-      birthDate: body.birthDate ? new Date(body.birthDate) : null,
+      birthDate: body.birthDate ? parseDate(body.birthDate) : null,
       branch: body.branch || null,
       warBattalion: body.warBattalion || null,
       warCompany: body.warCompany || null,

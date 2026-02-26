@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getSession, json, unauthorized, badRequest } from "@/lib/api-utils";
 import { NextRequest } from "next/server";
+import { parseDate } from "@/lib/date-utils";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -13,10 +14,11 @@ export async function GET(req: NextRequest) {
   if (!batchId || !date) return badRequest("batchId와 date가 필요합니다.");
 
   // 해당 차수/날짜의 훈련 찾기
-  const startOfDay = new Date(date);
-  startOfDay.setHours(0, 0, 0, 0);
-  const endOfDay = new Date(date);
-  endOfDay.setHours(23, 59, 59, 999);
+  const parsed = parseDate(date);
+  const startOfDay = new Date(parsed);
+  startOfDay.setUTCHours(0, 0, 0, 0);
+  const endOfDay = new Date(parsed);
+  endOfDay.setUTCHours(23, 59, 59, 999);
 
   const training = await prisma.training.findFirst({
     where: {

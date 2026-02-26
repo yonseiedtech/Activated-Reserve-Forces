@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getSession, json, unauthorized, forbidden, notFound, badRequest } from "@/lib/api-utils";
 import { NextRequest } from "next/server";
+import { parseDate } from "@/lib/date-utils";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   if (!sourceBatch) return notFound("원본 차수를 찾을 수 없습니다.");
 
-  const newStartDate = new Date(body.startDate);
+  const newStartDate = parseDate(body.startDate);
   const oldStartDate = new Date(sourceBatch.startDate);
   const offsetMs = newStartDate.getTime() - oldStartDate.getTime();
 
@@ -45,8 +46,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       name: body.name,
       year: body.year || newStartDate.getFullYear(),
       number: body.number || sourceBatch.number,
-      startDate: new Date(body.startDate),
-      endDate: new Date(body.endDate),
+      startDate: parseDate(body.startDate),
+      endDate: parseDate(body.endDate),
       status: "PLANNED",
       location: body.location ?? sourceBatch.location,
       requiredHours: body.requiredHours != null && body.requiredHours !== "" ? parseFloat(body.requiredHours) : sourceBatch.requiredHours,

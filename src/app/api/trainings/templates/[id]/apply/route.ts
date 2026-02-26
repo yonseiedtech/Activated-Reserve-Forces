@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getSession, json, unauthorized, forbidden, notFound, badRequest } from "@/lib/api-utils";
 import { NextRequest, NextResponse } from "next/server";
+import { parseDate } from "@/lib/date-utils";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -22,7 +23,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!template) return notFound("템플릿을 찾을 수 없습니다.");
   if (template.items.length === 0) return badRequest("템플릿에 항목이 없습니다.");
 
-  const trainingDate = new Date(body.date);
+  const trainingDate = parseDate(body.date);
   const dayStart = new Date(trainingDate);
   dayStart.setHours(0, 0, 0, 0);
   const dayEnd = new Date(dayStart.getTime() + 86400000);
