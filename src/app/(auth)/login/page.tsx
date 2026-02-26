@@ -21,6 +21,7 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showChangeAlert, setShowChangeAlert] = useState(false);
 
   const handleTabChange = (type: LoginType) => {
     setLoginType(type);
@@ -50,8 +51,15 @@ function LoginForm() {
           : "아이디 또는 비밀번호가 올바르지 않습니다."
       );
     } else {
-      router.push("/");
-      router.refresh();
+      // 세션에서 mustChangePassword 확인
+      const sessionRes = await fetch("/api/auth/session");
+      const sessionData = await sessionRes.json();
+      if (sessionData?.user?.mustChangePassword) {
+        setShowChangeAlert(true);
+      } else {
+        router.push("/");
+        router.refresh();
+      }
     }
   };
 
@@ -152,6 +160,32 @@ function LoginForm() {
           </Link>
         </div>
       </div>
+
+      {/* 초기 비밀번호 변경 안내 팝업 */}
+      {showChangeAlert && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-6 text-center shadow-2xl animate-in fade-in">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-orange-100 rounded-full mb-4">
+              <svg className="w-8 h-8 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-bold text-gray-900 mb-2">비밀번호 변경 필요</h3>
+            <p className="text-sm text-gray-600 mb-1">
+              현재 초기 비밀번호를 사용 중입니다.
+            </p>
+            <p className="text-sm text-gray-600 mb-6">
+              보안을 위해 <span className="font-semibold text-orange-600">새 비밀번호를 설정</span>해야 서비스를 이용할 수 있습니다.
+            </p>
+            <button
+              onClick={() => { router.push("/change-password"); }}
+              className="w-full py-2.5 bg-orange-600 text-white rounded-lg font-medium hover:bg-orange-700 transition-colors"
+            >
+              비밀번호 변경하기
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

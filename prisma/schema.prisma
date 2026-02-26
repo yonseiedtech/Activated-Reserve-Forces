@@ -81,6 +81,8 @@ model User {
   transportAllowances  UserTransportAllowance[]
   dinnerRequests       DinnerRequest[]
 
+  mustChangePassword Boolean @default(false) // 첫 로그인 시 비밀번호 강제 변경
+
   // 보상금 계좌
   bankName    String?  // 은행명
   bankAccount String?  // 계좌번호

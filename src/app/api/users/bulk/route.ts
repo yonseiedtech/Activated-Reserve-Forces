@@ -62,12 +62,13 @@ export async function POST(req: NextRequest) {
   const results = [];
   for (const row of rows) {
     const hashedPassword = await bcrypt.hash(row.password, 10);
+    const role = row.role || "RESERVIST";
     const user = await prisma.user.create({
       data: {
         name: row.name,
         username: row.username,
         password: hashedPassword,
-        role: row.role || "RESERVIST",
+        role,
         rank: row.rank || null,
         serviceNumber: row.serviceNumber || null,
         phone: row.phone || null,
@@ -77,6 +78,7 @@ export async function POST(req: NextRequest) {
         warCompany: row.warCompany || null,
         warPlatoon: row.warPlatoon || null,
         warPosition: row.warPosition || null,
+        mustChangePassword: role === "RESERVIST",
       },
     });
     results.push({ id: user.id, name: user.name, username: user.username });

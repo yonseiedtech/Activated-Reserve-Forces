@@ -10,6 +10,7 @@ declare module "next-auth" {
     unit?: string | null;
     position?: string | null;
     birthDate?: string | null;
+    mustChangePassword?: boolean;
   }
   interface Session {
     user: {
@@ -24,6 +25,7 @@ declare module "next-auth" {
       unit?: string | null;
       position?: string | null;
       birthDate?: string | null;
+      mustChangePassword?: boolean;
     };
   }
 }
@@ -39,5 +41,6 @@ declare module "next-auth/jwt" {
     unit?: string | null;
     position?: string | null;
     birthDate?: string | null;
+    mustChangePassword?: boolean;
   }
 }

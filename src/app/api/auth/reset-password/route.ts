@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
 
   await prisma.user.update({
     where: { id: user.id },
-    data: { password: hashedPassword },
+    data: { password: hashedPassword, mustChangePassword: false },
   });
 
   return json({ message: "비밀번호가 변경되었습니다." });

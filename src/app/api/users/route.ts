@@ -78,6 +78,7 @@ export async function POST(req: NextRequest) {
       warCompany: body.warCompany || null,
       warPlatoon: body.warPlatoon || null,
       warPosition: body.warPosition || null,
+      mustChangePassword: body.role === "RESERVIST",
     },
   });
 

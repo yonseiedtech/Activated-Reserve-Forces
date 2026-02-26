@@ -21,10 +21,12 @@ export const authOptions: NextAuthOptions = {
         if (loginType === "reservist") {
           user = await prisma.user.findFirst({
             where: { serviceNumber: identifier, role: "RESERVIST" },
+            select: { id: true, name: true, email: true, username: true, password: true, role: true, rank: true, serviceNumber: true, phone: true, unit: true, position: true, birthDate: true, mustChangePassword: true },
           });
         } else {
           user = await prisma.user.findFirst({
             where: { username: identifier, role: { not: "RESERVIST" } },
+            select: { id: true, name: true, email: true, username: true, password: true, role: true, rank: true, serviceNumber: true, phone: true, unit: true, position: true, birthDate: true, mustChangePassword: true },
           });
         }
 
@@ -45,6 +47,7 @@ export const authOptions: NextAuthOptions = {
           unit: user.unit,
           position: user.position,
           birthDate: user.birthDate?.toISOString() || null,
+          mustChangePassword: user.mustChangePassword,
         };
       },
     }),
@@ -61,6 +64,7 @@ export const authOptions: NextAuthOptions = {
         token.unit = (user as { unit?: string | null }).unit || null;
         token.position = (user as { position?: string | null }).position || null;
         token.birthDate = (user as { birthDate?: string | null }).birthDate || null;
+        token.mustChangePassword = (user as { mustChangePassword?: boolean }).mustChangePassword || false;
       }
       return token;
     },
@@ -75,6 +79,7 @@ export const authOptions: NextAuthOptions = {
         session.user.unit = (token.unit as string) || null;
         session.user.position = (token.position as string) || null;
         session.user.birthDate = (token.birthDate as string) || null;
+        session.user.mustChangePassword = (token.mustChangePassword as boolean) || false;
       }
       return session;
     },

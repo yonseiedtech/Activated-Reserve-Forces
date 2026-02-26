@@ -180,20 +180,27 @@ export default function AdminUsersPage() {
   };
 
   const handleResetPassword = async () => {
-    if (!resetTarget || !resetPassword) return;
+    if (!resetTarget) return;
+    const isReservist = resetTarget.role === "RESERVIST" && resetTarget.birthDate;
+    if (!isReservist && !resetPassword) return;
     setResetLoading(true);
     setResetMessage("");
+
+    const body = isReservist ? {} : { newPassword: resetPassword };
 
     const res = await fetch(`/api/users/${resetTarget.id}/reset-password`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ newPassword: resetPassword }),
+      body: JSON.stringify(body),
     });
 
     setResetLoading(false);
 
     if (res.ok) {
-      setResetMessage("비밀번호가 초기화되었습니다.");
+      const birthLabel = isReservist && resetTarget.birthDate
+        ? resetTarget.birthDate.replace(/-/g, "").slice(2, 8).replace(/^(\d{2})(\d{2})(\d{2})$/, "$1$2$3")
+        : "";
+      setResetMessage(isReservist ? `생년월일(${birthLabel})로 초기화되었습니다.` : "비밀번호가 초기화되었습니다.");
       setTimeout(() => {
         setResetTarget(null);
         setResetPassword("");
@@ -752,20 +759,32 @@ export default function AdminUsersPage() {
       )}
 
       {/* 비밀번호 초기화 모달 */}
-      {resetTarget && (
+      {resetTarget && (() => {
+        const isReservistWithBirth = resetTarget.role === "RESERVIST" && resetTarget.birthDate;
+        const birthYYMMDD = isReservistWithBirth && resetTarget.birthDate
+          ? resetTarget.birthDate.split("T")[0].replace(/-/g, "").slice(2, 8)
+          : "";
+        return (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl w-full max-w-sm p-6 space-y-4">
             <h3 className="text-lg font-semibold">비밀번호 초기화</h3>
             <p className="text-sm text-gray-600">
               <span className="font-medium">{resetTarget.name}</span> ({resetTarget.username}) 계정의 비밀번호를 초기화합니다.
             </p>
-            <input
-              placeholder="새 비밀번호"
-              type="password"
-              value={resetPassword}
-              onChange={(e) => setResetPassword(e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg"
-            />
+            {isReservistWithBirth ? (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-700">
+                <p>생년월일 6자리(<span className="font-mono font-bold">{birthYYMMDD}</span>)로 초기화됩니다.</p>
+                <p className="text-xs text-blue-500 mt-1">* 초기화 후 첫 로그인 시 비밀번호 변경이 필요합니다.</p>
+              </div>
+            ) : (
+              <input
+                placeholder="새 비밀번호"
+                type="password"
+                value={resetPassword}
+                onChange={(e) => setResetPassword(e.target.value)}
+                className="w-full px-3 py-2 border rounded-lg"
+              />
+            )}
             {resetMessage && (
               <p className={`text-sm ${resetMessage.includes("실패") ? "text-red-600" : "text-green-600"}`}>
                 {resetMessage}
@@ -774,10 +793,10 @@ export default function AdminUsersPage() {
             <div className="flex gap-3 pt-2">
               <button
                 onClick={handleResetPassword}
-                disabled={resetLoading || !resetPassword}
+                disabled={resetLoading || (!isReservistWithBirth && !resetPassword)}
                 className="flex-1 py-2 bg-orange-600 text-white rounded-lg font-medium hover:bg-orange-700 disabled:opacity-50"
               >
-                {resetLoading ? "처리 중..." : "초기화"}
+                {resetLoading ? "처리 중..." : isReservistWithBirth ? "생년월일로 초기화" : "초기화"}
               </button>
               <button
                 onClick={() => { setResetTarget(null); setResetPassword(""); setResetMessage(""); }}
@@ -788,7 +807,8 @@ export default function AdminUsersPage() {
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* CSV 일괄 등록 모달 */}
       {showCsvUpload && (
