@@ -2,6 +2,7 @@ import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "./prisma";
+import { checkRateLimit, recordLoginAttempt } from "./rate-limit";
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -17,6 +18,12 @@ export const authOptions: NextAuthOptions = {
 
         const { identifier, password, loginType } = credentials;
 
+        // Rate Limit 체크
+        const rateCheck = await checkRateLimit(identifier, loginType || "admin");
+        if (!rateCheck.allowed) {
+          throw new Error("RATE_LIMITED");
+        }
+
         let user;
         if (loginType === "reservist") {
           user = await prisma.user.findFirst({
@@ -30,10 +37,18 @@ export const authOptions: NextAuthOptions = {
           });
         }
 
-        if (!user) return null;
+        if (!user) {
+          await recordLoginAttempt(identifier, loginType || "admin", false);
+          return null;
+        }
 
         const isValid = await bcrypt.compare(password, user.password);
-        if (!isValid) return null;
+        if (!isValid) {
+          await recordLoginAttempt(identifier, loginType || "admin", false);
+          return null;
+        }
+
+        await recordLoginAttempt(identifier, loginType || "admin", true);
 
         return {
           id: user.id,

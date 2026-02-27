@@ -1,16 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { signOut } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import PasswordInput from "@/components/ui/PasswordInput";
 
 export default function ChangePasswordPage() {
-  const router = useRouter();
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+
+  const newPasswordRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    newPasswordRef.current?.focus();
+  }, []);
+
+  const passwordsMatch =
+    confirmPassword.length > 0 && newPassword === confirmPassword;
+  const passwordsMismatch =
+    confirmPassword.length > 0 && newPassword !== confirmPassword;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -90,36 +100,33 @@ export default function ChangePasswordPage() {
             </div>
           )}
 
-          <div>
-            <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700 mb-1">
-              새 비밀번호
-            </label>
-            <input
-              id="newPassword"
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              required
-              minLength={6}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
-              placeholder="6자 이상 입력하세요"
-            />
-          </div>
+          <PasswordInput
+            ref={newPasswordRef}
+            id="newPassword"
+            label="새 비밀번호"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            required
+            minLength={6}
+            placeholder="6자 이상 입력하세요"
+          />
 
           <div>
-            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
-              비밀번호 확인
-            </label>
-            <input
+            <PasswordInput
               id="confirmPassword"
-              type="password"
+              label="비밀번호 확인"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
               minLength={6}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
               placeholder="비밀번호를 다시 입력하세요"
             />
+            {passwordsMatch && (
+              <p className="text-xs text-green-600 mt-1">비밀번호가 일치합니다</p>
+            )}
+            {passwordsMismatch && (
+              <p className="text-xs text-red-500 mt-1">비밀번호가 일치하지 않습니다</p>
+            )}
           </div>
 
           <button

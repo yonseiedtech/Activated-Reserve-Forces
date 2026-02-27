@@ -476,3 +476,14 @@ model GuardPostToken {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 }
+
+// ─── 로그인 시도 기록 (Rate Limiting) ───
+model LoginAttempt {
+  id         String   @id @default(cuid())
+  identifier String
+  loginType  String
+  success    Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([identifier, loginType, createdAt])
+}

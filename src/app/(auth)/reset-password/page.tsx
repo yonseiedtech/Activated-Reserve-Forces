@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import PasswordInput from "@/components/ui/PasswordInput";
 
 type UserType = "reservist" | "admin";
 
@@ -18,6 +19,13 @@ export default function ResetPasswordPage() {
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  const identifierRef = useRef<HTMLInputElement>(null);
+
+  // 페이지 로드 시 자동 포커스
+  useEffect(() => {
+    identifierRef.current?.focus();
+  }, []);
+
   const handleTabChange = (type: UserType) => {
     setUserType(type);
     setIdentifier("");
@@ -28,7 +36,14 @@ export default function ResetPasswordPage() {
     setConfirmPassword("");
     setError("");
     setVerifyType("serviceNumber");
+    // 탭 전환 시 identifier에 포커스
+    setTimeout(() => identifierRef.current?.focus(), 0);
   };
+
+  const passwordsMatch =
+    confirmPassword.length > 0 && newPassword === confirmPassword;
+  const passwordsMismatch =
+    confirmPassword.length > 0 && newPassword !== confirmPassword;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -137,6 +152,7 @@ export default function ResetPasswordPage() {
               {userType === "reservist" ? "군번" : "아이디"}
             </label>
             <input
+              ref={identifierRef}
               type="text"
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
@@ -243,28 +259,30 @@ export default function ResetPasswordPage() {
             </div>
           )}
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">새 비밀번호</label>
-            <input
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              required
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-              placeholder="새 비밀번호를 입력하세요"
-            />
-          </div>
+          <PasswordInput
+            id="newPassword"
+            label="새 비밀번호"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            required
+            placeholder="새 비밀번호를 입력하세요"
+          />
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">비밀번호 확인</label>
-            <input
-              type="password"
+            <PasswordInput
+              id="confirmPassword"
+              label="비밀번호 확인"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
               placeholder="비밀번호를 다시 입력하세요"
             />
+            {passwordsMatch && (
+              <p className="text-xs text-green-600 mt-1">비밀번호가 일치합니다</p>
+            )}
+            {passwordsMismatch && (
+              <p className="text-xs text-red-500 mt-1">비밀번호가 일치하지 않습니다</p>
+            )}
           </div>
 
           <button

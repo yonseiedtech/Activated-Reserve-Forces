@@ -197,6 +197,9 @@ export default function ReservistBatchDetailPage() {
   const [commutingRecords, setCommutingRecords] = useState<CommutingRecord[]>([]);
   const [commutingLoading, setCommutingLoading] = useState(false);
 
+  // 당일 출근 확인 여부 (건강문진표 활성화 조건)
+  const [checkedInToday, setCheckedInToday] = useState(false);
+
   // 건강관리 문진표 (boolean 문항은 undefined = 미선택)
   const [healthAnswers, setHealthAnswers] = useState<Record<string, boolean | string | undefined>>({
     q1_chronic_detail: "",
@@ -252,6 +255,16 @@ export default function ReservistBatchDetailPage() {
             fetchHealthQuestionnaire(me.batchUserId);
           }
         }
+        // 당일 출근 여부 확인
+        const today = new Date();
+        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+        fetch(`/api/commuting?date=${todayStr}`)
+          .then((r) => r.json())
+          .then((records: CommutingRecord[]) => {
+            const hasCheckIn = Array.isArray(records) && records.some((r) => r.checkInAt);
+            setCheckedInToday(hasCheckIn);
+          })
+          .catch(() => setCheckedInToday(false));
       })
       .finally(() => setLoading(false));
   }, [batchId, fetchReasonReports, fetchHealthQuestionnaire]);
@@ -523,7 +536,7 @@ export default function ReservistBatchDetailPage() {
   const tabs: { key: TabType; label: string; disabled?: boolean }[] = [
     { key: "attendance", label: "참석신고" },
     { key: "training", label: "훈련계획" },
-    { key: "health", label: "건강문진표", disabled: !isActive },
+    { key: "health", label: "건강문진표", disabled: !checkedInToday },
     { key: "meals", label: "식사현황" },
     { key: "commuting", label: "출퇴근" },
     { key: "payment", label: "훈련비" },
@@ -780,7 +793,7 @@ export default function ReservistBatchDetailPage() {
       )}
 
       {/* ═══ 3. 건강관리 문진표 탭 ═══ */}
-      {tab === "health" && isActive && (
+      {tab === "health" && checkedInToday && (
         <div className="space-y-4">
           {!batchUserId ? (
             <div className="text-center py-10 text-gray-500">차수에 배정되지 않았습니다.</div>
