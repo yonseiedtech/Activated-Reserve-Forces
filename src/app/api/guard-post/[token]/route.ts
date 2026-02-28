@@ -72,6 +72,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
       name: bu.user.name,
       rank: bu.user.rank,
       serviceNumber: bu.user.serviceNumber,
+      attendanceStatus: bu.status,
+      attendanceSubStatus: bu.subStatus,
       checkInAt: recordMap[bu.user.id]?.checkInAt || null,
       checkOutAt: recordMap[bu.user.id]?.checkOutAt || null,
     })),
