@@ -99,6 +99,7 @@ model BatchUser {
   subStatus         String?   // NORMAL, LATE_ARRIVAL, EARLY_DEPARTURE (참석일 때 세부 상태)
   reason            String?   // 불참 사유
   expectedConfirmAt DateTime? // 미정일 때 확정 예정 시점
+  mobilizationCertIssued Boolean @default(false) // 소집필증 발급 여부
   createdAt         DateTime  @default(now())
   reasonReports     ReasonReport[]
   healthQuestionnaire HealthQuestionnaire?

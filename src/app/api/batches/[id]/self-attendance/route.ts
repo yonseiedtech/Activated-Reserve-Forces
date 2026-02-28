@@ -11,11 +11,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const { id: batchId } = await params;
   const body = await req.json();
-  const { status, subStatus, reason, expectedConfirmAt } = body as {
+  const { status, subStatus, reason, expectedConfirmAt, mobilizationCertIssued } = body as {
     status: string;
     subStatus?: string;
     reason?: string;
     expectedConfirmAt?: string;
+    mobilizationCertIssued?: boolean;
   };
 
   if (!status) return badRequest("status가 필요합니다.");
@@ -28,12 +29,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   });
   if (!batchUser) return forbidden();
 
-  const data: { status: string; subStatus: string | null; reason: string | null; expectedConfirmAt: Date | null } = {
+  const data: { status: string; subStatus: string | null; reason: string | null; expectedConfirmAt: Date | null; mobilizationCertIssued?: boolean } = {
     status,
     subStatus: null,
     reason: null,
     expectedConfirmAt: null,
   };
+
+  if (typeof mobilizationCertIssued === "boolean") {
+    data.mobilizationCertIssued = mobilizationCertIssued;
+  }
 
   if (status === "PRESENT") {
     data.subStatus = subStatus || "NORMAL";

@@ -44,6 +44,7 @@ interface BatchUser {
   batchStatus?: string;
   batchSubStatus?: string | null;
   batchReason?: string | null;
+  mobilizationCertIssued?: boolean;
 }
 
 interface ReasonReportWithUser {
@@ -264,12 +265,12 @@ export default function AdminBatchDetailPage() {
     _count: { responses: number };
     createdAt: string;
   }
-  interface SurveyQuestion { q: string; type: string; options: string[] }
+  interface SurveyQuestion { q: string; type: string; options: string[]; required?: boolean }
   const [surveys, setSurveys] = useState<SurveyItem[]>([]);
   const [showSurveyForm, setShowSurveyForm] = useState(false);
   const [editingSurvey, setEditingSurvey] = useState<SurveyItem | null>(null);
   const [surveyForm, setSurveyForm] = useState<{ title: string; description: string; questions: SurveyQuestion[] }>({
-    title: "", description: "", questions: [{ q: "", type: "text", options: [] }],
+    title: "", description: "", questions: [{ q: "", type: "text", options: [], required: true }],
   });
 
   const fetchBatch = useCallback(() => {
@@ -1120,6 +1121,9 @@ export default function AdminBatchDetailPage() {
                             <span className="px-1.5 py-0.5 text-xs bg-gray-50 text-gray-400 rounded">문진표 미제출</span>
                           ) : null;
                         })()}
+                        {u.mobilizationCertIssued && (
+                          <span className="px-1.5 py-0.5 text-xs bg-indigo-50 text-indigo-600 rounded font-medium">소집필증</span>
+                        )}
                         {userReports.length > 0 && (
                           <button
                             onClick={() => setViewingReport(userReports[0])}
@@ -1615,7 +1619,7 @@ export default function AdminBatchDetailPage() {
             <h3 className="text-lg font-semibold">차수 설문조사</h3>
             <button
               onClick={() => {
-                setSurveyForm({ title: "", description: "", questions: [{ q: "", type: "text", options: [] }] });
+                setSurveyForm({ title: "", description: "", questions: [{ q: "", type: "text", options: [], required: true }] });
                 setEditingSurvey(null);
                 setShowSurveyForm(true);
               }}
@@ -1704,18 +1708,33 @@ export default function AdminBatchDetailPage() {
               {surveyForm.questions.map((q, i) => (
                 <div key={i} className="bg-gray-50 rounded-lg p-3 space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium text-gray-500">질문 {i + 1}</span>
-                    {surveyForm.questions.length > 1 && (
-                      <button
-                        onClick={() => {
-                          const qs = surveyForm.questions.filter((_, idx) => idx !== i);
-                          setSurveyForm({ ...surveyForm, questions: qs });
-                        }}
-                        className="text-xs text-red-500 hover:underline"
-                      >
-                        삭제
-                      </button>
-                    )}
+                    <span className="text-xs font-medium text-gray-500">질문 {i + 1}{(q.required !== false) && <span className="text-red-500 ml-0.5">*</span>}</span>
+                    <div className="flex items-center gap-3">
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={q.required !== false}
+                          onChange={(e) => {
+                            const qs = [...surveyForm.questions];
+                            qs[i] = { ...qs[i], required: e.target.checked };
+                            setSurveyForm({ ...surveyForm, questions: qs });
+                          }}
+                          className="w-3.5 h-3.5 text-blue-600 rounded"
+                        />
+                        <span className="text-xs text-gray-500">필수</span>
+                      </label>
+                      {surveyForm.questions.length > 1 && (
+                        <button
+                          onClick={() => {
+                            const qs = surveyForm.questions.filter((_, idx) => idx !== i);
+                            setSurveyForm({ ...surveyForm, questions: qs });
+                          }}
+                          className="text-xs text-red-500 hover:underline"
+                        >
+                          삭제
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <input
                     value={q.q}
@@ -1740,21 +1759,54 @@ export default function AdminBatchDetailPage() {
                     <option value="choice">객관식</option>
                   </select>
                   {q.type === "choice" && (
-                    <input
-                      placeholder="선택지 (쉼표로 구분: 매우 만족, 만족, 보통, 불만족)"
-                      value={q.options?.join(", ") || ""}
-                      onChange={(e) => {
-                        const qs = [...surveyForm.questions];
-                        qs[i] = { ...qs[i], options: e.target.value.split(",").map((s) => s.trim()) };
-                        setSurveyForm({ ...surveyForm, questions: qs });
-                      }}
-                      className="w-full px-3 py-2 border rounded-lg text-sm"
-                    />
+                    <div className="space-y-2">
+                      {(q.options?.length ? q.options : [""]).map((opt, j) => (
+                        <div key={j} className="flex items-center gap-2">
+                          <span className="text-xs text-gray-400 w-4 text-center">{j + 1}</span>
+                          <input
+                            value={opt}
+                            onChange={(e) => {
+                              const qs = [...surveyForm.questions];
+                              const opts = [...(qs[i].options || [""])];
+                              opts[j] = e.target.value;
+                              qs[i] = { ...qs[i], options: opts };
+                              setSurveyForm({ ...surveyForm, questions: qs });
+                            }}
+                            placeholder={`선지 ${j + 1}`}
+                            className="flex-1 px-3 py-1.5 border rounded-lg text-sm"
+                          />
+                          {(q.options?.length || 1) > 1 && (
+                            <button
+                              onClick={() => {
+                                const qs = [...surveyForm.questions];
+                                const opts = (qs[i].options || []).filter((_, idx) => idx !== j);
+                                qs[i] = { ...qs[i], options: opts };
+                                setSurveyForm({ ...surveyForm, questions: qs });
+                              }}
+                              className="text-gray-400 hover:text-red-500 text-sm px-1"
+                              title="선지 삭제"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      <button
+                        onClick={() => {
+                          const qs = [...surveyForm.questions];
+                          qs[i] = { ...qs[i], options: [...(qs[i].options || []), ""] };
+                          setSurveyForm({ ...surveyForm, questions: qs });
+                        }}
+                        className="text-xs text-blue-600 hover:underline ml-6"
+                      >
+                        + 선지 추가
+                      </button>
+                    </div>
                   )}
                 </div>
               ))}
               <button
-                onClick={() => setSurveyForm({ ...surveyForm, questions: [...surveyForm.questions, { q: "", type: "text", options: [] }] })}
+                onClick={() => setSurveyForm({ ...surveyForm, questions: [...surveyForm.questions, { q: "", type: "text", options: [], required: true }] })}
                 className="text-sm text-blue-600 hover:underline"
               >
                 + 질문 추가
@@ -1781,6 +1833,12 @@ export default function AdminBatchDetailPage() {
                   if (!surveyForm.title.trim()) return alert("제목을 입력해주세요.");
                   if (surveyForm.questions.some((q) => !q.q.trim())) return alert("모든 질문을 입력해주세요.");
 
+                  // 빈 선지 필터링
+                  const cleanedQuestions = surveyForm.questions.map((q) => ({
+                    ...q,
+                    options: q.type === "choice" ? (q.options || []).filter((o) => o.trim()) : q.options,
+                  }));
+
                   if (editingSurvey) {
                     const res = await fetch(`/api/surveys/${editingSurvey.id}`, {
                       method: "PATCH",
@@ -1788,7 +1846,7 @@ export default function AdminBatchDetailPage() {
                       body: JSON.stringify({
                         title: surveyForm.title,
                         description: surveyForm.description,
-                        questions: surveyForm.questions,
+                        questions: cleanedQuestions,
                         isActive: editingSurvey.isActive,
                       }),
                     });
@@ -1800,7 +1858,7 @@ export default function AdminBatchDetailPage() {
                       body: JSON.stringify({
                         title: surveyForm.title,
                         description: surveyForm.description,
-                        questions: surveyForm.questions,
+                        questions: cleanedQuestions,
                         batchId,
                       }),
                     });

@@ -25,7 +25,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const batch = await prisma.batch.findUnique({
     where: { id },
     include: {
-      batchUsers: { select: { id: true, status: true, subStatus: true, reason: true, expectedConfirmAt: true, user: { select: { id: true, name: true, rank: true, serviceNumber: true, phone: true, unit: true, birthDate: true, bankName: true, bankAccount: true, position: true, warBattalion: true, warCompany: true, warPlatoon: true } } } },
+      batchUsers: { select: { id: true, status: true, subStatus: true, reason: true, expectedConfirmAt: true, mobilizationCertIssued: true, user: { select: { id: true, name: true, rank: true, serviceNumber: true, phone: true, unit: true, birthDate: true, bankName: true, bankAccount: true, position: true, warBattalion: true, warCompany: true, warPlatoon: true } } } },
       trainings: {
         orderBy: { date: "asc" },
         include: {
@@ -47,8 +47,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const mappedUsers = isReservist
     ? batchUsers
         .filter((bu) => bu.user.id === session.user.id)
-        .map((bu) => ({ ...bu.user, batchUserId: bu.id, batchStatus: bu.status, batchSubStatus: bu.subStatus, batchReason: bu.reason, batchExpectedConfirmAt: bu.expectedConfirmAt }))
-    : batchUsers.map((bu) => ({ ...bu.user, batchUserId: bu.id, batchStatus: bu.status, batchSubStatus: bu.subStatus, batchReason: bu.reason, batchExpectedConfirmAt: bu.expectedConfirmAt }));
+        .map((bu) => ({ ...bu.user, batchUserId: bu.id, batchStatus: bu.status, batchSubStatus: bu.subStatus, batchReason: bu.reason, batchExpectedConfirmAt: bu.expectedConfirmAt, mobilizationCertIssued: bu.mobilizationCertIssued }))
+    : batchUsers.map((bu) => ({ ...bu.user, batchUserId: bu.id, batchStatus: bu.status, batchSubStatus: bu.subStatus, batchReason: bu.reason, batchExpectedConfirmAt: bu.expectedConfirmAt, mobilizationCertIssued: bu.mobilizationCertIssued }));
 
   return json({
     ...rest,

@@ -33,7 +33,7 @@ interface Batch {
   status: string;
   location: string | null;
   trainings: Training[];
-  users: { id: string; name: string; rank?: string | null; serviceNumber?: string | null; unit?: string | null; batchUserId?: string; batchStatus?: string; batchSubStatus?: string | null; batchReason?: string | null; batchExpectedConfirmAt?: string | null }[];
+  users: { id: string; name: string; rank?: string | null; serviceNumber?: string | null; unit?: string | null; batchUserId?: string; batchStatus?: string; batchSubStatus?: string | null; batchReason?: string | null; batchExpectedConfirmAt?: string | null; mobilizationCertIssued?: boolean }[];
 }
 
 interface Meal {
@@ -169,6 +169,7 @@ export default function ReservistBatchDetailPage() {
   const [subStatus, setSubStatus] = useState<string>("NORMAL");
   const [reason, setReason] = useState("");
   const [expectedConfirmAt, setExpectedConfirmAt] = useState("");
+  const [mobilizationCertIssued, setMobilizationCertIssued] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
@@ -256,6 +257,7 @@ export default function ReservistBatchDetailPage() {
           setSubStatus(me.batchSubStatus || "NORMAL");
           setReason(me.batchReason || "");
           setExpectedConfirmAt(me.batchExpectedConfirmAt ? new Date(me.batchExpectedConfirmAt).toISOString().slice(0, 16) : "");
+          setMobilizationCertIssued(me.mobilizationCertIssued || false);
           if (me.batchUserId) {
             setBatchUserId(me.batchUserId);
             fetchReasonReports(me.batchUserId);
@@ -377,7 +379,7 @@ export default function ReservistBatchDetailPage() {
     setSaving(true);
     setError("");
 
-    const body: Record<string, string | undefined> = { status: attendanceStatus };
+    const body: Record<string, string | boolean | undefined> = { status: attendanceStatus, mobilizationCertIssued };
     if (attendanceStatus === "PRESENT") body.subStatus = subStatus || "NORMAL";
     if (attendanceStatus === "ABSENT") body.reason = reason || undefined;
     if (attendanceStatus === "PENDING") body.expectedConfirmAt = expectedConfirmAt || undefined;
@@ -679,6 +681,17 @@ export default function ReservistBatchDetailPage() {
                 </p>
               </div>
             )}
+
+            {/* 소집필증 발급 여부 */}
+            <label className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors">
+              <input
+                type="checkbox"
+                checked={mobilizationCertIssued}
+                onChange={(e) => { setMobilizationCertIssued(e.target.checked); setSaved(false); setError(""); }}
+                className="w-4 h-4 text-blue-600 rounded"
+              />
+              <span className="text-sm font-medium text-gray-700">소집필증 발급 완료</span>
+            </label>
 
             {error && <p className="text-sm text-red-600">{error}</p>}
 
