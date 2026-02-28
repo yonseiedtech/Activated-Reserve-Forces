@@ -250,6 +250,8 @@ export default function AdminBatchDetailPage() {
   const [guardTokens, setGuardTokens] = useState<GuardPostTokenData[]>([]);
   const [showTokenForm, setShowTokenForm] = useState(false);
   const [tokenLabel, setTokenLabel] = useState("");
+  const [tokenExpiryType, setTokenExpiryType] = useState<"batch" | "custom" | "none">("batch");
+  const [tokenExpiryDate, setTokenExpiryDate] = useState("");
 
   // Settings tab state
   const [settingsForm, setSettingsForm] = useState({ name: "", year: 0, number: 0, startDate: "", endDate: "", location: "", requiredHours: "" });
@@ -1228,8 +1230,8 @@ export default function AdminBatchDetailPage() {
             </div>
             <div className="p-4 space-y-3">
               {showTokenForm && (
-                <div className="flex gap-2 items-end">
-                  <div className="flex-1">
+                <div className="space-y-3 bg-gray-50 rounded-lg p-3">
+                  <div>
                     <label className="text-xs text-gray-500 mb-1 block">링크 이름 (선택)</label>
                     <input
                       value={tokenLabel}
@@ -1238,30 +1240,63 @@ export default function AdminBatchDetailPage() {
                       className="w-full px-3 py-1.5 border rounded-lg text-sm"
                     />
                   </div>
-                  <button
-                    onClick={async () => {
-                      const res = await fetch("/api/guard-post-tokens", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ batchId, label: tokenLabel || null }),
-                      });
-                      if (res.ok) {
-                        const newToken = await res.json();
-                        setGuardTokens((prev) => [newToken, ...prev]);
-                        setTokenLabel("");
-                        setShowTokenForm(false);
-                      }
-                    }}
-                    className="px-4 py-1.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 shrink-0"
-                  >
-                    생성
-                  </button>
-                  <button
-                    onClick={() => setShowTokenForm(false)}
-                    className="px-3 py-1.5 border rounded-lg text-sm text-gray-600 hover:bg-gray-50 shrink-0"
-                  >
-                    취소
-                  </button>
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">유효기간</label>
+                    <div className="flex gap-2 flex-wrap">
+                      {([
+                        { value: "batch" as const, label: "차수 종료일" },
+                        { value: "custom" as const, label: "직접 지정" },
+                        { value: "none" as const, label: "무기한" },
+                      ]).map((opt) => (
+                        <label key={opt.value} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border cursor-pointer text-xs ${tokenExpiryType === opt.value ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 hover:bg-gray-100"}`}>
+                          <input type="radio" name="tokenExpiry" value={opt.value} checked={tokenExpiryType === opt.value} onChange={() => setTokenExpiryType(opt.value)} className="sr-only" />
+                          {opt.label}
+                        </label>
+                      ))}
+                    </div>
+                    {tokenExpiryType === "custom" && (
+                      <input
+                        type="datetime-local"
+                        value={tokenExpiryDate}
+                        onChange={(e) => setTokenExpiryDate(e.target.value)}
+                        className="mt-2 w-full px-3 py-1.5 border rounded-lg text-sm"
+                      />
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={async () => {
+                        const body: Record<string, unknown> = { batchId, label: tokenLabel || null };
+                        if (tokenExpiryType === "none") {
+                          body.noExpiry = true;
+                        } else if (tokenExpiryType === "custom" && tokenExpiryDate) {
+                          body.expiresAt = new Date(tokenExpiryDate).toISOString();
+                        }
+                        const res = await fetch("/api/guard-post-tokens", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify(body),
+                        });
+                        if (res.ok) {
+                          const newToken = await res.json();
+                          setGuardTokens((prev) => [newToken, ...prev]);
+                          setTokenLabel("");
+                          setTokenExpiryType("batch");
+                          setTokenExpiryDate("");
+                          setShowTokenForm(false);
+                        }
+                      }}
+                      className="px-4 py-1.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700"
+                    >
+                      생성
+                    </button>
+                    <button
+                      onClick={() => setShowTokenForm(false)}
+                      className="px-3 py-1.5 border rounded-lg text-sm text-gray-600 hover:bg-gray-50"
+                    >
+                      취소
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -1320,9 +1355,11 @@ export default function AdminBatchDetailPage() {
                       </div>
                     </div>
                     <p className="text-xs text-gray-500 break-all">{url}</p>
-                    {gt.expiresAt && (
-                      <p className="text-xs text-gray-400 mt-1">만료: {new Date(gt.expiresAt).toLocaleDateString("ko-KR")}</p>
-                    )}
+                    <p className="text-xs text-gray-400 mt-1">
+                      {gt.expiresAt
+                        ? `만료: ${new Date(gt.expiresAt).toLocaleString("ko-KR", { year: "numeric", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}`
+                        : "만료: 무기한"}
+                    </p>
                   </div>
                 );
               })}

@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
   if (!session) return unauthorized();
   if (!["ADMIN", "MANAGER"].includes(session.user.role)) return forbidden();
 
-  const { batchId, label } = await req.json();
+  const { batchId, label, expiresAt: customExpiresAt, noExpiry } = await req.json();
   if (!batchId) return badRequest("batchId가 필요합니다.");
 
   const batch = await prisma.batch.findUnique({ where: { id: batchId } });
@@ -33,12 +33,24 @@ export async function POST(req: NextRequest) {
 
   const token = crypto.randomBytes(32).toString("hex");
 
+  // 만료일 결정: 무기한 > 직접 지정 > 차수 종료일(KST 23:59:59)
+  let expiresAt: Date | null = null;
+  if (noExpiry) {
+    expiresAt = null;
+  } else if (customExpiresAt) {
+    expiresAt = new Date(customExpiresAt);
+  } else {
+    // 차수 종료일 KST 23:59:59 (= UTC 14:59:59)
+    const endStr = batch.endDate.toISOString().split("T")[0];
+    expiresAt = new Date(endStr + "T14:59:59.000Z");
+  }
+
   const guardPostToken = await prisma.guardPostToken.create({
     data: {
       batchId,
       token,
       label: label || null,
-      expiresAt: batch.endDate,
+      expiresAt,
       createdBy: session.user.id,
     },
   });

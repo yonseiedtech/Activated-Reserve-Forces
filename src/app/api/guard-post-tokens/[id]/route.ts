@@ -16,6 +16,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     data: {
       ...(body.isActive !== undefined && { isActive: body.isActive }),
       ...(body.label !== undefined && { label: body.label || null }),
+      ...(body.expiresAt !== undefined && { expiresAt: body.expiresAt ? new Date(body.expiresAt) : null }),
     },
   });
   return json(updated);
