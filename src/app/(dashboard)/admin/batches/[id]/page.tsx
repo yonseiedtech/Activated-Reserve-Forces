@@ -443,8 +443,12 @@ export default function AdminBatchDetailPage() {
     const promises = commutingRows
       .filter((row) => row.attendanceStatus !== "ABSENT")
       .map((row) => {
-        const checkInAt = row.checkIn ? `${commutingDate}T${row.checkIn}:00` : "";
-        const checkOutAt = row.checkOut ? `${commutingDate}T${row.checkOut}:00` : "";
+        // KST 시간을 UTC ISO 문자열로 변환 (9시간 빼기)
+        const toUtcIso = (time: string) => {
+          if (!time) return undefined;
+          const d = new Date(`${commutingDate}T${time}:00+09:00`);
+          return d.toISOString();
+        };
 
         return fetch("/api/commuting", {
           method: "POST",
@@ -453,8 +457,8 @@ export default function AdminBatchDetailPage() {
             isManual: true,
             userId: row.userId,
             date: commutingDate,
-            checkInAt: checkInAt || undefined,
-            checkOutAt: checkOutAt || undefined,
+            checkInAt: toUtcIso(row.checkIn),
+            checkOutAt: toUtcIso(row.checkOut),
             note: row.note || undefined,
             batchId,
           }),
