@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getSession, json, unauthorized, forbidden } from "@/lib/api-utils";
 import { NextRequest } from "next/server";
+import { notifyUsers } from "@/lib/push";
 
 // GET: 본인 알림 조회
 export async function GET() {
@@ -44,14 +45,13 @@ export async function POST(req: NextRequest) {
     select: { id: true },
   });
 
-  // 인앱 알림 생성
-  const notifications = await Promise.all(
-    users.map((u) =>
-      prisma.notification.create({
-        data: { userId: u.id, title, content, type: type || "GENERAL" },
-      })
-    )
+  // 인앱 알림 + 웹 푸시 발송
+  const targetUserIds = users.map((u) => u.id);
+  await notifyUsers(
+    targetUserIds,
+    { title, content, type: type || "GENERAL" },
+    { url: "/" }
   );
 
-  return json({ count: notifications.length, message: `${notifications.length}명에게 알림을 발송했습니다.` });
+  return json({ count: targetUserIds.length, message: `${targetUserIds.length}명에게 알림을 발송했습니다.` });
 }

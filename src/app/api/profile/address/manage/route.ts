@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getSession, json, unauthorized, forbidden, badRequest } from "@/lib/api-utils";
 import { NextRequest } from "next/server";
+import { notifyUsers } from "@/lib/push";
 
 // 주소 변경 승인 대기 목록 (관리자용)
 export async function GET() {
@@ -72,15 +73,12 @@ export async function PATCH(req: NextRequest) {
       },
     });
 
-    // 사용자에게 승인 알림
-    await prisma.notification.create({
-      data: {
-        userId,
-        title: "주소 변경 승인",
-        content: "요청하신 주소 변경이 승인되었습니다.",
-        type: "GENERAL",
-      },
-    });
+    // 사용자에게 승인 알림+푸시
+    await notifyUsers(
+      [userId],
+      { title: "주소 변경 승인", content: "요청하신 주소 변경이 승인되었습니다." },
+      { url: "/profile" }
+    );
 
     return json({ success: true, action: "approved" });
   } else if (action === "reject") {
@@ -95,15 +93,12 @@ export async function PATCH(req: NextRequest) {
       },
     });
 
-    // 사용자에게 반려 알림
-    await prisma.notification.create({
-      data: {
-        userId,
-        title: "주소 변경 반려",
-        content: `주소 변경이 반려되었습니다. 사유: ${rejectReason || "사유 미기재"}`,
-        type: "GENERAL",
-      },
-    });
+    // 사용자에게 반려 알림+푸시
+    await notifyUsers(
+      [userId],
+      { title: "주소 변경 반려", content: `주소 변경이 반려되었습니다. 사유: ${rejectReason || "사유 미기재"}` },
+      { url: "/profile" }
+    );
 
     return json({ success: true, action: "rejected" });
   }

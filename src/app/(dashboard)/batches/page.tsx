@@ -31,6 +31,13 @@ const ATTENDANCE_COLORS: Record<string, string> = {
 
 type FilterType = "ALL" | "PLANNED" | "ACTIVE" | "COMPLETED";
 
+const DAYS = ["일", "월", "화", "수", "목", "금", "토"];
+function formatDateWithDay(iso: string) {
+  const d = new Date(iso);
+  const yy = String(d.getFullYear()).slice(2);
+  return `${yy}년 ${d.getMonth() + 1}월 ${d.getDate()}일(${DAYS[d.getDay()]})`;
+}
+
 export default function ReservistBatchesPage() {
   const [batches, setBatches] = useState<Batch[]>([]);
   const [loading, setLoading] = useState(true);
@@ -105,8 +112,8 @@ export default function ReservistBatchesPage() {
                   <h3 className="font-semibold text-gray-900">{b.name}</h3>
                   <p className="text-sm text-gray-500 mt-0.5">
                     {b.startDate.split("T")[0] === b.endDate.split("T")[0]
-                      ? new Date(b.startDate).toLocaleDateString("ko-KR")
-                      : `${new Date(b.startDate).toLocaleDateString("ko-KR")} ~ ${new Date(b.endDate).toLocaleDateString("ko-KR")}`
+                      ? formatDateWithDay(b.startDate)
+                      : `${formatDateWithDay(b.startDate)} ~ ${formatDateWithDay(b.endDate)}`
                     }
                     {b.location && ` | ${b.location}`}
                   </p>

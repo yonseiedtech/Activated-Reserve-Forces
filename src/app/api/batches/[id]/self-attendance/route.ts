@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getSession, json, unauthorized, forbidden, badRequest } from "@/lib/api-utils";
 import { NextRequest } from "next/server";
+import { notifyUsers } from "@/lib/push";
 
 // PATCH: 예비역 차수 참석 신고
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -45,7 +46,27 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const result = await prisma.batchUser.update({
     where: { userId_batchId: { userId: session.user.id, batchId } },
     data,
+    include: { batch: { select: { name: true } } },
   });
+
+  // 관리자에게 참석신고 변경 알림+푸시
+  const statusLabel = status === "PRESENT" ? "참석" : status === "ABSENT" ? "불참" : "보류";
+  const subLabel = data.subStatus === "LATE_ARRIVAL" ? "(지각)" : data.subStatus === "EARLY_DEPARTURE" ? "(조퇴)" : status === "PRESENT" ? "(정상)" : "";
+
+  const admins = await prisma.user.findMany({
+    where: { role: { in: ["ADMIN", "MANAGER"] } },
+    select: { id: true },
+  });
+  if (admins.length > 0) {
+    await notifyUsers(
+      admins.map((a) => a.id),
+      {
+        title: "참석신고 변경",
+        content: `${session.user.name}님이 ${result.batch.name} 참석 상태를 '${statusLabel}${subLabel}'(으)로 변경했습니다.`,
+      },
+      { url: `/admin/batches/${batchId}`, tag: `attendance-${batchId}` }
+    );
+  }
 
   return json(result);
 }

@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getSession, json, unauthorized, forbidden, badRequest } from "@/lib/api-utils";
 import { NextRequest } from "next/server";
+import { notifyUsers } from "@/lib/push";
 
 /** N 근무일 전 날짜 계산 (토/일 제외) */
 function subtractBusinessDays(date: Date, days: number): Date {
@@ -110,20 +111,17 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  // 관리자/급식담당자에게 알림 생성
+  // 관리자/급식담당자에게 알림+푸시
   const admins = await prisma.user.findMany({
     where: { role: { in: ["ADMIN", "MANAGER", "COOK"] } },
     select: { id: true },
   });
   if (admins.length > 0) {
-    await prisma.notification.createMany({
-      data: admins.map((a) => ({
-        userId: a.id,
-        title: "석식 신청",
-        content: `${session.user.name}님이 ${batch.name} 석식을 신청했습니다.`,
-        type: "GENERAL",
-      })),
-    });
+    await notifyUsers(
+      admins.map((a) => a.id),
+      { title: "석식 신청", content: `${session.user.name}님이 ${batch.name} 석식을 신청했습니다.` },
+      { url: "/meals" }
+    );
   }
 
   return json(request, 201);
@@ -166,20 +164,17 @@ export async function PATCH(req: NextRequest) {
       data: { status: "CANCELLED" },
     });
 
-    // 관리자에게 취소 알림
+    // 관리자에게 취소 알림+푸시
     const admins = await prisma.user.findMany({
       where: { role: { in: ["ADMIN", "MANAGER", "COOK"] } },
       select: { id: true },
     });
     if (admins.length > 0) {
-      await prisma.notification.createMany({
-        data: admins.map((a) => ({
-          userId: a.id,
-          title: "석식 신청 취소",
-          content: `${session.user.name}님이 ${request.batch.name} 석식 신청을 취소했습니다.`,
-          type: "GENERAL",
-        })),
-      });
+      await notifyUsers(
+        admins.map((a) => a.id),
+        { title: "석식 신청 취소", content: `${session.user.name}님이 ${request.batch.name} 석식 신청을 취소했습니다.` },
+        { url: "/meals" }
+      );
     }
 
     return json(updated);

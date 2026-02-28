@@ -192,7 +192,7 @@ export default function AdminBatchDetailPage() {
   const batchId = params.id as string;
 
   const [batch, setBatch] = useState<Batch | null>(null);
-  const [tab, setTab] = useState<"training" | "trainees" | "attendance" | "trainingAttendance" | "commuting" | "settings">("training");
+  const [tab, setTab] = useState<"training" | "trainees" | "attendance" | "trainingAttendance" | "commuting" | "survey" | "settings">("training");
   const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [trainingCategories, setTrainingCategories] = useState<TrainingCategory[]>([]);
   const [showTrainingForm, setShowTrainingForm] = useState(false);
@@ -254,6 +254,24 @@ export default function AdminBatchDetailPage() {
   const [settingsForm, setSettingsForm] = useState({ name: "", year: 0, number: 0, startDate: "", endDate: "", location: "", requiredHours: "" });
   const [settingsSaving, setSettingsSaving] = useState(false);
 
+  // Survey tab state
+  interface SurveyItem {
+    id: string;
+    title: string;
+    description: string | null;
+    questions: string;
+    isActive: boolean;
+    _count: { responses: number };
+    createdAt: string;
+  }
+  interface SurveyQuestion { q: string; type: string; options: string[] }
+  const [surveys, setSurveys] = useState<SurveyItem[]>([]);
+  const [showSurveyForm, setShowSurveyForm] = useState(false);
+  const [editingSurvey, setEditingSurvey] = useState<SurveyItem | null>(null);
+  const [surveyForm, setSurveyForm] = useState<{ title: string; description: string; questions: SurveyQuestion[] }>({
+    title: "", description: "", questions: [{ q: "", type: "text", options: [] }],
+  });
+
   const fetchBatch = useCallback(() => {
     fetch(`/api/batches/${batchId}`).then((r) => r.json()).then(setBatch);
   }, [batchId]);
@@ -294,6 +312,10 @@ export default function AdminBatchDetailPage() {
       .then((data: HealthQuestionnaireWithUser[]) => setHealthQuestionnaires(Array.isArray(data) ? data : []));
   }, [batchId]);
 
+  const fetchSurveys = useCallback(() => {
+    fetch(`/api/surveys?batchId=${batchId}`).then((r) => r.json()).then((data: SurveyItem[]) => setSurveys(Array.isArray(data) ? data : []));
+  }, [batchId]);
+
   const isAuthorized = status === "authenticated" && ["ADMIN", "MANAGER"].includes(session?.user?.role ?? "");
 
   useEffect(() => {
@@ -312,6 +334,11 @@ export default function AdminBatchDetailPage() {
       fetchHealthQuestionnaires();
     }
   }, [tab, fetchAttendanceSummary, fetchReasonReports, fetchHealthQuestionnaires, isAuthorized]);
+
+  useEffect(() => {
+    if (!isAuthorized || tab !== "survey") return;
+    fetchSurveys();
+  }, [tab, fetchSurveys, isAuthorized]);
 
   // Training/Commuting: batch 로드 시 날짜 초기화
   useEffect(() => {
@@ -691,6 +718,12 @@ export default function AdminBatchDetailPage() {
           className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === "commuting" ? "bg-white shadow-sm text-blue-600" : "text-gray-500 hover:text-gray-800 hover:bg-white/50"}`}
         >
           출퇴근
+        </button>
+        <button
+          onClick={() => setTab("survey")}
+          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === "survey" ? "bg-white shadow-sm text-blue-600" : "text-gray-500 hover:text-gray-800 hover:bg-white/50"}`}
+        >
+          설문조사
         </button>
         <button
           onClick={() => setTab("settings")}
@@ -1572,6 +1605,220 @@ export default function AdminBatchDetailPage() {
               )}
             </>
           )}
+        </div>
+      )}
+
+      {/* Survey Tab */}
+      {tab === "survey" && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold">차수 설문조사</h3>
+            <button
+              onClick={() => {
+                setSurveyForm({ title: "", description: "", questions: [{ q: "", type: "text", options: [] }] });
+                setEditingSurvey(null);
+                setShowSurveyForm(true);
+              }}
+              className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
+            >
+              + 설문 생성
+            </button>
+          </div>
+
+          {surveys.length === 0 ? (
+            <div className="text-center py-12 text-gray-400">등록된 설문이 없습니다.</div>
+          ) : (
+            <div className="space-y-3">
+              {surveys.map((s) => (
+                <div key={s.id} className="bg-white rounded-xl border p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-semibold text-gray-900">{s.title}</h4>
+                        <span className={`px-2 py-0.5 text-xs rounded-full ${s.isActive ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                          {s.isActive ? "진행중" : "종료"}
+                        </span>
+                      </div>
+                      {s.description && <p className="text-sm text-gray-500 mt-1">{s.description}</p>}
+                      <p className="text-xs text-gray-400 mt-1">
+                        {JSON.parse(s.questions).length}개 질문 | {s._count.responses}명 응답 | {new Date(s.createdAt).toLocaleDateString("ko-KR")}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0 ml-3">
+                      <button
+                        onClick={() => {
+                          const questions = JSON.parse(s.questions);
+                          setSurveyForm({ title: s.title, description: s.description || "", questions });
+                          setEditingSurvey(s);
+                          setShowSurveyForm(true);
+                        }}
+                        className="px-3 py-1.5 text-sm border rounded-lg text-gray-700 hover:bg-gray-50"
+                      >
+                        수정
+                      </button>
+                      <button
+                        onClick={async () => {
+                          if (!confirm(`"${s.title}" 설문을 삭제하시겠습니까?\n응답 데이터도 함께 삭제됩니다.`)) return;
+                          const res = await fetch(`/api/surveys/${s.id}`, { method: "DELETE" });
+                          if (res.ok) fetchSurveys();
+                        }}
+                        className="px-3 py-1.5 text-sm border border-red-200 rounded-lg text-red-600 hover:bg-red-50"
+                      >
+                        삭제
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Survey create/edit modal */}
+      {showSurveyForm && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl w-full max-w-lg p-6 space-y-4 max-h-[85vh] overflow-y-auto">
+            <h3 className="text-lg font-semibold">{editingSurvey ? "설문 수정" : "설문 생성"}</h3>
+            <div>
+              <label className="block text-sm font-medium mb-1">제목</label>
+              <input
+                value={surveyForm.title}
+                onChange={(e) => setSurveyForm({ ...surveyForm, title: e.target.value })}
+                placeholder="설문 제목"
+                className="w-full px-3 py-2 border rounded-lg"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">설명 (선택)</label>
+              <input
+                value={surveyForm.description}
+                onChange={(e) => setSurveyForm({ ...surveyForm, description: e.target.value })}
+                placeholder="설문에 대한 간단한 설명"
+                className="w-full px-3 py-2 border rounded-lg"
+              />
+            </div>
+
+            <div className="space-y-3">
+              <label className="block text-sm font-medium">질문 목록</label>
+              {surveyForm.questions.map((q, i) => (
+                <div key={i} className="bg-gray-50 rounded-lg p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-gray-500">질문 {i + 1}</span>
+                    {surveyForm.questions.length > 1 && (
+                      <button
+                        onClick={() => {
+                          const qs = surveyForm.questions.filter((_, idx) => idx !== i);
+                          setSurveyForm({ ...surveyForm, questions: qs });
+                        }}
+                        className="text-xs text-red-500 hover:underline"
+                      >
+                        삭제
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    value={q.q}
+                    onChange={(e) => {
+                      const qs = [...surveyForm.questions];
+                      qs[i] = { ...qs[i], q: e.target.value };
+                      setSurveyForm({ ...surveyForm, questions: qs });
+                    }}
+                    placeholder="질문 내용을 입력하세요"
+                    className="w-full px-3 py-2 border rounded-lg"
+                  />
+                  <select
+                    value={q.type}
+                    onChange={(e) => {
+                      const qs = [...surveyForm.questions];
+                      qs[i] = { ...qs[i], type: e.target.value };
+                      setSurveyForm({ ...surveyForm, questions: qs });
+                    }}
+                    className="px-3 py-1.5 border rounded-lg text-sm"
+                  >
+                    <option value="text">주관식</option>
+                    <option value="choice">객관식</option>
+                  </select>
+                  {q.type === "choice" && (
+                    <input
+                      placeholder="선택지 (쉼표로 구분: 매우 만족, 만족, 보통, 불만족)"
+                      value={q.options?.join(", ") || ""}
+                      onChange={(e) => {
+                        const qs = [...surveyForm.questions];
+                        qs[i] = { ...qs[i], options: e.target.value.split(",").map((s) => s.trim()) };
+                        setSurveyForm({ ...surveyForm, questions: qs });
+                      }}
+                      className="w-full px-3 py-2 border rounded-lg text-sm"
+                    />
+                  )}
+                </div>
+              ))}
+              <button
+                onClick={() => setSurveyForm({ ...surveyForm, questions: [...surveyForm.questions, { q: "", type: "text", options: [] }] })}
+                className="text-sm text-blue-600 hover:underline"
+              >
+                + 질문 추가
+              </button>
+            </div>
+
+            {editingSurvey && (
+              <div className="pt-2 border-t">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editingSurvey.isActive}
+                    onChange={(e) => setEditingSurvey({ ...editingSurvey, isActive: e.target.checked })}
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded"
+                  />
+                  <span className="text-sm text-gray-700">설문 활성화 (비활성화 시 응답 불가)</span>
+                </label>
+              </div>
+            )}
+
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={async () => {
+                  if (!surveyForm.title.trim()) return alert("제목을 입력해주세요.");
+                  if (surveyForm.questions.some((q) => !q.q.trim())) return alert("모든 질문을 입력해주세요.");
+
+                  if (editingSurvey) {
+                    const res = await fetch(`/api/surveys/${editingSurvey.id}`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        title: surveyForm.title,
+                        description: surveyForm.description,
+                        questions: surveyForm.questions,
+                        isActive: editingSurvey.isActive,
+                      }),
+                    });
+                    if (res.ok) { setShowSurveyForm(false); fetchSurveys(); }
+                  } else {
+                    const res = await fetch("/api/surveys", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        title: surveyForm.title,
+                        description: surveyForm.description,
+                        questions: surveyForm.questions,
+                        batchId,
+                      }),
+                    });
+                    if (res.ok) { setShowSurveyForm(false); fetchSurveys(); }
+                  }
+                }}
+                className="flex-1 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700"
+              >
+                {editingSurvey ? "저장" : "생성"}
+              </button>
+              <button
+                onClick={() => setShowSurveyForm(false)}
+                className="flex-1 py-2 border rounded-lg text-gray-700 hover:bg-gray-50"
+              >
+                취소
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getSession, json, unauthorized, badRequest } from "@/lib/api-utils";
 import { NextRequest } from "next/server";
+import { notifyUsers } from "@/lib/push";
 
 // 내 프로필 조회
 export async function GET() {
@@ -140,21 +141,18 @@ export async function PATCH(req: NextRequest) {
     },
   });
 
-  // RESERVIST 주소 변경 시 관리자에게 알림
+  // RESERVIST 주소 변경 시 관리자에게 알림+푸시
   if (hasAddressChange && isReservist) {
     const admins = await prisma.user.findMany({
       where: { role: { in: ["ADMIN", "MANAGER"] } },
       select: { id: true },
     });
     if (admins.length > 0) {
-      await prisma.notification.createMany({
-        data: admins.map((a) => ({
-          userId: a.id,
-          title: "주소 변경 요청",
-          content: `${session.user.name}님이 주소 변경을 요청했습니다.`,
-          type: "GENERAL",
-        })),
-      });
+      await notifyUsers(
+        admins.map((a) => a.id),
+        { title: "주소 변경 요청", content: `${session.user.name}님이 주소 변경을 요청했습니다.` },
+        { url: "/admin/address" }
+      );
     }
   }
 

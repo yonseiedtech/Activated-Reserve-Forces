@@ -148,6 +148,13 @@ const REASON_TYPE_LABELS: Record<string, string> = {
 
 type TabType = "attendance" | "training" | "health" | "meals" | "commuting" | "payment" | "survey";
 
+const DAYS = ["일", "월", "화", "수", "목", "금", "토"];
+function formatDateWithDay(iso: string) {
+  const d = new Date(iso);
+  const yy = String(d.getFullYear()).slice(2);
+  return `${yy}년 ${d.getMonth() + 1}월 ${d.getDate()}일(${DAYS[d.getDay()]})`;
+}
+
 export default function ReservistBatchDetailPage() {
   const params = useParams();
   const { data: session } = useSession();
@@ -555,8 +562,8 @@ export default function ReservistBatchDetailPage() {
         title={batch.name}
         description={
           `${batch.startDate.split("T")[0] === batch.endDate.split("T")[0]
-            ? new Date(batch.startDate).toLocaleDateString("ko-KR")
-            : `${new Date(batch.startDate).toLocaleDateString("ko-KR")} ~ ${new Date(batch.endDate).toLocaleDateString("ko-KR")}`
+            ? formatDateWithDay(batch.startDate)
+            : `${formatDateWithDay(batch.startDate)} ~ ${formatDateWithDay(batch.endDate)}`
           }${batch.location ? ` | ${batch.location}` : ""}`
         }
         actions={

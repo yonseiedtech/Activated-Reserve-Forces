@@ -60,6 +60,13 @@ const STATUS_COLORS: Record<string, string> = {
   COMPLETED: "bg-gray-100 text-gray-600",
 };
 
+const DAYS = ["일", "월", "화", "수", "목", "금", "토"];
+function formatDateWithDay(iso: string) {
+  const d = new Date(iso);
+  const yy = String(d.getFullYear()).slice(2);
+  return `${yy}년 ${d.getMonth() + 1}월 ${d.getDate()}일(${DAYS[d.getDay()]})`;
+}
+
 export default function AdminBatchesPage() {
   const [batches, setBatches] = useState<Batch[]>([]);
   const [units, setUnits] = useState<UnitOption[]>([]);
@@ -204,8 +211,8 @@ export default function AdminBatchesPage() {
               <h3 className="font-semibold hover:text-blue-600">{b.name}</h3>
               <p className="text-sm text-gray-500">
                 {b.startDate.split("T")[0] === b.endDate.split("T")[0]
-                  ? new Date(b.startDate).toLocaleDateString("ko-KR")
-                  : `${new Date(b.startDate).toLocaleDateString("ko-KR")} ~ ${new Date(b.endDate).toLocaleDateString("ko-KR")}`
+                  ? formatDateWithDay(b.startDate)
+                  : `${formatDateWithDay(b.startDate)} ~ ${formatDateWithDay(b.endDate)}`
                 } | {b._count.users}명 | {b._count.trainings}개 훈련
               </p>
               {(b.location || b.requiredHours != null || b.startTime) && (

@@ -142,6 +142,7 @@ model Batch {
   commutingRecords    CommutingRecord[]
   dinnerRequests      DinnerRequest[]
   guardPostTokens     GuardPostToken[]
+  surveys             Survey[]
 }
 
 // ─── 훈련 일정 ───
@@ -320,6 +321,8 @@ model Survey {
   isActive  Boolean  @default(true)
   startDate DateTime?
   endDate   DateTime?
+  batchId   String?
+  batch     Batch?   @relation(fields: [batchId], references: [id], onDelete: SetNull)
   createdAt DateTime @default(now())
 
   responses SurveyResponse[]
