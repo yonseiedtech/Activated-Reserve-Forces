@@ -1,16 +1,21 @@
 import webpush from "web-push";
 import { prisma } from "@/lib/prisma";
 
-// VAPID 설정
-const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "";
-const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || "";
+// VAPID 설정 (lazy 초기화 — 빌드 시 환경변수 누락 방지)
+let vapidInitialized = false;
 
-if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
-  webpush.setVapidDetails(
-    "mailto:admin@active-duty-reserve.vercel.app",
-    VAPID_PUBLIC_KEY,
-    VAPID_PRIVATE_KEY
-  );
+function ensureVapid(): boolean {
+  if (vapidInitialized) return true;
+  const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "";
+  const privateKey = process.env.VAPID_PRIVATE_KEY || "";
+  if (!publicKey || !privateKey) return false;
+  try {
+    webpush.setVapidDetails("mailto:admin@active-duty-reserve.vercel.app", publicKey, privateKey);
+    vapidInitialized = true;
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 interface PushPayload {
@@ -22,7 +27,7 @@ interface PushPayload {
 
 /** 특정 유저들의 모든 구독에 웹 푸시 전송 */
 export async function sendPushToUsers(userIds: string[], payload: PushPayload) {
-  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return;
+  if (!ensureVapid()) return;
   if (userIds.length === 0) return;
 
   const subscriptions = await prisma.pushSubscription.findMany({
