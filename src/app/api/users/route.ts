@@ -35,6 +35,8 @@ export async function GET(req: NextRequest) {
       zipCode: true,
       address: true,
       addressDetail: true,
+      bankName: true,
+      bankAccount: true,
       batchUsers: {
         select: { batch: { select: { id: true, name: true } } },
       },
