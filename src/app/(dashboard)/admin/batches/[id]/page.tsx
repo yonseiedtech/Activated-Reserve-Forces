@@ -194,6 +194,7 @@ export default function AdminBatchDetailPage() {
 
   const [batch, setBatch] = useState<Batch | null>(null);
   const [tab, setTab] = useState<"training" | "trainees" | "attendance" | "trainingAttendance" | "commuting" | "survey" | "settings">("training");
+  const [attendanceFilter, setAttendanceFilter] = useState<"ALL" | "PRESENT" | "ABSENT" | "PENDING">("ALL");
   const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [trainingCategories, setTrainingCategories] = useState<TrainingCategory[]>([]);
   const [showTrainingForm, setShowTrainingForm] = useState(false);
@@ -1075,19 +1076,45 @@ export default function AdminBatchDetailPage() {
         <div className="space-y-6">
           {/* 참석신고 현황 (대상자별 자기신고) */}
           <div className="bg-white rounded-xl border overflow-hidden">
-            <div className="px-4 py-3 bg-gray-50 border-b flex items-center justify-between">
-              <h3 className="font-semibold text-sm">참석신고 현황</h3>
-              <div className="flex gap-3 text-xs">
-                <span className="text-green-600">참석 {batch.users.filter((u) => u.batchStatus === "PRESENT").length}</span>
-                <span className="text-red-600">불참 {batch.users.filter((u) => u.batchStatus === "ABSENT").length}</span>
-                <span className="text-yellow-600">미정 {batch.users.filter((u) => !u.batchStatus || u.batchStatus === "PENDING").length}</span>
+            <div className="px-4 py-3 bg-gray-50 border-b space-y-2">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-sm">참석신고 현황</h3>
+                <div className="flex gap-3 text-xs">
+                  <span className="text-green-600">참석 {batch.users.filter((u) => u.batchStatus === "PRESENT").length}</span>
+                  <span className="text-red-600">불참 {batch.users.filter((u) => u.batchStatus === "ABSENT").length}</span>
+                  <span className="text-yellow-600">미정 {batch.users.filter((u) => !u.batchStatus || u.batchStatus === "PENDING").length}</span>
+                </div>
+              </div>
+              <div className="flex gap-1.5">
+                {([["ALL", "전체"], ["PRESENT", "참석"], ["ABSENT", "불참"], ["PENDING", "미정"]] as const).map(([key, label]) => (
+                  <button
+                    key={key}
+                    onClick={() => setAttendanceFilter(key)}
+                    className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                      attendanceFilter === key
+                        ? key === "PRESENT" ? "bg-green-600 text-white"
+                        : key === "ABSENT" ? "bg-red-600 text-white"
+                        : key === "PENDING" ? "bg-yellow-500 text-white"
+                        : "bg-gray-700 text-white"
+                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
             </div>
             <div className="divide-y">
               {batch.users.length === 0 ? (
                 <p className="px-4 py-6 text-sm text-gray-400 text-center">배정된 대상자가 없습니다.</p>
               ) : (
-                batch.users.map((u) => {
+                batch.users
+                .filter((u) => {
+                  if (attendanceFilter === "ALL") return true;
+                  if (attendanceFilter === "PENDING") return !u.batchStatus || u.batchStatus === "PENDING";
+                  return u.batchStatus === attendanceFilter;
+                })
+                .map((u) => {
                   const userReports = reasonReports.filter((r) => r.batchUserId === u.batchUserId);
                   return (
                     <div key={u.id} className="px-4 py-2.5 flex items-center justify-between hover:bg-gray-50">
@@ -1150,6 +1177,13 @@ export default function AdminBatchDetailPage() {
                     </div>
                   );
                 })
+              )}
+              {batch.users.length > 0 && batch.users.filter((u) => {
+                if (attendanceFilter === "ALL") return true;
+                if (attendanceFilter === "PENDING") return !u.batchStatus || u.batchStatus === "PENDING";
+                return u.batchStatus === attendanceFilter;
+              }).length === 0 && (
+                <p className="px-4 py-6 text-sm text-gray-400 text-center">해당 상태의 대상자가 없습니다.</p>
               )}
             </div>
           </div>
