@@ -188,6 +188,9 @@ export default function ReservistBatchDetailPage() {
   // 식사 현황
   const [meals, setMeals] = useState<Meal[]>([]);
   const [mealsLoading, setMealsLoading] = useState(false);
+  // 인라인 식사 등록 (관리자용)
+  const [inlineMealKey, setInlineMealKey] = useState<string | null>(null); // "dateKey-TYPE"
+  const [inlineMealValue, setInlineMealValue] = useState("");
 
   // 석식 신청
   interface DinnerReq {
@@ -1003,45 +1006,114 @@ export default function ReservistBatchDetailPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              {meals.length > 0 ? (
-                <div className="space-y-2">
-                  {(() => {
-                    let lastDateKey = "";
-                    return mealDates.flatMap(([dateKey, dayMeals]) => {
-                      const items: React.ReactNode[] = [];
-                      const showDate = dateKey !== lastDateKey;
-                      lastDateKey = dateKey;
-                      if (showDate) {
-                        items.push(
-                          <h3 key={`date-${dateKey}`} className="text-sm font-semibold text-gray-700 pt-2 px-1">
-                            {formatDate(dayMeals[0].date)}
+              {(() => {
+                const isAdmin = session?.user?.role === "ADMIN" || session?.user?.role === "MANAGER";
+                const dateRange = batch ? getDateRange(batch.startDate, batch.endDate) : [];
+
+                if (dateRange.length === 0 && meals.length === 0) {
+                  return <div className="text-center py-10 text-gray-500">등록된 식사 정보가 없습니다.</div>;
+                }
+
+                // 날짜 범위 기반으로 전체 식사 슬롯 표시
+                const dateList = dateRange.length > 0
+                  ? dateRange
+                  : mealDates.map(([k]) => k);
+
+                return (
+                  <div className="space-y-2">
+                    {dateList.map((dateKey) => {
+                      const dayMeals = mealsByDate[dateKey] || [];
+                      return (
+                        <div key={`date-block-${dateKey}`}>
+                          <h3 className="text-sm font-semibold text-gray-700 pt-2 px-1">
+                            {formatDate(dayMeals[0]?.date || `${dateKey}T00:00:00`)}
                           </h3>
-                        );
-                      }
-                      for (const mealType of ["BREAKFAST", "LUNCH", "DINNER"] as const) {
-                        const meal = dayMeals.find((m) => m.type === mealType);
-                        if (!meal) continue;
-                        items.push(
-                          <div
-                            key={`${dateKey}-${mealType}`}
-                            className="bg-white rounded-xl border p-4 flex items-center justify-between"
-                          >
-                            <div>
-                              <span className="text-xs font-medium text-gray-500">{MEAL_TYPE_LABELS[mealType]}</span>
-                              <p className="text-sm text-gray-800 mt-0.5">{meal.menuInfo || "-"}</p>
-                            </div>
-                          </div>
-                        );
-                      }
-                      return items;
-                    });
-                  })()}
-                </div>
-              ) : (
-                <div className="text-center py-10 text-gray-500">
-                  등록된 식사 정보가 없습니다.
-                </div>
-              )}
+                          {(["BREAKFAST", "LUNCH", "DINNER"] as const).map((mealType) => {
+                            const meal = dayMeals.find((m) => m.type === mealType);
+                            const cardKey = `${dateKey}-${mealType}`;
+                            const isEditing = inlineMealKey === cardKey;
+
+                            if (meal) {
+                              return (
+                                <div key={cardKey} className="bg-white rounded-xl border p-4 flex items-center justify-between mt-1">
+                                  <div>
+                                    <span className="text-xs font-medium text-gray-500">{MEAL_TYPE_LABELS[mealType]}</span>
+                                    <p className="text-sm text-gray-800 mt-0.5">{meal.menuInfo || "-"}</p>
+                                  </div>
+                                </div>
+                              );
+                            }
+
+                            // 미등록 - 관리자만 인라인 등록 가능
+                            return (
+                              <div
+                                key={cardKey}
+                                className={`bg-gray-50 rounded-xl border border-dashed border-gray-300 p-4 mt-1 ${isAdmin && !isEditing ? "cursor-pointer hover:bg-gray-100" : ""}`}
+                                onClick={() => {
+                                  if (isAdmin && !isEditing) {
+                                    setInlineMealKey(cardKey);
+                                    setInlineMealValue("");
+                                  }
+                                }}
+                              >
+                                <span className="text-xs font-medium text-gray-500">{MEAL_TYPE_LABELS[mealType]}</span>
+                                {isEditing ? (
+                                  <div className="flex gap-2 mt-1">
+                                    <input
+                                      autoFocus
+                                      value={inlineMealValue}
+                                      onChange={(e) => setInlineMealValue(e.target.value)}
+                                      onKeyDown={async (e) => {
+                                        if (e.key === "Enter" && inlineMealValue.trim()) {
+                                          await fetch("/api/meals", {
+                                            method: "POST",
+                                            headers: { "Content-Type": "application/json" },
+                                            body: JSON.stringify({ batchId, date: dateKey, type: mealType, menuInfo: inlineMealValue.trim(), headcount: 0 }),
+                                          });
+                                          setInlineMealKey(null);
+                                          fetchMeals();
+                                        } else if (e.key === "Escape") {
+                                          setInlineMealKey(null);
+                                        }
+                                      }}
+                                      placeholder="메뉴 입력 후 Enter"
+                                      className="flex-1 px-2 py-1 border rounded text-sm"
+                                    />
+                                    <button
+                                      onClick={async (e) => {
+                                        e.stopPropagation();
+                                        if (!inlineMealValue.trim()) return;
+                                        await fetch("/api/meals", {
+                                          method: "POST",
+                                          headers: { "Content-Type": "application/json" },
+                                          body: JSON.stringify({ batchId, date: dateKey, type: mealType, menuInfo: inlineMealValue.trim(), headcount: 0 }),
+                                        });
+                                        setInlineMealKey(null);
+                                        fetchMeals();
+                                      }}
+                                      className="px-2 py-1 bg-blue-600 text-white rounded text-xs shrink-0"
+                                    >
+                                      등록
+                                    </button>
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); setInlineMealKey(null); }}
+                                      className="px-2 py-1 text-gray-500 text-xs shrink-0"
+                                    >
+                                      취소
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <p className="text-sm text-gray-400 mt-0.5">{isAdmin ? "터치하여 등록" : "미등록"}</p>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
 
               {/* 석식 신청 현황 */}
               <div className="border-t pt-4 mt-4">

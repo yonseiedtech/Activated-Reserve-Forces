@@ -89,6 +89,10 @@ export default function MealsPage() {
   const [editingMeal, setEditingMeal] = useState<Meal | null>(null);
   const [editForm, setEditForm] = useState({ menuInfo: "", headcount: 0 });
 
+  // Inline registration state
+  const [inlineMealKey, setInlineMealKey] = useState<string | null>(null); // "isoDate-TYPE"
+  const [inlineMealValue, setInlineMealValue] = useState("");
+
   // Attendance info per date
   const [attendanceByDate, setAttendanceByDate] = useState<Record<string, AttendanceInfo>>({});
 
@@ -470,7 +474,16 @@ export default function MealsPage() {
                 {["BREAKFAST", "LUNCH", "DINNER"].map((type) => {
                   const meal = dayMeals.find((m) => m.type === type);
                   return (
-                    <div key={type} className={`p-3 rounded-lg ${meal ? "bg-green-50 border border-green-200" : "bg-gray-50 border border-gray-200"}`}>
+                    <div
+                      key={type}
+                      className={`p-3 rounded-lg ${meal ? "bg-green-50 border border-green-200" : "bg-gray-50 border border-gray-200"} ${!meal && canEdit && inlineMealKey !== `${isoDate}-${type}` ? "cursor-pointer hover:bg-gray-100" : ""}`}
+                      onClick={() => {
+                        if (!meal && canEdit && inlineMealKey !== `${isoDate}-${type}`) {
+                          setInlineMealKey(`${isoDate}-${type}`);
+                          setInlineMealValue("");
+                        }
+                      }}
+                    >
                       <p className="text-xs font-medium text-gray-500 mb-1">{MEAL_TYPE_LABELS[type]}</p>
                       {meal ? (
                         <>
@@ -493,8 +506,46 @@ export default function MealsPage() {
                             </div>
                           )}
                         </>
+                      ) : inlineMealKey === `${isoDate}-${type}` ? (
+                        <div className="flex gap-1 mt-1" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            autoFocus
+                            value={inlineMealValue}
+                            onChange={(e) => setInlineMealValue(e.target.value)}
+                            onKeyDown={async (e) => {
+                              if (e.key === "Enter" && inlineMealValue.trim()) {
+                                await fetch("/api/meals", {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ batchId: selectedBatch, date: isoDate, type, menuInfo: inlineMealValue.trim(), headcount: 0 }),
+                                });
+                                setInlineMealKey(null);
+                                fetchMeals();
+                              } else if (e.key === "Escape") {
+                                setInlineMealKey(null);
+                              }
+                            }}
+                            placeholder="메뉴 입력 후 Enter"
+                            className="flex-1 px-2 py-1 border rounded text-sm min-w-0"
+                          />
+                          <button
+                            onClick={async () => {
+                              if (!inlineMealValue.trim()) return;
+                              await fetch("/api/meals", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ batchId: selectedBatch, date: isoDate, type, menuInfo: inlineMealValue.trim(), headcount: 0 }),
+                              });
+                              setInlineMealKey(null);
+                              fetchMeals();
+                            }}
+                            className="px-2 py-1 bg-blue-600 text-white rounded text-xs shrink-0"
+                          >
+                            등록
+                          </button>
+                        </div>
                       ) : (
-                        <p className="text-sm text-gray-400">미등록</p>
+                        <p className="text-sm text-gray-400">{canEdit ? "터치하여 등록" : "미등록"}</p>
                       )}
                     </div>
                   );
