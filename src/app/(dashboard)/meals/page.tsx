@@ -18,6 +18,8 @@ interface Meal {
 interface Batch {
   id: string;
   name: string;
+  startDate: string;
+  endDate: string;
 }
 
 interface AttendanceInfo {
@@ -35,6 +37,15 @@ interface DinnerReq {
   user: { name: string; rank: string | null; serviceNumber: string | null };
 }
 
+// 일자별 식사 입력 데이터
+interface DayMealInput {
+  date: string; // YYYY-MM-DD
+  label: string; // 표시용 (3월 10일 (월))
+  BREAKFAST: string;
+  LUNCH: string;
+  DINNER: string;
+}
+
 const DINNER_STATUS_LABELS: Record<string, { label: string; color: string }> = {
   PENDING: { label: "대기", color: "bg-yellow-100 text-yellow-700" },
   APPROVED: { label: "승인", color: "bg-green-100 text-green-700" },
@@ -42,13 +53,37 @@ const DINNER_STATUS_LABELS: Record<string, { label: string; color: string }> = {
   CANCELLED: { label: "취소", color: "bg-gray-100 text-gray-500" },
 };
 
+const DAYS = ["일", "월", "화", "수", "목", "금", "토"];
+
+function getDateRange(start: string, end: string): { date: string; label: string }[] {
+  const result: { date: string; label: string }[] = [];
+  const s = new Date(start);
+  const e = new Date(end);
+  s.setHours(0, 0, 0, 0);
+  e.setHours(0, 0, 0, 0);
+  const cur = new Date(s);
+  while (cur <= e) {
+    const yyyy = cur.getFullYear();
+    const mm = String(cur.getMonth() + 1).padStart(2, "0");
+    const dd = String(cur.getDate()).padStart(2, "0");
+    const iso = `${yyyy}-${mm}-${dd}`;
+    const label = `${cur.getMonth() + 1}월 ${cur.getDate()}일 (${DAYS[cur.getDay()]})`;
+    result.push({ date: iso, label });
+    cur.setDate(cur.getDate() + 1);
+  }
+  return result;
+}
+
 export default function MealsPage() {
   const { data: session } = useSession();
   const [meals, setMeals] = useState<Meal[]>([]);
   const [batches, setBatches] = useState<Batch[]>([]);
   const [selectedBatch, setSelectedBatch] = useState("");
+
+  // 등록 모달 state
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ batchId: "", date: "", type: "BREAKFAST", menuInfo: "", headcount: 0 });
+  const [dayMealInputs, setDayMealInputs] = useState<DayMealInput[]>([]);
+  const [submitting, setSubmitting] = useState(false);
 
   // Edit state
   const [editingMeal, setEditingMeal] = useState<Meal | null>(null);
@@ -104,15 +139,67 @@ export default function MealsPage() {
     fetchAll();
   }, [selectedBatch, meals]);
 
-  const handleSubmit = async () => {
-    const res = await fetch("/api/meals", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, batchId: selectedBatch }),
+  // 등록 모달 열기: 차수 날짜 범위로 일자 목록 생성, 기존 메뉴 반영
+  const handleOpenForm = () => {
+    const batch = batches.find((b) => b.id === selectedBatch);
+    if (!batch) return;
+
+    const dateRange = getDateRange(batch.startDate, batch.endDate);
+    const inputs: DayMealInput[] = dateRange.map(({ date, label }) => {
+      // 기존에 등록된 식사가 있으면 메뉴 정보를 미리 채움
+      const existing = meals.filter((m) => new Date(m.date).toISOString().split("T")[0] === date);
+      return {
+        date,
+        label,
+        BREAKFAST: existing.find((m) => m.type === "BREAKFAST")?.menuInfo || "",
+        LUNCH: existing.find((m) => m.type === "LUNCH")?.menuInfo || "",
+        DINNER: existing.find((m) => m.type === "DINNER")?.menuInfo || "",
+      };
     });
-    if (res.ok) {
+    setDayMealInputs(inputs);
+    setShowForm(true);
+  };
+
+  const handleMealInputChange = (index: number, type: "BREAKFAST" | "LUNCH" | "DINNER", value: string) => {
+    setDayMealInputs((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], [type]: value };
+      return next;
+    });
+  };
+
+  // 일괄 저장
+  const handleBulkSubmit = async () => {
+    setSubmitting(true);
+    try {
+      const promises: Promise<Response>[] = [];
+      for (const day of dayMealInputs) {
+        for (const type of ["BREAKFAST", "LUNCH", "DINNER"] as const) {
+          const menuInfo = day[type].trim();
+          if (menuInfo) {
+            promises.push(
+              fetch("/api/meals", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  batchId: selectedBatch,
+                  date: day.date,
+                  type,
+                  menuInfo,
+                  headcount: 0,
+                }),
+              })
+            );
+          }
+        }
+      }
+      await Promise.all(promises);
       setShowForm(false);
       fetchMeals();
+    } catch {
+      alert("저장 중 오류가 발생했습니다.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -199,24 +286,6 @@ export default function MealsPage() {
     }
   };
 
-  const handleFormApplyAttendance = () => {
-    if (!form.date) return;
-    const dateKey = form.date;
-    const info = attendanceByDate[dateKey];
-    if (info) {
-      setForm((prev) => ({ ...prev, headcount: info.presentCount }));
-    } else {
-      // Fetch on demand
-      fetch(`/api/meals/attendance-count?batchId=${selectedBatch}&date=${dateKey}`)
-        .then((r) => r.json())
-        .then((data: AttendanceInfo) => {
-          setForm((prev) => ({ ...prev, headcount: data.presentCount }));
-          setAttendanceByDate((prev) => ({ ...prev, [dateKey]: data }));
-        })
-        .catch(() => {});
-    }
-  };
-
   // 날짜별 그룹핑
   const grouped = meals.reduce<Record<string, Meal[]>>((acc, m) => {
     const d = new Date(m.date).toLocaleDateString("ko-KR");
@@ -233,6 +302,10 @@ export default function MealsPage() {
     dateKeyMap[display] = isoKey;
   }
 
+  // 선택된 차수의 날짜 범위로 빈 날짜도 포함하여 표시
+  const selectedBatchData = batches.find((b) => b.id === selectedBatch);
+  const allDates = selectedBatchData ? getDateRange(selectedBatchData.startDate, selectedBatchData.endDate) : [];
+
   return (
     <div>
       <PageTitle
@@ -240,7 +313,7 @@ export default function MealsPage() {
         description="차수별 식사 메뉴 및 인원을 관리합니다."
         actions={
           canEdit ? (
-            <button onClick={() => setShowForm(true)} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
+            <button onClick={handleOpenForm} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
               + 식사 등록
             </button>
           ) : undefined
@@ -283,7 +356,6 @@ export default function MealsPage() {
       {/* 석식 신청 탭 */}
       {dinnerTab === "dinner" && (
         <div className="space-y-4">
-          {/* 안내문 */}
           <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
             <h4 className="text-sm font-semibold text-blue-800 mb-2">석식 신청 안내</h4>
             <ul className="text-xs text-blue-700 space-y-1">
@@ -292,7 +364,6 @@ export default function MealsPage() {
             </ul>
           </div>
 
-          {/* 신청 폼 (예비역만) */}
           {!canEdit && (
             <div className="bg-white rounded-xl border p-4">
               <h4 className="text-sm font-semibold mb-3">석식 신청하기</h4>
@@ -314,7 +385,6 @@ export default function MealsPage() {
             </div>
           )}
 
-          {/* 신청 목록 */}
           {dinnerRequests.length > 0 ? (
             <div className="space-y-3">
               {dinnerRequests.map((dr) => {
@@ -340,7 +410,6 @@ export default function MealsPage() {
                         <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${st.color}`}>
                           {st.label}
                         </span>
-                        {/* 관리자: 대기 상태에서 승인/반려 */}
                         {canEdit && dr.status === "PENDING" && (
                           <div className="flex gap-1">
                             <button
@@ -357,7 +426,6 @@ export default function MealsPage() {
                             </button>
                           </div>
                         )}
-                        {/* 본인: 취소 가능 */}
                         {!canEdit && (dr.status === "PENDING" || dr.status === "APPROVED") && (
                           <button
                             onClick={() => handleDinnerAction(dr.id, "cancel")}
@@ -378,16 +446,17 @@ export default function MealsPage() {
         </div>
       )}
 
-      {/* 날짜별 식사 목록 */}
+      {/* 날짜별 식사 목록 - 차수의 전체 일자 표시 */}
       {dinnerTab === "meals" && (
       <div className="space-y-4">
-        {Object.entries(grouped).map(([date, dayMeals]) => {
-          const isoDate = dateKeyMap[date];
-          const attInfo = isoDate ? attendanceByDate[isoDate] : undefined;
+        {allDates.length > 0 ? allDates.map(({ date: isoDate, label: dayLabel }) => {
+          const dayMeals = meals.filter((m) => new Date(m.date).toISOString().split("T")[0] === isoDate);
+          const attInfo = attendanceByDate[isoDate];
+          const isWeekend = new Date(isoDate + "T00:00:00").getDay() === 0 || new Date(isoDate + "T00:00:00").getDay() === 6;
           return (
-            <div key={date} className="bg-white rounded-xl border p-4">
+            <div key={isoDate} className="bg-white rounded-xl border p-4">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold">{date}</h3>
+                <h3 className={`font-semibold ${isWeekend ? "text-red-500" : ""}`}>{dayLabel}</h3>
                 {attInfo && (
                   <span className="text-xs text-gray-500">
                     참석 확정: <span className="font-medium text-green-600">{attInfo.presentCount}명</span>
@@ -433,51 +502,82 @@ export default function MealsPage() {
               </div>
             </div>
           );
-        })}
-        {Object.keys(grouped).length === 0 && (
-          <p className="text-center py-8 text-gray-400">등록된 식사 정보가 없습니다.</p>
+        }) : (
+          <p className="text-center py-8 text-gray-400">차수를 선택하세요.</p>
         )}
       </div>
       )}
 
-      {/* 등록 모달 */}
+      {/* 등록 모달 - 차수 연동 일자별 식사 입력 */}
       {showForm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl w-full max-w-md p-6 space-y-4">
-            <h3 className="text-lg font-semibold">식사 등록</h3>
-            <div>
-              <label className="block text-sm font-medium mb-1">날짜</label>
-              <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">식사</label>
-              <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} className="w-full px-3 py-2 border rounded-lg">
-                <option value="BREAKFAST">조식</option>
-                <option value="LUNCH">중식</option>
-                <option value="DINNER">석식</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">메뉴</label>
-              <textarea value={form.menuInfo} onChange={(e) => setForm({ ...form, menuInfo: e.target.value })} rows={3} className="w-full px-3 py-2 border rounded-lg resize-none" placeholder="메뉴를 입력하세요" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">인원</label>
-              <div className="flex gap-2">
-                <input type="number" value={form.headcount} onChange={(e) => setForm({ ...form, headcount: parseInt(e.target.value) || 0 })} className="flex-1 px-3 py-2 border rounded-lg" />
-                <button
-                  type="button"
-                  onClick={handleFormApplyAttendance}
-                  disabled={!form.date}
-                  className="px-3 py-2 text-xs bg-green-100 text-green-700 rounded-lg hover:bg-green-200 disabled:opacity-50 whitespace-nowrap"
-                >
-                  참석인원 적용
-                </button>
+          <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="px-6 py-4 border-b flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold">식사 메뉴 등록</h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {selectedBatchData?.name} ({dayMealInputs.length}일)
+                </p>
               </div>
+              <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-gray-600">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
             </div>
-            <div className="flex gap-3 pt-2">
-              <button onClick={handleSubmit} className="flex-1 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700">저장</button>
-              <button onClick={() => setShowForm(false)} className="flex-1 py-2 border rounded-lg text-gray-700 hover:bg-gray-50">취소</button>
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+              {dayMealInputs.map((day, index) => {
+                const isWeekend = new Date(day.date + "T00:00:00").getDay() === 0 || new Date(day.date + "T00:00:00").getDay() === 6;
+                return (
+                  <div key={day.date} className={`border rounded-lg p-4 ${isWeekend ? "border-red-200 bg-red-50/30" : ""}`}>
+                    <p className={`text-sm font-semibold mb-3 ${isWeekend ? "text-red-500" : "text-gray-700"}`}>
+                      {day.label}
+                    </p>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">조식</label>
+                        <input
+                          type="text"
+                          value={day.BREAKFAST}
+                          onChange={(e) => handleMealInputChange(index, "BREAKFAST", e.target.value)}
+                          className="w-full px-2 py-1.5 border rounded text-sm"
+                          placeholder="메뉴 입력"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">중식</label>
+                        <input
+                          type="text"
+                          value={day.LUNCH}
+                          onChange={(e) => handleMealInputChange(index, "LUNCH", e.target.value)}
+                          className="w-full px-2 py-1.5 border rounded text-sm"
+                          placeholder="메뉴 입력"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">석식</label>
+                        <input
+                          type="text"
+                          value={day.DINNER}
+                          onChange={(e) => handleMealInputChange(index, "DINNER", e.target.value)}
+                          className="w-full px-2 py-1.5 border rounded text-sm"
+                          placeholder="메뉴 입력"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="px-6 py-4 border-t flex gap-3">
+              <button
+                onClick={handleBulkSubmit}
+                disabled={submitting}
+                className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50"
+              >
+                {submitting ? "저장 중..." : "일괄 저장"}
+              </button>
+              <button onClick={() => setShowForm(false)} className="flex-1 py-2.5 border rounded-lg text-gray-700 hover:bg-gray-50">
+                취소
+              </button>
             </div>
           </div>
         </div>
