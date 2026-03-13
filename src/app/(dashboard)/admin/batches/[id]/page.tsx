@@ -1264,13 +1264,40 @@ export default function AdminBatchDetailPage() {
                             사유서 ({userReports.length})
                           </button>
                         )}
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                          u.batchStatus === "PRESENT" ? "bg-green-100 text-green-700" :
-                          u.batchStatus === "ABSENT" ? "bg-red-100 text-red-700" :
-                          "bg-yellow-100 text-yellow-700"
-                        }`}>
-                          {u.batchStatus === "PRESENT" ? "참석" : u.batchStatus === "ABSENT" ? "불참" : "미정"}
-                        </span>
+                        <div className="flex items-center gap-0.5">
+                          {(["PRESENT", "ABSENT", "PENDING"] as const).map((st) => {
+                            const isActive = st === "PRESENT" ? u.batchStatus === "PRESENT"
+                              : st === "ABSENT" ? u.batchStatus === "ABSENT"
+                              : !u.batchStatus || u.batchStatus === "PENDING";
+                            const labels = { PRESENT: "참석", ABSENT: "불참", PENDING: "미정" };
+                            const activeColors = {
+                              PRESENT: "bg-green-600 text-white",
+                              ABSENT: "bg-red-600 text-white",
+                              PENDING: "bg-yellow-500 text-white",
+                            };
+                            return (
+                              <button
+                                key={st}
+                                onClick={async () => {
+                                  if (isActive) return;
+                                  if (!u.batchUserId) return;
+                                  const res = await fetch(`/api/batches/${batchId}/bulk-status`, {
+                                    method: "PATCH",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ batchUserIds: [u.batchUserId], status: st }),
+                                  });
+                                  if (res.ok) fetchBatch();
+                                  else alert("상태 변경에 실패했습니다.");
+                                }}
+                                className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                                  isActive ? activeColors[st] : "bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-600"
+                                }`}
+                              >
+                                {labels[st]}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
                   );

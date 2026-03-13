@@ -13,8 +13,23 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (!body.batchUserIds || !Array.isArray(body.batchUserIds) || body.batchUserIds.length === 0) {
     return badRequest("batchUserIds 배열이 필요합니다.");
   }
-  if (body.status !== "ABSENT") {
-    return badRequest("현재 ABSENT 상태만 지원합니다.");
+  if (!["PRESENT", "ABSENT", "PENDING"].includes(body.status)) {
+    return badRequest("유효하지 않은 상태입니다. (PRESENT, ABSENT, PENDING)");
+  }
+
+  const data: { status: string; subStatus?: string | null; reason?: string | null } = {
+    status: body.status,
+  };
+
+  if (body.status === "PRESENT") {
+    data.subStatus = body.subStatus || "NORMAL";
+    data.reason = null;
+  } else if (body.status === "ABSENT") {
+    data.subStatus = null;
+    data.reason = body.reason || null;
+  } else {
+    data.subStatus = null;
+    data.reason = null;
   }
 
   const result = await prisma.batchUser.updateMany({
@@ -22,9 +37,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       id: { in: body.batchUserIds },
       batchId: id,
     },
-    data: {
-      status: body.status,
-    },
+    data,
   });
 
   return json({ success: true, count: result.count });
