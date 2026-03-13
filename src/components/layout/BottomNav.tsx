@@ -23,11 +23,12 @@ export default function BottomNav() {
   const isActive = (href: string) =>
     pathname === href || (href !== "/" && pathname.startsWith(href));
 
-  // 드래그 상태
+  // 드래그 상태 (ref로 관리하여 클로저 문제 방지)
   const sheetRef = useRef<HTMLDivElement>(null);
   const dragStartY = useRef(0);
+  const dragOffsetRef = useRef(0);
+  const isDraggingRef = useRef(false);
   const [dragOffset, setDragOffset] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
 
   const closeSheet = useCallback(() => {
@@ -36,31 +37,34 @@ export default function BottomNav() {
       setMoreOpen(false);
       setIsClosing(false);
       setDragOffset(0);
+      dragOffsetRef.current = 0;
     }, 200);
   }, []);
 
   // 터치 드래그 핸들러
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     dragStartY.current = e.touches[0].clientY;
-    setIsDragging(true);
+    isDraggingRef.current = true;
   }, []);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!isDragging) return;
+    if (!isDraggingRef.current) return;
     const diff = e.touches[0].clientY - dragStartY.current;
     if (diff > 0) {
+      dragOffsetRef.current = diff;
       setDragOffset(diff);
     }
-  }, [isDragging]);
+  }, []);
 
   const handleTouchEnd = useCallback(() => {
-    setIsDragging(false);
-    if (dragOffset > CLOSE_THRESHOLD) {
+    isDraggingRef.current = false;
+    if (dragOffsetRef.current > CLOSE_THRESHOLD) {
       closeSheet();
     } else {
+      dragOffsetRef.current = 0;
       setDragOffset(0);
     }
-  }, [dragOffset, closeSheet]);
+  }, [closeSheet]);
 
   // moreOpen 변경 시 body 스크롤 잠금
   useEffect(() => {
@@ -90,8 +94,8 @@ export default function BottomNav() {
               isClosing ? "animate-slide-down" : "animate-slide-up"
             }`}
             style={{
-              transform: isDragging ? `translateY(${dragOffset}px)` : undefined,
-              transition: isDragging ? "none" : undefined,
+              transform: dragOffset > 0 ? `translateY(${dragOffset}px)` : undefined,
+              transition: dragOffset > 0 ? "none" : undefined,
             }}
             onClick={(e) => e.stopPropagation()}
             onTouchStart={handleTouchStart}

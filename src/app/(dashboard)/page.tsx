@@ -193,9 +193,9 @@ export default async function DashboardPage() {
             </div>
           </div>
 
-          {/* 예정 / 진행중 차수 */}
+          {/* 예정 / 진행중 훈련 */}
           <div>
-            <h2 className="text-sm font-semibold text-gray-500 mb-2">예정 / 진행중 차수</h2>
+            <h2 className="text-sm font-semibold text-gray-500 mb-2">예정 / 진행중 훈련</h2>
             {upcomingBatches.length > 0 ? (
               <div className="space-y-2">
                 {upcomingBatches.map((batch) => (
@@ -228,7 +228,7 @@ export default async function DashboardPage() {
               </div>
             ) : (
               <div className="bg-white rounded-xl border p-5 text-center">
-                <p className="text-gray-400">예정된 차수가 없습니다.</p>
+                <p className="text-gray-400">예정된 훈련이 없습니다.</p>
               </div>
             )}
           </div>
