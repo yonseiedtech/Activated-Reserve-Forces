@@ -1,15 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { getSession, json, unauthorized, forbidden, badRequest } from "@/lib/api-utils";
 import { NextRequest } from "next/server";
-import { parseDate } from "@/lib/date-utils";
+import { parseDate, getKstToday } from "@/lib/date-utils";
 
 function computeBatchStatus(startDate: Date, endDate: Date): string {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const start = new Date(startDate);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(endDate);
-  end.setHours(0, 0, 0, 0);
+  const today = getKstToday();
+  const start = new Date(new Date(startDate).toISOString().split("T")[0] + "T00:00:00.000Z");
+  const end = new Date(new Date(endDate).toISOString().split("T")[0] + "T00:00:00.000Z");
   if (today < start) return "PLANNED";
   if (today > end) return "COMPLETED";
   return "ACTIVE";

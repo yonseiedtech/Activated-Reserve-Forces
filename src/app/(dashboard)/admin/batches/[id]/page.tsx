@@ -1153,9 +1153,6 @@ export default function AdminBatchDetailPage() {
                             <span className="px-1.5 py-0.5 text-xs bg-gray-50 text-gray-400 rounded">문진표 미제출</span>
                           ) : null;
                         })()}
-                        {u.mobilizationCertIssued && (
-                          <span className="px-1.5 py-0.5 text-xs bg-indigo-50 text-indigo-600 rounded font-medium">소집필증</span>
-                        )}
                         {userReports.length > 0 && (
                           <button
                             onClick={() => setViewingReport(userReports[0])}

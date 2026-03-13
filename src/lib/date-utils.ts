@@ -22,3 +22,16 @@ export function parseDate(dateString: string): Date {
   // "YYYY-MM-DD" → UTC 자정
   return new Date(dateString + "T00:00:00.000Z");
 }
+
+/**
+ * KST 기준 오늘 자정(UTC)을 반환
+ * 서버가 UTC라도 한국 시간 기준 날짜를 정확히 계산
+ */
+export function getKstToday(): Date {
+  const now = new Date();
+  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  const yyyy = kst.getUTCFullYear();
+  const mm = String(kst.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(kst.getUTCDate()).padStart(2, "0");
+  return new Date(`${yyyy}-${mm}-${dd}T00:00:00.000Z`);
+}

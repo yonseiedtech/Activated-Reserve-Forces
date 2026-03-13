@@ -223,6 +223,10 @@ export default function ReservistBatchDetailPage() {
   const [healthSaving, setHealthSaving] = useState(false);
   const [healthSubmittedAt, setHealthSubmittedAt] = useState<string | null>(null);
 
+  // 훈련비
+  const [paymentData, setPaymentData] = useState<{ compensationTotal: number; transportAmount: number; grandTotal: number } | null>(null);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+
   // 설문조사
   const [surveys, setSurveys] = useState<Survey[]>([]);
   const [surveysLoading, setSurveysLoading] = useState(false);
@@ -377,6 +381,20 @@ export default function ReservistBatchDetailPage() {
   useEffect(() => {
     if (tab === "survey") fetchSurveys();
   }, [tab, fetchSurveys]);
+
+  // 훈련비 fetch
+  useEffect(() => {
+    if (tab !== "payment" || !batchId) return;
+    setPaymentLoading(true);
+    fetch("/api/payments/my-batches")
+      .then((r) => r.json())
+      .then((data: { batchId: string; compensationTotal: number; transportAmount: number; grandTotal: number }[]) => {
+        const found = Array.isArray(data) ? data.find((d) => d.batchId === batchId) : null;
+        setPaymentData(found ? { compensationTotal: found.compensationTotal, transportAmount: found.transportAmount, grandTotal: found.grandTotal } : null);
+      })
+      .catch(() => setPaymentData(null))
+      .finally(() => setPaymentLoading(false));
+  }, [tab, batchId]);
 
   const handleSaveAttendance = async () => {
     setSaving(true);
@@ -1255,15 +1273,40 @@ export default function ReservistBatchDetailPage() {
 
       {/* ═══ 6. 훈련비 탭 ═══ */}
       {tab === "payment" && (
-        <div className="bg-white rounded-xl border p-5">
-          <h3 className="text-sm font-semibold text-gray-800 mb-3">훈련비</h3>
-          <p className="text-sm text-gray-500 mb-4">해당 차수의 훈련비 상세 내역을 확인합니다.</p>
-          <Link
-            href={`/payments/${batchId}`}
-            className="inline-block px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
-          >
-            훈련비 상세 보기
-          </Link>
+        <div className="space-y-3">
+          {paymentLoading ? (
+            <div className="flex justify-center py-10">
+              <div className="animate-spin h-6 w-6 border-4 border-blue-600 border-t-transparent rounded-full" />
+            </div>
+          ) : !paymentData || (paymentData.compensationTotal === 0 && paymentData.transportAmount === 0) ? (
+            <div className="bg-white rounded-xl border p-5">
+              <h3 className="text-sm font-semibold text-gray-800 mb-3">훈련비</h3>
+              <p className="text-sm text-gray-400">관리자가 아직 미입력 상태입니다.</p>
+            </div>
+          ) : (
+            <>
+              <div className="bg-white rounded-xl border p-5">
+                <h3 className="text-sm font-semibold text-gray-800 mb-2">보상비</h3>
+                <p className="text-2xl font-bold text-blue-700">{paymentData.compensationTotal.toLocaleString()}원</p>
+              </div>
+              <div className="bg-white rounded-xl border p-5">
+                <h3 className="text-sm font-semibold text-gray-800 mb-2">교통비</h3>
+                <p className="text-2xl font-bold text-green-700">{paymentData.transportAmount.toLocaleString()}원</p>
+              </div>
+              <div className="bg-white rounded-xl border p-5">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-gray-800">합계</h3>
+                  <p className="text-xl font-bold text-gray-900">{paymentData.grandTotal.toLocaleString()}원</p>
+                </div>
+              </div>
+              <Link
+                href={`/payments/${batchId}`}
+                className="block text-center px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
+              >
+                상세 내역 보기
+              </Link>
+            </>
+          )}
         </div>
       )}
 

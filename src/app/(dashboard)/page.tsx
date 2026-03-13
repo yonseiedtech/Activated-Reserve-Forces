@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ROLES } from "@/lib/constants";
+import { getKstToday } from "@/lib/date-utils";
 import Link from "next/link";
 
 export default async function DashboardPage() {
@@ -12,7 +13,7 @@ export default async function DashboardPage() {
   const isAdmin = role === ROLES.ADMIN || role === ROLES.MANAGER;
   const isInstructor = role === ROLES.INSTRUCTOR;
 
-  const today = new Date(new Date().toDateString());
+  const today = getKstToday();
   const tomorrow = new Date(today.getTime() + 86400000);
 
   const [
