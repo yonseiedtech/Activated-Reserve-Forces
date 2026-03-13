@@ -31,7 +31,7 @@ export function getFilteredNav(role: string): NavItem[] {
 
 // 역할별 하단 탭 4개 (+ 더보기는 BottomNav에서 직접 추가)
 const bottomTabConfig: Record<string, string[]> = {
-  [ROLES.RESERVIST]: ["/trainings/annual", "/commuting", "/", "/payments"],
+  [ROLES.RESERVIST]: ["/trainings/annual", "/batches", "/", "/payments"],
   [ROLES.ADMIN]: ["/notices", "/admin/batches", "/", "/payments"],
   [ROLES.MANAGER]: ["/notices", "/admin/batches", "/", "/payments"],
   [ROLES.COOK]: ["/", "/meals", "/notices", "/messages"],

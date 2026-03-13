@@ -75,9 +75,8 @@ export default async function DashboardPage() {
   let attendanceRate = 0;
   let totalAttendances = 0;
   let presentAttendances = 0;
-  let activeBatchInfo: { id: string; name: string; startDate: Date; endDate: Date } | null = null;
+  let upcomingBatches: { id: string; name: string; startDate: Date; endDate: Date; status: string }[] = [];
   let completedBatchCount = 0;
-  let plannedBatchCount = 0;
 
   if (role === ROLES.RESERVIST) {
     const batchUserRecords = await prisma.batchUser.findMany({
@@ -120,19 +119,17 @@ export default async function DashboardPage() {
       presentAttendances = myAttendances.filter((a) => a.status === "PRESENT").length;
       attendanceRate = totalAttendances > 0 ? Math.round((presentAttendances / totalAttendances) * 100) : 0;
 
-      // 진행중 차수
-      const activeBatch = await prisma.batch.findFirst({
-        where: { id: { in: batchIds }, startDate: { lte: today }, endDate: { gte: today } },
-        select: { id: true, name: true, startDate: true, endDate: true },
+      // 진행중+예정 차수 (endDate >= today)
+      const batches = await prisma.batch.findMany({
+        where: { id: { in: batchIds }, endDate: { gte: today } },
+        orderBy: { startDate: "asc" },
+        select: { id: true, name: true, startDate: true, endDate: true, status: true },
       });
-      activeBatchInfo = activeBatch;
+      upcomingBatches = batches;
 
-      // 완료/예정 차수
+      // 완료 차수
       completedBatchCount = await prisma.batch.count({
         where: { id: { in: batchIds }, endDate: { lt: today } },
-      });
-      plannedBatchCount = await prisma.batch.count({
-        where: { id: { in: batchIds }, startDate: { gt: today } },
       });
     }
 
@@ -183,11 +180,11 @@ export default async function DashboardPage() {
               <p className="text-[10px] text-gray-400">{presentAttendances}/{totalAttendances}</p>
             </div>
             <div className="bg-white rounded-xl border p-4 text-center">
-              <p className="text-3xl font-bold text-green-600">{activeBatchInfo ? 1 : 0}</p>
+              <p className="text-3xl font-bold text-green-600">{upcomingBatches.filter((b) => b.status === "ACTIVE").length}</p>
               <p className="text-xs text-gray-500 mt-1">진행중</p>
             </div>
             <div className="bg-white rounded-xl border p-4 text-center">
-              <p className="text-3xl font-bold text-gray-400">{plannedBatchCount}</p>
+              <p className="text-3xl font-bold text-gray-400">{upcomingBatches.filter((b) => b.status === "PLANNED").length}</p>
               <p className="text-xs text-gray-500 mt-1">예정</p>
             </div>
             <div className="bg-white rounded-xl border p-4 text-center">
@@ -196,18 +193,45 @@ export default async function DashboardPage() {
             </div>
           </div>
 
-          {/* 진행중인 훈련 */}
-          {activeBatchInfo && (
-            <Link href={`/batches/${activeBatchInfo.id}`} className="block bg-green-50 rounded-xl border border-green-200 p-5 hover:shadow-sm transition-shadow">
-              <div className="flex items-center gap-3 mb-1">
-                <span className="px-2 py-0.5 bg-green-600 text-white text-xs rounded-full font-medium">진행중</span>
-                <span className="font-bold text-green-800">{activeBatchInfo.name}</span>
+          {/* 예정 / 진행중 차수 */}
+          <div>
+            <h2 className="text-sm font-semibold text-gray-500 mb-2">예정 / 진행중 차수</h2>
+            {upcomingBatches.length > 0 ? (
+              <div className="space-y-2">
+                {upcomingBatches.map((batch) => (
+                  <Link
+                    key={batch.id}
+                    href={`/batches/${batch.id}`}
+                    className={`block rounded-xl border p-4 hover:shadow-sm transition-shadow ${
+                      batch.status === "ACTIVE"
+                        ? "bg-green-50 border-green-200"
+                        : "bg-yellow-50 border-yellow-200"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 mb-1">
+                      <span
+                        className={`px-2 py-0.5 text-white text-xs rounded-full font-medium ${
+                          batch.status === "ACTIVE" ? "bg-green-600" : "bg-yellow-500"
+                        }`}
+                      >
+                        {batch.status === "ACTIVE" ? "진행중" : "예정"}
+                      </span>
+                      <span className={`font-bold ${batch.status === "ACTIVE" ? "text-green-800" : "text-yellow-800"}`}>
+                        {batch.name}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      {new Date(batch.startDate).toLocaleDateString("ko-KR")} ~ {new Date(batch.endDate).toLocaleDateString("ko-KR")}
+                    </p>
+                  </Link>
+                ))}
               </div>
-              <p className="text-xs text-gray-500">
-                {new Date(activeBatchInfo.startDate).toLocaleDateString("ko-KR")} ~ {new Date(activeBatchInfo.endDate).toLocaleDateString("ko-KR")}
-              </p>
-            </Link>
-          )}
+            ) : (
+              <div className="bg-white rounded-xl border p-5 text-center">
+                <p className="text-gray-400">예정된 차수가 없습니다.</p>
+              </div>
+            )}
+          </div>
 
           {/* 다음 훈련 D-Day */}
           <div>
