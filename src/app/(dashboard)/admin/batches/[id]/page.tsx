@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import PageTitle from "@/components/ui/PageTitle";
+import ScrollTimePicker from "@/components/ui/ScrollTimePicker";
 import { BATCH_STATUS_LABELS } from "@/lib/constants";
 
 interface TrainingCategory {
@@ -236,6 +237,9 @@ export default function AdminBatchDetailPage() {
   const [reportType, setReportType] = useState<"checkin" | "checkout" | null>(null);
   const [reportCopied, setReportCopied] = useState(false);
 
+  // 스크롤 타임피커
+  const [timePickerTarget, setTimePickerTarget] = useState<{ idx: number; field: "checkIn" | "checkOut" } | null>(null);
+
   // 사유서 관련
   const [reasonReports, setReasonReports] = useState<ReasonReportWithUser[]>([]);
   const [viewingReport, setViewingReport] = useState<ReasonReportWithUser | null>(null);
@@ -448,10 +452,7 @@ export default function AdminBatchDetailPage() {
 
   const getNowTime = () => {
     const now = new Date();
-    const h = String(now.getHours()).padStart(2, "0");
-    // 10분 단위로 내림 (드롭다운 선택값과 일치시키기)
-    const m = String(Math.floor(now.getMinutes() / 10) * 10).padStart(2, "0");
-    return `${h}:${m}`;
+    return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
   };
 
   // 개별 출퇴근 즉시 저장
@@ -1554,38 +1555,19 @@ export default function AdminBatchDetailPage() {
                           </td>
                           <td className="px-4 py-2">
                             <div className="flex gap-1 items-center">
-                              <select
-                                value={row.checkIn ? row.checkIn.split(":")[0] : ""}
-                                onChange={(e) => {
-                                  const min = row.checkIn ? row.checkIn.split(":")[1] || "00" : "00";
-                                  updateCommutingRow(idx, "checkIn", e.target.value ? `${e.target.value}:${min}` : "");
-                                }}
+                              <button
+                                onClick={() => !isAbsent && setTimePickerTarget({ idx, field: "checkIn" })}
                                 disabled={isAbsent}
-                                className="w-16 px-1 py-1 border rounded text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                className={`px-3 py-1.5 border rounded text-sm min-w-[70px] text-left disabled:bg-gray-100 disabled:cursor-not-allowed ${
+                                  row.checkIn ? "text-green-700 font-medium border-green-300 bg-green-50" : "text-gray-400"
+                                }`}
                               >
-                                <option value="">시</option>
-                                {Array.from({ length: 17 }, (_, i) => i + 6).map((h) => (
-                                  <option key={h} value={String(h).padStart(2, "0")}>{String(h).padStart(2, "0")}시</option>
-                                ))}
-                              </select>
-                              <select
-                                value={row.checkIn ? row.checkIn.split(":")[1] || "00" : ""}
-                                onChange={(e) => {
-                                  const hour = row.checkIn ? row.checkIn.split(":")[0] : "";
-                                  if (hour) updateCommutingRow(idx, "checkIn", `${hour}:${e.target.value}`);
-                                }}
-                                disabled={isAbsent || !row.checkIn}
-                                className="w-16 px-1 py-1 border rounded text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
-                              >
-                                <option value="">분</option>
-                                {["00", "10", "20", "30", "40", "50"].map((m) => (
-                                  <option key={m} value={m}>{m}분</option>
-                                ))}
-                              </select>
+                                {row.checkIn || "--:--"}
+                              </button>
                               <button
                                 onClick={() => handleCheckIn(idx)}
                                 disabled={isAbsent}
-                                className="px-2 py-1 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700 disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+                                className="px-2 py-1.5 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700 disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
                               >
                                 출근
                               </button>
@@ -1602,38 +1584,19 @@ export default function AdminBatchDetailPage() {
                           </td>
                           <td className="px-4 py-2">
                             <div className="flex gap-1 items-center">
-                              <select
-                                value={row.checkOut ? row.checkOut.split(":")[0] : ""}
-                                onChange={(e) => {
-                                  const min = row.checkOut ? row.checkOut.split(":")[1] || "00" : "00";
-                                  updateCommutingRow(idx, "checkOut", e.target.value ? `${e.target.value}:${min}` : "");
-                                }}
+                              <button
+                                onClick={() => !isAbsent && setTimePickerTarget({ idx, field: "checkOut" })}
                                 disabled={isAbsent}
-                                className="w-16 px-1 py-1 border rounded text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                className={`px-3 py-1.5 border rounded text-sm min-w-[70px] text-left disabled:bg-gray-100 disabled:cursor-not-allowed ${
+                                  row.checkOut ? "text-orange-700 font-medium border-orange-300 bg-orange-50" : "text-gray-400"
+                                }`}
                               >
-                                <option value="">시</option>
-                                {Array.from({ length: 17 }, (_, i) => i + 6).map((h) => (
-                                  <option key={h} value={String(h).padStart(2, "0")}>{String(h).padStart(2, "0")}시</option>
-                                ))}
-                              </select>
-                              <select
-                                value={row.checkOut ? row.checkOut.split(":")[1] || "00" : ""}
-                                onChange={(e) => {
-                                  const hour = row.checkOut ? row.checkOut.split(":")[0] : "";
-                                  if (hour) updateCommutingRow(idx, "checkOut", `${hour}:${e.target.value}`);
-                                }}
-                                disabled={isAbsent || !row.checkOut}
-                                className="w-16 px-1 py-1 border rounded text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
-                              >
-                                <option value="">분</option>
-                                {["00", "10", "20", "30", "40", "50"].map((m) => (
-                                  <option key={m} value={m}>{m}분</option>
-                                ))}
-                              </select>
+                                {row.checkOut || "--:--"}
+                              </button>
                               <button
                                 onClick={() => handleCheckOut(idx)}
                                 disabled={isAbsent}
-                                className="px-2 py-1 bg-orange-600 text-white rounded text-xs font-medium hover:bg-orange-700 disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+                                className="px-2 py-1.5 bg-orange-600 text-white rounded text-xs font-medium hover:bg-orange-700 disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
                               >
                                 퇴근
                               </button>
@@ -1696,34 +1659,15 @@ export default function AdminBatchDetailPage() {
                         <div>
                           <label className="text-xs text-gray-500 mb-1 block">출근시간</label>
                           <div className="flex gap-1">
-                            <select
-                              value={row.checkIn ? row.checkIn.split(":")[0] : ""}
-                              onChange={(e) => {
-                                const min = row.checkIn ? row.checkIn.split(":")[1] || "00" : "00";
-                                updateCommutingRow(idx, "checkIn", e.target.value ? `${e.target.value}:${min}` : "");
-                              }}
+                            <button
+                              onClick={() => !isAbsent && setTimePickerTarget({ idx, field: "checkIn" })}
                               disabled={isAbsent}
-                              className="w-16 px-1 py-1.5 border rounded text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
+                              className={`flex-1 px-2 py-1.5 border rounded text-sm text-left disabled:bg-gray-100 disabled:cursor-not-allowed ${
+                                row.checkIn ? "text-green-700 font-medium border-green-300 bg-green-50" : "text-gray-400"
+                              }`}
                             >
-                              <option value="">시</option>
-                              {Array.from({ length: 17 }, (_, i) => i + 6).map((h) => (
-                                <option key={h} value={String(h).padStart(2, "0")}>{String(h).padStart(2, "0")}시</option>
-                              ))}
-                            </select>
-                            <select
-                              value={row.checkIn ? row.checkIn.split(":")[1] || "00" : ""}
-                              onChange={(e) => {
-                                const hour = row.checkIn ? row.checkIn.split(":")[0] : "";
-                                if (hour) updateCommutingRow(idx, "checkIn", `${hour}:${e.target.value}`);
-                              }}
-                              disabled={isAbsent || !row.checkIn}
-                              className="w-16 px-1 py-1.5 border rounded text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
-                            >
-                              <option value="">분</option>
-                              {["00", "10", "20", "30", "40", "50"].map((m) => (
-                                <option key={m} value={m}>{m}분</option>
-                              ))}
-                            </select>
+                              {row.checkIn || "--:--"}
+                            </button>
                             <button
                               onClick={() => handleCheckIn(idx)}
                               disabled={isAbsent}
@@ -1744,34 +1688,15 @@ export default function AdminBatchDetailPage() {
                         <div>
                           <label className="text-xs text-gray-500 mb-1 block">퇴근시간</label>
                           <div className="flex gap-1">
-                            <select
-                              value={row.checkOut ? row.checkOut.split(":")[0] : ""}
-                              onChange={(e) => {
-                                const min = row.checkOut ? row.checkOut.split(":")[1] || "00" : "00";
-                                updateCommutingRow(idx, "checkOut", e.target.value ? `${e.target.value}:${min}` : "");
-                              }}
+                            <button
+                              onClick={() => !isAbsent && setTimePickerTarget({ idx, field: "checkOut" })}
                               disabled={isAbsent}
-                              className="w-16 px-1 py-1.5 border rounded text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
+                              className={`flex-1 px-2 py-1.5 border rounded text-sm text-left disabled:bg-gray-100 disabled:cursor-not-allowed ${
+                                row.checkOut ? "text-orange-700 font-medium border-orange-300 bg-orange-50" : "text-gray-400"
+                              }`}
                             >
-                              <option value="">시</option>
-                              {Array.from({ length: 17 }, (_, i) => i + 6).map((h) => (
-                                <option key={h} value={String(h).padStart(2, "0")}>{String(h).padStart(2, "0")}시</option>
-                              ))}
-                            </select>
-                            <select
-                              value={row.checkOut ? row.checkOut.split(":")[1] || "00" : ""}
-                              onChange={(e) => {
-                                const hour = row.checkOut ? row.checkOut.split(":")[0] : "";
-                                if (hour) updateCommutingRow(idx, "checkOut", `${hour}:${e.target.value}`);
-                              }}
-                              disabled={isAbsent || !row.checkOut}
-                              className="w-16 px-1 py-1.5 border rounded text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
-                            >
-                              <option value="">분</option>
-                              {["00", "10", "20", "30", "40", "50"].map((m) => (
-                                <option key={m} value={m}>{m}분</option>
-                              ))}
-                            </select>
+                              {row.checkOut || "--:--"}
+                            </button>
                             <button
                               onClick={() => handleCheckOut(idx)}
                               disabled={isAbsent}
@@ -2858,6 +2783,19 @@ export default function AdminBatchDetailPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* 스크롤 타임피커 */}
+      {timePickerTarget && (
+        <ScrollTimePicker
+          value={commutingRows[timePickerTarget.idx]?.[timePickerTarget.field] || ""}
+          title={timePickerTarget.field === "checkIn" ? "출근 시간 선택" : "퇴근 시간 선택"}
+          onChange={(time) => {
+            const { idx, field } = timePickerTarget;
+            updateCommutingRow(idx, field, time);
+          }}
+          onClose={() => setTimePickerTarget(null)}
+        />
       )}
 
       {/* 출퇴근 보고 모달 */}
