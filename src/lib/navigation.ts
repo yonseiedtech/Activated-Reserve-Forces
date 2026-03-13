@@ -15,10 +15,11 @@ export const navItems: NavItem[] = [
   { href: "/admin/batches", label: "훈련차수", icon: "📋", roles: [ROLES.ADMIN, ROLES.MANAGER] },
   { href: "/commuting", label: "출석 리포트", icon: "📈", roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.INSTRUCTOR, ROLES.RESERVIST] },
   { href: "/meals", label: "식사 관리", icon: "🍽️", roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.COOK] },
-  { href: "/payments", label: "훈련비 관리", icon: "💰", roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.RESERVIST] },
+  { href: "/payments", label: "훈련비 관리", icon: "💰", roles: [ROLES.ADMIN, ROLES.MANAGER] },
+  { href: "/payments", label: "훈련비 현황", icon: "💰", roles: [ROLES.RESERVIST] },
   { href: "/notices", label: "공지사항", icon: "📢", roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.COOK, ROLES.INSTRUCTOR, ROLES.RESERVIST] },
   { href: "/messages", label: "쪽지", icon: "✉️", roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.COOK, ROLES.INSTRUCTOR, ROLES.RESERVIST] },
-  { href: "/mobile-id", label: "PASS", icon: "🪪", roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.RESERVIST] },
+  { href: "/mobile-id", label: "PASS", icon: "🪪", roles: [ROLES.ADMIN, ROLES.MANAGER] },
   { href: "/surveys", label: "설문조사", icon: "📝", roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.RESERVIST] },
   { href: "/profile", label: "내 정보", icon: "👤", roles: [ROLES.RESERVIST] },
   { href: "/admin", label: "관리자", icon: "⚙️", roles: [ROLES.ADMIN, ROLES.MANAGER] },
@@ -30,7 +31,7 @@ export function getFilteredNav(role: string): NavItem[] {
 
 // 역할별 하단 탭 4개 (+ 더보기는 BottomNav에서 직접 추가)
 const bottomTabConfig: Record<string, string[]> = {
-  [ROLES.RESERVIST]: ["/batches", "/mobile-id", "/", "/commuting"],
+  [ROLES.RESERVIST]: ["/trainings/annual", "/commuting", "/", "/payments"],
   [ROLES.ADMIN]: ["/notices", "/admin/batches", "/", "/payments"],
   [ROLES.MANAGER]: ["/notices", "/admin/batches", "/", "/payments"],
   [ROLES.COOK]: ["/", "/meals", "/notices", "/messages"],

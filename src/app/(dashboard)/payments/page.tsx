@@ -55,20 +55,6 @@ interface BankAccountUser {
   bankAccount: string | null;
 }
 
-interface BankAccountData {
-  batchId: string;
-  batchName: string;
-  startDate: string;
-  endDate: string;
-  users: BankAccountUser[];
-}
-
-// 차수 선택용 간단 타입
-interface BatchOption {
-  id: string;
-  name: string;
-}
-
 export default function PaymentsPage() {
   const { data: session } = useSession();
   const router = useRouter();
@@ -78,9 +64,7 @@ export default function PaymentsPage() {
 
   // 탭 관련
   const [activeTab, setActiveTab] = useState<"payments" | "bank-accounts">("payments");
-  const [batchOptions, setBatchOptions] = useState<BatchOption[]>([]);
-  const [selectedBatchId, setSelectedBatchId] = useState<string>("");
-  const [bankData, setBankData] = useState<BankAccountData | null>(null);
+  const [bankUsers, setBankUsers] = useState<BankAccountUser[]>([]);
   const [bankLoading, setBankLoading] = useState(false);
 
   const isAdmin = session?.user?.role === "ADMIN" || session?.user?.role === "MANAGER";
@@ -103,27 +87,23 @@ export default function PaymentsPage() {
       .then((r) => r.json())
       .then((d) => {
         setData(d);
-        // 차수 목록 추출
-        if (d.rows) {
-          setBatchOptions(d.rows.map((r: SummaryRow) => ({ id: r.batchId, name: r.batchName })));
-        }
         setLoading(false);
       })
       .catch(() => setLoading(false));
   }, [session, isAdmin, router]);
 
-  // 차수 선택 시 계좌 데이터 로드
+  // 계좌 탭 클릭 시 전체 유저 계좌 로드
   useEffect(() => {
-    if (!selectedBatchId || !isAdmin) return;
+    if (activeTab !== "bank-accounts" || !isAdmin || bankUsers.length > 0) return;
     setBankLoading(true);
-    fetch(`/api/payments/bank-accounts?batchId=${selectedBatchId}`)
+    fetch("/api/payments/bank-accounts")
       .then((r) => r.json())
       .then((d) => {
-        setBankData(d);
+        if (d.users) setBankUsers(d.users);
         setBankLoading(false);
       })
       .catch(() => setBankLoading(false));
-  }, [selectedBatchId, isAdmin]);
+  }, [activeTab, isAdmin, bankUsers.length]);
 
   if (loading) {
     return (
@@ -137,7 +117,7 @@ export default function PaymentsPage() {
   if (!isAdmin) {
     return (
       <div>
-        <PageTitle title="훈련비 관리" description="내 차수별 훈련비 현황을 확인합니다." />
+        <PageTitle title="훈련비 현황" description="내 차수별 훈련비 현황을 확인합니다." />
         {reservistBatches.length === 0 ? (
           <p className="text-center py-10 text-gray-400">배정된 차수가 없습니다.</p>
         ) : (
@@ -242,7 +222,7 @@ export default function PaymentsPage() {
                         }`}>
                           {PAYMENT_STATUS_LABELS[row.status] || row.status}
                         </span>
-                        {row.refundStatus && (
+                        {row.refundStatus && row.refundTotal > 0 && (
                           <span className={`inline-block w-fit px-2 py-0.5 rounded-full text-xs font-medium ${
                             row.refundStatus === "REFUND_COMPLETED"
                               ? "bg-green-100 text-green-700"
@@ -287,7 +267,7 @@ export default function PaymentsPage() {
                     }`}>
                       {PAYMENT_STATUS_LABELS[row.status] || row.status}
                     </span>
-                    {row.refundStatus && (
+                    {row.refundStatus && row.refundTotal > 0 && (
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                         row.refundStatus === "REFUND_COMPLETED"
                           ? "bg-green-100 text-green-700"
@@ -340,44 +320,21 @@ export default function PaymentsPage() {
       )}
 
       {activeTab === "bank-accounts" && (
-        <div className="space-y-4">
-          {/* 차수 선택 */}
-          <div className="bg-white rounded-xl border p-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">차수 선택</label>
-            <select
-              value={selectedBatchId}
-              onChange={(e) => setSelectedBatchId(e.target.value)}
-              className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="">차수를 선택하세요</option>
-              {batchOptions.map((b) => (
-                <option key={b.id} value={b.id}>{b.name}</option>
-              ))}
-            </select>
-          </div>
-
-          {!selectedBatchId && (
-            <p className="text-center py-10 text-gray-400">차수를 선택하면 계좌 현황이 표시됩니다.</p>
-          )}
-
-          {bankLoading && (
+        <div>
+          {bankLoading ? (
             <div className="flex justify-center py-12">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
             </div>
-          )}
-
-          {bankData && !bankLoading && (
+          ) : (
             <div className="bg-white rounded-xl border overflow-hidden">
               <div className="px-4 py-3 bg-green-50 border-b flex items-center justify-between">
                 <div>
                   <h3 className="font-semibold text-sm text-green-700">보상금 지급 계좌 현황</h3>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    {bankData.batchName} ({new Date(bankData.startDate).toLocaleDateString("ko-KR")} ~ {new Date(bankData.endDate).toLocaleDateString("ko-KR")})
-                  </p>
+                  <p className="text-xs text-gray-500 mt-0.5">전체 훈련 대상자</p>
                 </div>
                 <button
                   onClick={() => {
-                    const allUsers = bankData.users;
+                    const allUsers = bankUsers;
                     const printWin = window.open("", "_blank");
                     if (!printWin) return;
                     printWin.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>보상금 지급 계좌 파악</title><style>
@@ -392,7 +349,7 @@ export default function PaymentsPage() {
                       .notes p { margin: 4px 0; }
                     </style></head><body>
                       <h1>보상금 지급 계좌 파악</h1>
-                      <p class="subtitle">${bankData.batchName} (${new Date(bankData.startDate).toLocaleDateString("ko-KR")} ~ ${new Date(bankData.endDate).toLocaleDateString("ko-KR")})</p>
+                      <p class="subtitle">전체 훈련 대상자</p>
                       <table>
                         <thead>
                           <tr><th>번호</th><th>소속예비군중대</th><th>성 명</th><th>은행명</th><th>계좌번호</th><th>생년월일</th></tr>
@@ -436,10 +393,10 @@ export default function PaymentsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {bankData.users.length === 0 ? (
-                      <tr><td colSpan={6} className="text-center py-6 text-gray-400">배정된 대상자가 없습니다.</td></tr>
+                    {bankUsers.length === 0 ? (
+                      <tr><td colSpan={6} className="text-center py-6 text-gray-400">훈련 대상자가 없습니다.</td></tr>
                     ) : (
-                      bankData.users.map((u, i) => (
+                      bankUsers.map((u, i) => (
                         <tr key={u.id} className="hover:bg-gray-50">
                           <td className="px-4 py-2 text-gray-500">{i + 1}</td>
                           <td className="px-4 py-2">{u.unit || "-"}</td>
@@ -454,7 +411,7 @@ export default function PaymentsPage() {
                 </table>
               </div>
               <div className="px-4 py-2 bg-gray-50 border-t text-xs text-gray-500">
-                입력 완료: {bankData.users.filter((u) => u.bankName && u.bankAccount).length} / {bankData.users.length}명
+                입력 완료: {bankUsers.filter((u) => u.bankName && u.bankAccount).length} / {bankUsers.length}명
               </div>
             </div>
           )}
