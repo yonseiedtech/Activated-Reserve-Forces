@@ -52,18 +52,24 @@ export async function GET(req: NextRequest) {
   };
 
   // 원본 주소로 시도
-  let geoResult = await tryGeocode(address);
+  let geoResult;
+  try {
+    geoResult = await tryGeocode(address);
 
-  // 실패 시 괄호/상세주소 제거 후 재시도
-  if (!geoResult) {
-    const simplified = address
-      .replace(/\(.*?\)/g, "")           // 괄호 안 내용 제거
-      .replace(/\d+-\d+$/, "")           // 끝의 동-호수 제거
-      .replace(/\s+\d+동\s*\d*호?$/, "") // "101동 302호" 패턴 제거
-      .trim();
-    if (simplified && simplified !== address) {
-      geoResult = await tryGeocode(simplified);
+    // 실패 시 괄호/상세주소 제거 후 재시도
+    if (!geoResult) {
+      const simplified = address
+        .replace(/\(.*?\)/g, "")
+        .replace(/\d+-\d+$/, "")
+        .replace(/\s+\d+동\s*\d*호?$/, "")
+        .trim();
+      if (simplified && simplified !== address) {
+        geoResult = await tryGeocode(simplified);
+      }
     }
+  } catch (e) {
+    console.error("[transport-calc] geocode error:", e);
+    return json({ error: "주소 조회 서비스에 일시적인 오류가 발생했습니다." }, 503);
   }
 
   if (!geoResult) {
@@ -73,11 +79,17 @@ export async function GET(req: NextRequest) {
   const originY = geoResult.y; // 위도
 
   // 3. 네이버 Directions 5 API 호출
-  const navRes = await fetch(
-    `https://naveropenapi.apigw.ntruss.com/map-direction-15/v1/driving?start=${originX},${originY}&goal=${unit.longitude},${unit.latitude}`,
-    { headers: NCP_HEADERS }
-  );
-  const navData = await navRes.json();
+  let navData;
+  try {
+    const navRes = await fetch(
+      `https://naveropenapi.apigw.ntruss.com/map-direction-15/v1/driving?start=${originX},${originY}&goal=${unit.longitude},${unit.latitude}`,
+      { headers: NCP_HEADERS }
+    );
+    navData = await navRes.json();
+  } catch (e) {
+    console.error("[transport-calc] directions error:", e);
+    return json({ error: "경로 조회 서비스에 일시적인 오류가 발생했습니다." }, 503);
+  }
 
   if (navData.code !== 0 || !navData.route?.traoptimal?.[0]) {
     return json({ error: "경로를 조회할 수 없습니다." }, 400);

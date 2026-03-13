@@ -22,7 +22,7 @@ export default async function DashboardPage() {
     recentNotices,
   ] = await Promise.all([
     prisma.user.count({ where: { role: "RESERVIST" } }),
-    prisma.batch.count({ where: { status: "ACTIVE" } }),
+    prisma.batch.count({ where: { startDate: { lte: tomorrow }, endDate: { gte: today } } }),
     prisma.message.count({
       where: { receiverId: session.user.id, isRead: false },
     }),

@@ -10,8 +10,21 @@ export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
   const batchId = searchParams.get("batchId");
 
+  // RESERVIST는 자기 차수의 활성 설문만 조회
+  let where: Record<string, unknown> = {};
+  if (session.user.role === "RESERVIST") {
+    const myBatches = await prisma.batchUser.findMany({
+      where: { userId: session.user.id },
+      select: { batchId: true },
+    });
+    const myBatchIds = myBatches.map((b) => b.batchId);
+    where = { isActive: true, batchId: { in: myBatchIds } };
+  } else if (batchId) {
+    where = { batchId };
+  }
+
   const surveys = await prisma.survey.findMany({
-    where: batchId ? { batchId } : undefined,
+    where: Object.keys(where).length > 0 ? where : undefined,
     orderBy: { createdAt: "desc" },
     include: { _count: { select: { responses: true } } },
   });

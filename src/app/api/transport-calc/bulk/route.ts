@@ -32,10 +32,17 @@ export async function POST(req: NextRequest) {
     return json({ error: "네이버 API 키가 설정되지 않았습니다." }, 500);
   }
 
-  // 1. 좌표가 있는 첫 번째 Unit 조회
-  const unit = await prisma.unit.findFirst({
-    where: { latitude: { not: null }, longitude: { not: null } },
-  });
+  // 1. 차수에 연결된 부대 좌표 조회 (없으면 첫 번째 부대 fallback)
+  const batchData = await prisma.batch.findUnique({ where: { id: batchId }, select: { unitId: true } });
+  let unit;
+  if (batchData?.unitId) {
+    unit = await prisma.unit.findUnique({ where: { id: batchData.unitId } });
+  }
+  if (!unit || !unit.latitude || !unit.longitude) {
+    unit = await prisma.unit.findFirst({
+      where: { latitude: { not: null }, longitude: { not: null } },
+    });
+  }
   if (!unit || !unit.latitude || !unit.longitude) {
     return json({ error: "좌표가 등록된 부대가 없습니다." }, 400);
   }

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { getSession, json, unauthorized, forbidden } from "@/lib/api-utils";
+import { getSession, json, unauthorized, forbidden, badRequest } from "@/lib/api-utils";
 import { NextRequest } from "next/server";
 import { parseDate } from "@/lib/date-utils";
 
@@ -57,6 +57,10 @@ export async function POST(req: NextRequest) {
   if (!["ADMIN", "MANAGER"].includes(session.user.role)) return forbidden();
 
   const body = await req.json();
+  if (!body.name || !body.year || !body.number || !body.startDate) {
+    return badRequest("차수명, 연도, 차수 번호, 시작일은 필수 항목입니다.");
+  }
+
   const batch = await prisma.batch.create({
     data: {
       name: body.name,

@@ -36,10 +36,11 @@ export function calcTrainingHours(startTime: string, endTime: string): number {
 }
 
 /**
- * 주말 여부 판별 (토:6, 일:0)
+ * 주말 여부 판별 (KST 기준, 토:6, 일:0)
  */
 export function isWeekendDay(date: Date): boolean {
-  const day = date.getDay();
+  const kst = new Date(date.getTime() + 9 * 60 * 60 * 1000);
+  const day = kst.getUTCDay();
   return day === 0 || day === 6;
 }
 

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { getSession, json, unauthorized } from "@/lib/api-utils";
+import { getSession, json, unauthorized, badRequest } from "@/lib/api-utils";
 import { NextRequest } from "next/server";
 
 export async function GET(req: NextRequest) {
@@ -30,8 +30,11 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
 
-  // 다수 수신자에게 발송
-  const receiverIds: string[] = Array.isArray(body.receiverIds) ? body.receiverIds : [body.receiverId];
+  // 다수 수신자에게 발송 (최대 50명)
+  const rawIds: string[] = Array.isArray(body.receiverIds) ? body.receiverIds : [body.receiverId];
+  const receiverIds = rawIds.filter(Boolean).slice(0, 50);
+  if (receiverIds.length === 0) return json({ error: "수신자가 필요합니다." }, 400);
+  if (!body.title || !body.content) return json({ error: "제목과 내용이 필요합니다." }, 400);
 
   const messages = await Promise.all(
     receiverIds.map((receiverId) =>

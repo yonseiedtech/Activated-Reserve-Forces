@@ -60,25 +60,37 @@ export async function POST(req: NextRequest) {
 
   const batch = latestBatchUser.batch;
 
-  // User.uniqueNumber가 있으면 그 값 사용, 없으면 자동생성
+  // User.uniqueNumber가 있으면 그 값 사용, 없으면 트랜잭션 내 자동생성
   const user = await prisma.user.findUnique({ where: { id: session.user.id }, select: { uniqueNumber: true } });
   let uniqueNumber = user?.uniqueNumber;
 
-  if (!uniqueNumber) {
-    const year = batch.year;
-    const count = await prisma.mobileIdCard.count({
-      where: { uniqueNumber: { startsWith: `RES-${year}-` } },
+  if (uniqueNumber) {
+    const card = await prisma.mobileIdCard.create({
+      data: {
+        userId: session.user.id,
+        uniqueNumber,
+        validFrom: batch.startDate,
+        validUntil: batch.endDate,
+      },
     });
-    uniqueNumber = `RES-${year}-${String(count + 1).padStart(5, "0")}`;
+    return json(card, 201);
   }
 
-  const card = await prisma.mobileIdCard.create({
-    data: {
-      userId: session.user.id,
-      uniqueNumber,
-      validFrom: batch.startDate,
-      validUntil: batch.endDate,
-    },
+  // Race condition 방지: 트랜잭션 내에서 count + create
+  const card = await prisma.$transaction(async (tx) => {
+    const year = batch.year;
+    const count = await tx.mobileIdCard.count({
+      where: { uniqueNumber: { startsWith: `RES-${year}-` } },
+    });
+    const newNumber = `RES-${year}-${String(count + 1).padStart(5, "0")}`;
+    return tx.mobileIdCard.create({
+      data: {
+        userId: session.user.id,
+        uniqueNumber: newNumber,
+        validFrom: batch.startDate,
+        validUntil: batch.endDate,
+      },
+    });
   });
 
   return json(card, 201);

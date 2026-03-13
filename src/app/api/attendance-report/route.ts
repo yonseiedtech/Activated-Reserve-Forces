@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getSession, json, unauthorized, forbidden } from "@/lib/api-utils";
+import { calcTrainingHours } from "@/lib/compensation";
 
 function computeBatchStatus(startDate: Date, endDate: Date): string {
   const today = new Date();
@@ -99,20 +100,17 @@ export async function GET() {
       };
     });
 
-    // 이수시간 계산 (countsTowardHours인 훈련만, 시간 기반)
+    // 이수시간 계산 (countsTowardHours인 훈련만, 점심시간 제외)
     let requiredHours = batch.requiredHours;
     if (!requiredHours) {
-      // 훈련 시간표 기반으로 총 시간 계산
-      let totalMins = 0;
+      let totalHours = 0;
       for (const t of trainings) {
         if (!t.countsTowardHours) continue;
         if (t.startTime && t.endTime) {
-          const [sh, sm] = t.startTime.split(":").map(Number);
-          const [eh, em] = t.endTime.split(":").map(Number);
-          totalMins += (eh * 60 + em) - (sh * 60 + sm);
+          totalHours += calcTrainingHours(t.startTime, t.endTime);
         }
       }
-      requiredHours = totalMins > 0 ? Math.round(totalMins / 60) : null;
+      requiredHours = totalHours > 0 ? Math.round(totalHours) : null;
     }
 
     // batchUser 상태 매핑 (subStatus, reason 포함)

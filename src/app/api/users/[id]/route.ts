@@ -90,23 +90,20 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     }
   }
 
-  // Handle batchId update (single batch assignment via edit modal)
-  if (body.batchId !== undefined) {
-    await prisma.batchUser.deleteMany({ where: { userId: id } });
-    if (body.batchId) {
-      await prisma.batchUser.create({
-        data: { userId: id, batchId: body.batchId },
-      });
-    }
-  }
-
-  // Handle batchIds array (multiple batch assignment)
+  // Handle batch assignment: batchIds takes priority over batchId
   if (body.batchIds !== undefined && Array.isArray(body.batchIds)) {
     await prisma.batchUser.deleteMany({ where: { userId: id } });
     if (body.batchIds.length > 0) {
       await prisma.batchUser.createMany({
         data: body.batchIds.map((bId: string) => ({ userId: id, batchId: bId })),
         skipDuplicates: true,
+      });
+    }
+  } else if (body.batchId !== undefined) {
+    await prisma.batchUser.deleteMany({ where: { userId: id } });
+    if (body.batchId) {
+      await prisma.batchUser.create({
+        data: { userId: id, batchId: body.batchId },
       });
     }
   }

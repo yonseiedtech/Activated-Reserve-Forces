@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { getSession, json, unauthorized, forbidden } from "@/lib/api-utils";
+import { getSession, json, unauthorized, forbidden, badRequest } from "@/lib/api-utils";
 import { NextRequest, NextResponse } from "next/server";
 import { parseDate } from "@/lib/date-utils";
 
@@ -43,6 +43,9 @@ export async function POST(req: NextRequest) {
   if (!["ADMIN", "MANAGER"].includes(session.user.role)) return forbidden();
 
   const body = await req.json();
+  if (!body.title || !body.type || !body.date || !body.batchId) {
+    return badRequest("훈련명, 유형, 날짜, 차수는 필수 항목입니다.");
+  }
 
   // Time conflict check: same batch, same date, overlapping times
   if (body.startTime && body.endTime && body.batchId) {

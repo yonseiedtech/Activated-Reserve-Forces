@@ -7,6 +7,7 @@ import { parseDate } from "@/lib/date-utils";
 export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session) return unauthorized();
+  if (!["ADMIN", "MANAGER"].includes(session.user.role)) return forbidden();
 
   const { searchParams } = new URL(req.url);
   const role = searchParams.get("role");

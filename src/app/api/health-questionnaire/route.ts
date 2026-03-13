@@ -51,11 +51,33 @@ export async function POST(req: NextRequest) {
 
   if (!batchUserId || !answers) return badRequest("batchUserId, answers가 필요합니다.");
 
-  const batchUser = await prisma.batchUser.findUnique({ where: { id: batchUserId } });
+  const batchUser = await prisma.batchUser.findUnique({
+    where: { id: batchUserId },
+    include: { batch: { select: { startDate: true, endDate: true } } },
+  });
   if (!batchUser) return badRequest("batchUser를 찾을 수 없습니다.");
 
   const isAdmin = ["ADMIN", "MANAGER"].includes(session.user.role);
   if (!isAdmin && batchUser.userId !== session.user.id) return forbidden();
+
+  // 대상자: 차수 기간 내에서만 문진표 작성 가능 (시작일 3일 전 ~ 종료일)
+  if (!isAdmin) {
+    const now = new Date();
+    const batchStart = new Date(batchUser.batch.startDate);
+    const earlyStart = new Date(batchStart.getTime() - 3 * 24 * 60 * 60 * 1000);
+    const batchEnd = new Date(batchUser.batch.endDate);
+    batchEnd.setHours(23, 59, 59, 999);
+    if (now < earlyStart || now > batchEnd) {
+      return badRequest("문진표는 훈련 시작 3일 전부터 훈련 종료일까지만 작성할 수 있습니다.");
+    }
+  }
+
+  // JSON 유효성 검증
+  try {
+    JSON.parse(answers);
+  } catch {
+    return badRequest("answers는 유효한 JSON이어야 합니다.");
+  }
 
   const result = await prisma.healthQuestionnaire.upsert({
     where: { batchUserId },

@@ -97,7 +97,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     await prisma.batch.delete({ where: { id } });
     return json({ success: true });
   } catch (e: unknown) {
-    const message = e instanceof Error ? e.message : "삭제에 실패했습니다.";
-    return json({ error: message }, 500);
+    console.error("[batch DELETE]", e);
+    return json({ error: "삭제에 실패했습니다. 관련 데이터가 있으면 먼저 정리해주세요." }, 500);
   }
 }

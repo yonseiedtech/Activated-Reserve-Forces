@@ -68,12 +68,12 @@ export async function POST(req: NextRequest) {
       where: {
         userId_date: {
           userId: body.userId,
-          date: new Date(body.date.split("T")[0] + "T00:00:00.000Z"),
+          date: parseDate(body.date),
         },
       },
       create: {
         userId: body.userId,
-        date: new Date(body.date.split("T")[0] + "T00:00:00.000Z"),
+        date: parseDate(body.date),
         checkInAt: body.checkInAt ? new Date(body.checkInAt) : undefined,
         checkOutAt: body.checkOutAt ? new Date(body.checkOutAt) : undefined,
         isManual: true,

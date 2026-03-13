@@ -34,12 +34,12 @@ export async function GET(req: NextRequest) {
     batchId = first.id;
   }
 
-  // PaymentProcess 자동 생성 (없으면)
   const batch = await prisma.batch.findUnique({ where: { id: batchId } });
   if (!batch) return badRequest("차수를 찾을 수 없습니다.");
 
+  // PaymentProcess 자동 생성 (관리자만)
   let process = await prisma.paymentProcess.findUnique({ where: { batchId } });
-  if (!process) {
+  if (!process && ["ADMIN", "MANAGER"].includes(session.user.role)) {
     process = await prisma.paymentProcess.create({
       data: {
         batchId,
