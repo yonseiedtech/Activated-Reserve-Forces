@@ -104,43 +104,83 @@ export default function AnnualClient({
             </button>
           )}
         </div>
-        <div className="overflow-x-auto">
-          <div className="grid grid-cols-12 min-w-[700px]">
-            {monthStats.map((stat, i) => {
-              const isCurrentMonth = i === currentMonth;
-              const isSelected = selectedMonth === i;
-              return (
-                <button
-                  key={i}
-                  onClick={() => setSelectedMonth(selectedMonth === i ? null : i)}
-                  className={`p-3 border-r last:border-r-0 text-center transition-colors ${
-                    isSelected
-                      ? "bg-blue-100 border-b-2 border-b-blue-600"
-                      : isCurrentMonth
-                        ? "bg-blue-50 border-b-2 border-b-blue-500"
-                        : "hover:bg-gray-50"
-                  } ${stat.batchCount > 0 ? "cursor-pointer" : "opacity-50 cursor-default"}`}
-                  disabled={stat.batchCount === 0}
-                >
-                  <p className={`text-xs font-bold mb-2 ${
-                    isSelected ? "text-blue-800" : isCurrentMonth ? "text-blue-700" : "text-gray-600"
-                  }`}>
-                    {MONTH_NAMES[i]}
-                  </p>
-                  {stat.batchCount > 0 ? (
-                    <>
-                      <p className="text-lg font-bold text-gray-800">{stat.batchCount}</p>
-                      <p className="text-xs text-gray-400">차수</p>
-                      {stat.trainingCount > 0 && (
-                        <p className="text-xs text-green-600 mt-1">{stat.trainingCount}개 과목</p>
-                      )}
-                    </>
-                  ) : (
-                    <p className="text-xs text-gray-300 mt-2">-</p>
-                  )}
-                </button>
-              );
-            })}
+        <div className="divide-y">
+          {/* 전반기 (1~6월) */}
+          <div>
+            <p className="px-4 py-1.5 text-[10px] font-semibold text-gray-400 bg-gray-50">전반기</p>
+            <div className="grid grid-cols-6">
+              {monthStats.slice(0, 6).map((stat, i) => {
+                const isCurrentMonth = i === currentMonth;
+                const isSelected = selectedMonth === i;
+                return (
+                  <button
+                    key={i}
+                    onClick={() => setSelectedMonth(selectedMonth === i ? null : i)}
+                    className={`p-3 border-r last:border-r-0 text-center transition-colors ${
+                      isSelected
+                        ? "bg-blue-100 border-b-2 border-b-blue-600"
+                        : isCurrentMonth
+                          ? "bg-blue-50 border-b-2 border-b-blue-500"
+                          : "hover:bg-gray-50"
+                    } ${stat.batchCount > 0 ? "cursor-pointer" : "opacity-50 cursor-default"}`}
+                    disabled={stat.batchCount === 0}
+                  >
+                    <p className={`text-xs font-bold mb-2 ${
+                      isSelected ? "text-blue-800" : isCurrentMonth ? "text-blue-700" : "text-gray-600"
+                    }`}>
+                      {MONTH_NAMES[i]}
+                    </p>
+                    {stat.batchCount > 0 ? (
+                      <>
+                        <p className="text-lg font-bold text-gray-800">{stat.batchCount}</p>
+                        <p className="text-xs text-gray-400">차수</p>
+                      </>
+                    ) : (
+                      <p className="text-xs text-gray-300 mt-2">-</p>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          {/* 후반기 (7~12월) */}
+          <div>
+            <p className="px-4 py-1.5 text-[10px] font-semibold text-gray-400 bg-gray-50">후반기</p>
+            <div className="grid grid-cols-6">
+              {monthStats.slice(6, 12).map((stat, idx) => {
+                const i = idx + 6;
+                const isCurrentMonth = i === currentMonth;
+                const isSelected = selectedMonth === i;
+                return (
+                  <button
+                    key={i}
+                    onClick={() => setSelectedMonth(selectedMonth === i ? null : i)}
+                    className={`p-3 border-r last:border-r-0 text-center transition-colors ${
+                      isSelected
+                        ? "bg-blue-100 border-b-2 border-b-blue-600"
+                        : isCurrentMonth
+                          ? "bg-blue-50 border-b-2 border-b-blue-500"
+                          : "hover:bg-gray-50"
+                    } ${stat.batchCount > 0 ? "cursor-pointer" : "opacity-50 cursor-default"}`}
+                    disabled={stat.batchCount === 0}
+                  >
+                    <p className={`text-xs font-bold mb-2 ${
+                      isSelected ? "text-blue-800" : isCurrentMonth ? "text-blue-700" : "text-gray-600"
+                    }`}>
+                      {MONTH_NAMES[i]}
+                    </p>
+                    {stat.batchCount > 0 ? (
+                      <>
+                        <p className="text-lg font-bold text-gray-800">{stat.batchCount}</p>
+                        <p className="text-xs text-gray-400">차수</p>
+                      </>
+                    ) : (
+                      <p className="text-xs text-gray-300 mt-2">-</p>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>

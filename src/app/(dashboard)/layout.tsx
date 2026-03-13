@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import BottomNav from "@/components/layout/BottomNav";
@@ -12,6 +13,7 @@ import PushNotificationBanner from "@/components/PushNotificationBanner";
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showSplash, setShowSplash] = useState(false);
   const router = useRouter();
 
   // 서비스 워커 등록
@@ -21,10 +23,35 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   }, []);
 
+  // 스플래시: 세션 로드 완료 시 한 번만 표시
+  useEffect(() => {
+    if (status === "authenticated" && session) {
+      const splashKey = `splash_shown_${session.user.id}`;
+      if (!sessionStorage.getItem(splashKey)) {
+        setShowSplash(true);
+        sessionStorage.setItem(splashKey, "1");
+        const timer = setTimeout(() => setShowSplash(false), 1800);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [status, session]);
+
   if (status === "loading") {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+      </div>
+    );
+  }
+
+  if (showSplash) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-gradient-to-b from-green-800 to-green-950 text-white">
+        <div className="animate-fade-in flex flex-col items-center">
+          <Image src="/logo.svg" alt="로고" width={120} height={120} className="mb-6 drop-shadow-lg" />
+          <h1 className="text-2xl font-bold tracking-wider mb-2">상비예비군</h1>
+          <p className="text-green-200 text-sm">소집훈련 관리 시스템</p>
+        </div>
       </div>
     );
   }

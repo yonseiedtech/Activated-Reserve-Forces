@@ -60,7 +60,7 @@ export default async function DashboardPage() {
         where: { date: { gte: today, lt: tomorrow }, instructorId: session.user.id },
       }),
       prisma.batch.findMany({
-        where: { status: "ACTIVE" },
+        where: { startDate: { lte: tomorrow }, endDate: { gte: today } },
         select: { name: true },
       }),
     ]);
@@ -71,6 +71,12 @@ export default async function DashboardPage() {
   // Reservist-specific data
   let nextTraining: { id: string; batchId: string; title: string; batchName: string; date: Date; dDay: number } | null = null;
   let mobileIdExpiringSoon = false;
+  let attendanceRate = 0;
+  let totalAttendances = 0;
+  let presentAttendances = 0;
+  let activeBatchInfo: { id: string; name: string; startDate: Date; endDate: Date } | null = null;
+  let completedBatchCount = 0;
+  let plannedBatchCount = 0;
 
   if (role === ROLES.RESERVIST) {
     const batchUserRecords = await prisma.batchUser.findMany({
@@ -80,6 +86,7 @@ export default async function DashboardPage() {
     const batchIds = batchUserRecords.map((bu) => bu.batchId);
 
     if (batchIds.length > 0) {
+      // 다음 훈련
       const nt = await prisma.training.findFirst({
         where: { batchId: { in: batchIds }, date: { gte: today } },
         orderBy: { date: "asc" },
@@ -99,6 +106,33 @@ export default async function DashboardPage() {
           dDay: diffDays,
         };
       }
+
+      // 누적 참석률 (전체 차수의 내 출석 데이터)
+      const myAttendances = await prisma.attendance.findMany({
+        where: {
+          userId: session.user.id,
+          training: { batchId: { in: batchIds } },
+        },
+        select: { status: true },
+      });
+      totalAttendances = myAttendances.length;
+      presentAttendances = myAttendances.filter((a) => a.status === "PRESENT").length;
+      attendanceRate = totalAttendances > 0 ? Math.round((presentAttendances / totalAttendances) * 100) : 0;
+
+      // 진행중 차수
+      const activeBatch = await prisma.batch.findFirst({
+        where: { id: { in: batchIds }, startDate: { lte: tomorrow }, endDate: { gte: today } },
+        select: { id: true, name: true, startDate: true, endDate: true },
+      });
+      activeBatchInfo = activeBatch;
+
+      // 완료/예정 차수
+      completedBatchCount = await prisma.batch.count({
+        where: { id: { in: batchIds }, endDate: { lt: today } },
+      });
+      plannedBatchCount = await prisma.batch.count({
+        where: { id: { in: batchIds }, startDate: { gt: tomorrow } },
+      });
     }
 
     // Mobile ID expiry check (D-3)
@@ -134,11 +168,85 @@ export default async function DashboardPage() {
           <StatCard label="읽지 않은 쪽지" value={unreadMessages} icon="✉️" color="red" href="/messages" />
         </div>
       )}
+
+      {/* RESERVIST 대시보드 */}
       {role === ROLES.RESERVIST && (
-        <div className="grid grid-cols-2 gap-4">
-          <StatCard label="진행중 차수" value={activeBatches} icon="📋" color="green" href="/batches" />
-          <StatCard label="읽지 않은 쪽지" value={unreadMessages} icon="✉️" color="red" href="/messages" />
-        </div>
+        <>
+          {/* 참석률 + 차수 요약 */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-white rounded-xl border p-4 text-center">
+              <p className={`text-3xl font-bold ${attendanceRate >= 80 ? "text-green-600" : attendanceRate >= 50 ? "text-yellow-600" : "text-red-600"}`}>
+                {attendanceRate}%
+              </p>
+              <p className="text-xs text-gray-500 mt-1">누적 참석률</p>
+              <p className="text-[10px] text-gray-400">{presentAttendances}/{totalAttendances}</p>
+            </div>
+            <div className="bg-white rounded-xl border p-4 text-center">
+              <p className="text-3xl font-bold text-green-600">{activeBatchInfo ? 1 : 0}</p>
+              <p className="text-xs text-gray-500 mt-1">진행중</p>
+            </div>
+            <div className="bg-white rounded-xl border p-4 text-center">
+              <p className="text-3xl font-bold text-gray-400">{plannedBatchCount}</p>
+              <p className="text-xs text-gray-500 mt-1">예정</p>
+            </div>
+            <div className="bg-white rounded-xl border p-4 text-center">
+              <p className="text-3xl font-bold text-blue-500">{completedBatchCount}</p>
+              <p className="text-xs text-gray-500 mt-1">완료</p>
+            </div>
+          </div>
+
+          {/* 진행중인 훈련 */}
+          {activeBatchInfo && (
+            <Link href={`/batches/${activeBatchInfo.id}`} className="block bg-green-50 rounded-xl border border-green-200 p-5 hover:shadow-sm transition-shadow">
+              <div className="flex items-center gap-3 mb-1">
+                <span className="px-2 py-0.5 bg-green-600 text-white text-xs rounded-full font-medium">진행중</span>
+                <span className="font-bold text-green-800">{activeBatchInfo.name}</span>
+              </div>
+              <p className="text-xs text-gray-500">
+                {new Date(activeBatchInfo.startDate).toLocaleDateString("ko-KR")} ~ {new Date(activeBatchInfo.endDate).toLocaleDateString("ko-KR")}
+              </p>
+            </Link>
+          )}
+
+          {/* 다음 훈련 D-Day */}
+          <div>
+            <h2 className="text-sm font-semibold text-gray-500 mb-2">다음 훈련</h2>
+            <Link href={nextTraining ? `/batches/${nextTraining.batchId}` : "/batches"} className="block bg-white rounded-xl border p-5 hover:shadow-sm transition-shadow">
+              {nextTraining ? (
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                    <span className="text-blue-700 font-bold text-sm">
+                      {nextTraining.dDay === 0 ? "D-Day" : `D-${nextTraining.dDay}`}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-800">{nextTraining.batchName}</p>
+                    <p className="text-sm text-gray-500">{nextTraining.title}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {new Date(nextTraining.date).toLocaleDateString("ko-KR")}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-2">
+                  <p className="text-gray-400">예정된 훈련이 없습니다.</p>
+                </div>
+              )}
+            </Link>
+          </div>
+
+          {/* 읽지 않은 쪽지 */}
+          {unreadMessages > 0 && (
+            <Link href="/messages" className="block bg-red-50 rounded-xl border border-red-200 p-4 hover:shadow-sm transition-shadow">
+              <div className="flex items-center gap-3">
+                <span className="text-xl">✉️</span>
+                <div>
+                  <p className="font-medium text-red-700">읽지 않은 쪽지 {unreadMessages}건</p>
+                </div>
+              </div>
+            </Link>
+          )}
+        </>
       )}
 
       {/* 운영자: 오늘의 할 일 패널 */}
@@ -212,36 +320,6 @@ export default async function DashboardPage() {
               </div>
             </Link>
           </div>
-        </div>
-      )}
-
-      {/* 대상자: 다음 훈련 D-Day 카드 */}
-      {role === ROLES.RESERVIST && (
-        <div>
-          <h2 className="text-lg font-semibold mb-3">다음 훈련</h2>
-          <Link href={nextTraining ? `/batches/${nextTraining.batchId}` : "/batches"} className="block bg-white rounded-xl shadow-sm border p-6 hover:shadow-md transition-shadow">
-            <div className="flex items-center gap-4">
-              <span className="text-3xl">📅</span>
-              <div>
-                {nextTraining ? (
-                  <>
-                    <p className="text-2xl font-bold text-blue-700">
-                      D{nextTraining.dDay === 0 ? "-Day" : `-${nextTraining.dDay}`}
-                    </p>
-                    <p className="text-sm text-gray-700 font-medium">{nextTraining.batchName}</p>
-                    <p className="text-xs text-gray-400">
-                      {new Date(nextTraining.date).toLocaleDateString("ko-KR")}
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-lg font-medium text-gray-500">예정된 훈련 없음</p>
-                    <p className="text-xs text-gray-400">다음 훈련 일정이 등록되면 여기에 표시됩니다.</p>
-                  </>
-                )}
-              </div>
-            </div>
-          </Link>
         </div>
       )}
 
