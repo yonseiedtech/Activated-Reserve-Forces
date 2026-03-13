@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import PageTitle from "@/components/ui/PageTitle";
 import ScrollTimePicker from "@/components/ui/ScrollTimePicker";
-import { BATCH_STATUS_LABELS } from "@/lib/constants";
+import { BATCH_STATUS_LABELS, MEAL_TYPE_LABELS } from "@/lib/constants";
 
 interface TrainingCategory {
   id: string;
@@ -194,7 +194,7 @@ export default function AdminBatchDetailPage() {
   const batchId = params.id as string;
 
   const [batch, setBatch] = useState<Batch | null>(null);
-  const [tab, setTab] = useState<"training" | "trainees" | "attendance" | "trainingAttendance" | "commuting" | "survey" | "settlement">("training");
+  const [tab, setTab] = useState<"training" | "trainees" | "attendance" | "trainingAttendance" | "meals" | "commuting" | "survey" | "settlement">("training");
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [attendanceFilter, setAttendanceFilter] = useState<"ALL" | "PRESENT" | "ABSENT" | "PENDING">("ALL");
   const [instructors, setInstructors] = useState<Instructor[]>([]);
@@ -282,6 +282,47 @@ export default function AdminBatchDetailPage() {
   const [settlementLoading, setSettlementLoading] = useState(false);
   const [settlementSaving, setSettlementSaving] = useState(false);
 
+  // Meals tab state
+  interface MealData {
+    id: string;
+    batchId: string;
+    date: string;
+    type: string;
+    menuInfo: string | null;
+    headcount: number;
+  }
+  interface DayMealInput {
+    date: string;
+    label: string;
+    BREAKFAST: string;
+    LUNCH: string;
+    DINNER: string;
+  }
+  interface AttendanceInfo {
+    presentCount: number;
+    pendingCount: number;
+    totalBatchUsers: number;
+  }
+  interface DinnerReq {
+    id: string;
+    date: string;
+    status: string;
+    note: string | null;
+    createdAt: string;
+    user: { name: string; rank: string | null; serviceNumber: string | null };
+  }
+  const [mealsList, setMealsList] = useState<MealData[]>([]);
+  const [mealDayInputs, setMealDayInputs] = useState<DayMealInput[]>([]);
+  const [showMealForm, setShowMealForm] = useState(false);
+  const [mealSubmitting, setMealSubmitting] = useState(false);
+  const [editingMealData, setEditingMealData] = useState<MealData | null>(null);
+  const [mealEditForm, setMealEditForm] = useState({ menuInfo: "", headcount: 0 });
+  const [inlineMealKey, setInlineMealKey] = useState<string | null>(null);
+  const [inlineMealValue, setInlineMealValue] = useState("");
+  const [mealAttendanceByDate, setMealAttendanceByDate] = useState<Record<string, AttendanceInfo>>({});
+  const [mealDinnerTab, setMealDinnerTab] = useState<"meals" | "dinner">("meals");
+  const [dinnerRequests, setDinnerRequests] = useState<DinnerReq[]>([]);
+
   // Survey tab state
   interface SurveyItem {
     id: string;
@@ -367,6 +408,51 @@ export default function AdminBatchDetailPage() {
     if (!isAuthorized || tab !== "survey") return;
     fetchSurveys();
   }, [tab, fetchSurveys, isAuthorized]);
+
+  // Meals tab data fetch
+  const fetchMealsList = useCallback(() => {
+    if (batchId) {
+      fetch(`/api/meals?batchId=${batchId}`).then((r) => r.json()).then(setMealsList);
+    }
+  }, [batchId]);
+
+  const fetchDinnerReqs = useCallback(() => {
+    if (!batchId) return;
+    fetch(`/api/meals/dinner-request?batchId=${batchId}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data && Array.isArray(data.requests)) setDinnerRequests(data.requests);
+        else if (Array.isArray(data)) setDinnerRequests(data);
+      })
+      .catch(() => {});
+  }, [batchId]);
+
+  useEffect(() => {
+    if (!isAuthorized || tab !== "meals") return;
+    fetchMealsList();
+  }, [tab, fetchMealsList, isAuthorized]);
+
+  useEffect(() => {
+    if (tab !== "meals" || mealsList.length === 0 || !batchId) return;
+    const dates = [...new Set(mealsList.map((m) => new Date(m.date).toISOString().split("T")[0]))];
+    const fetchAll = async () => {
+      const results: Record<string, AttendanceInfo> = {};
+      await Promise.all(
+        dates.map(async (date) => {
+          try {
+            const res = await fetch(`/api/meals/attendance-count?batchId=${batchId}&date=${date}`);
+            if (res.ok) results[date] = await res.json();
+          } catch { /* ignore */ }
+        })
+      );
+      setMealAttendanceByDate(results);
+    };
+    fetchAll();
+  }, [tab, batchId, mealsList]);
+
+  useEffect(() => {
+    if (tab === "meals" && mealDinnerTab === "dinner") fetchDinnerReqs();
+  }, [tab, mealDinnerTab, fetchDinnerReqs]);
 
   // Training/Commuting: batch 로드 시 날짜 초기화
   useEffect(() => {
@@ -805,48 +891,24 @@ export default function AdminBatchDetailPage() {
 
       {/* Tab navigation */}
       <div className="flex gap-1 mb-4 bg-gray-50/80 p-1 rounded-lg overflow-x-auto scrollbar-hide">
-        <button
-          onClick={() => setTab("training")}
-          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === "training" ? "bg-white shadow-sm text-blue-600" : "text-gray-500 hover:text-gray-800 hover:bg-white/50"}`}
-        >
-          훈련계획
-        </button>
-        <button
-          onClick={() => setTab("trainees")}
-          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === "trainees" ? "bg-white shadow-sm text-blue-600" : "text-gray-500 hover:text-gray-800 hover:bg-white/50"}`}
-        >
-          대상자 ({batch._count.users})
-        </button>
-        <button
-          onClick={() => setTab("attendance")}
-          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === "attendance" ? "bg-white shadow-sm text-blue-600" : "text-gray-500 hover:text-gray-800 hover:bg-white/50"}`}
-        >
-          참석신고
-        </button>
-        <button
-          onClick={() => setTab("trainingAttendance")}
-          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === "trainingAttendance" ? "bg-white shadow-sm text-blue-600" : "text-gray-500 hover:text-gray-800 hover:bg-white/50"}`}
-        >
-          훈련별 출석
-        </button>
-        <button
-          onClick={() => setTab("commuting")}
-          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === "commuting" ? "bg-white shadow-sm text-blue-600" : "text-gray-500 hover:text-gray-800 hover:bg-white/50"}`}
-        >
-          출퇴근
-        </button>
-        <button
-          onClick={() => setTab("survey")}
-          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === "survey" ? "bg-white shadow-sm text-blue-600" : "text-gray-500 hover:text-gray-800 hover:bg-white/50"}`}
-        >
-          설문조사
-        </button>
-        <button
-          onClick={() => setTab("settlement")}
-          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === "settlement" ? "bg-white shadow-sm text-blue-600" : "text-gray-500 hover:text-gray-800 hover:bg-white/50"}`}
-        >
-          훈련비 결산
-        </button>
+        {([
+          { key: "training" as const, icon: "\uD83C\uDFCB", label: "훈련" },
+          { key: "trainees" as const, icon: "\uD83D\uDC65", label: "대상자" },
+          { key: "attendance" as const, icon: "\uD83D\uDCCB", label: "참석" },
+          { key: "trainingAttendance" as const, icon: "\u2705", label: "출석" },
+          { key: "meals" as const, icon: "\uD83C\uDF5A", label: "식사" },
+          { key: "commuting" as const, icon: "\uD83D\uDD50", label: "출퇴근" },
+          { key: "survey" as const, icon: "\uD83D\uDCDD", label: "설문" },
+          { key: "settlement" as const, icon: "\uD83D\uDCB0", label: "결산" },
+        ]).map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`px-3 py-2 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${tab === t.key ? "bg-white shadow-sm text-blue-600" : "text-gray-500 hover:text-gray-800 hover:bg-white/50"}`}
+          >
+            {t.icon} {t.label}
+          </button>
+        ))}
       </div>
 
       {/* Training Plan Tab */}
@@ -2133,6 +2195,345 @@ export default function AdminBatchDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Meals Tab */}
+      {tab === "meals" && batch && (() => {
+        const DAYS = ["\uC77C", "\uC6D4", "\uD654", "\uC218", "\uBAA9", "\uAE08", "\uD1A0"];
+        const mealDateRange = getDateRange(batch.startDate, batch.endDate);
+        const allMealDates = mealDateRange.map((isoDate) => {
+          const d = new Date(isoDate + "T00:00:00");
+          return { date: isoDate, label: `${d.getMonth() + 1}\uC6D4 ${d.getDate()}\uC77C (${DAYS[d.getDay()]})` };
+        });
+
+        const handleOpenMealForm = () => {
+          const inputs: DayMealInput[] = allMealDates.map(({ date, label }) => {
+            const existing = mealsList.filter((m) => new Date(m.date).toISOString().split("T")[0] === date);
+            return {
+              date, label,
+              BREAKFAST: existing.find((m) => m.type === "BREAKFAST")?.menuInfo || "",
+              LUNCH: existing.find((m) => m.type === "LUNCH")?.menuInfo || "",
+              DINNER: existing.find((m) => m.type === "DINNER")?.menuInfo || "",
+            };
+          });
+          setMealDayInputs(inputs);
+          setShowMealForm(true);
+        };
+
+        const handleMealInputChange = (index: number, type: "BREAKFAST" | "LUNCH" | "DINNER", value: string) => {
+          setMealDayInputs((prev) => {
+            const next = [...prev];
+            next[index] = { ...next[index], [type]: value };
+            return next;
+          });
+        };
+
+        const handleMealBulkSubmit = async () => {
+          setMealSubmitting(true);
+          try {
+            const promises: Promise<Response>[] = [];
+            for (const day of mealDayInputs) {
+              for (const type of ["BREAKFAST", "LUNCH", "DINNER"] as const) {
+                const menuInfo = day[type].trim();
+                if (menuInfo) {
+                  promises.push(
+                    fetch("/api/meals", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ batchId, date: day.date, type, menuInfo, headcount: 0 }),
+                    })
+                  );
+                }
+              }
+            }
+            await Promise.all(promises);
+            setShowMealForm(false);
+            fetchMealsList();
+          } catch {
+            alert("\uC800\uC7A5 \uC911 \uC624\uB958\uAC00 \uBC1C\uC0DD\uD588\uC2B5\uB2C8\uB2E4.");
+          } finally {
+            setMealSubmitting(false);
+          }
+        };
+
+        const handleMealEditOpen = (meal: MealData) => {
+          setEditingMealData(meal);
+          setMealEditForm({ menuInfo: meal.menuInfo || "", headcount: meal.headcount });
+        };
+
+        const handleMealEditSave = async () => {
+          if (!editingMealData) return;
+          const res = await fetch(`/api/meals/${editingMealData.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(mealEditForm),
+          });
+          if (res.ok) { setEditingMealData(null); fetchMealsList(); }
+        };
+
+        const handleMealDelete = async (mealId: string) => {
+          if (!confirm("\uC2DD\uC0AC \uC815\uBCF4\uB97C \uC0AD\uC81C\uD558\uC2DC\uACA0\uC2B5\uB2C8\uAE4C?")) return;
+          const res = await fetch(`/api/meals/${mealId}`, { method: "DELETE" });
+          if (res.ok) fetchMealsList();
+        };
+
+        const handleMealApplyAttendance = (dateKey: string) => {
+          const info = mealAttendanceByDate[dateKey];
+          if (!info) return;
+          setMealEditForm((prev) => ({ ...prev, headcount: info.presentCount }));
+        };
+
+        const handleDinnerAction = async (requestId: string, action: "approve" | "reject" | "cancel") => {
+          const res = await fetch("/api/meals/dinner-request", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ requestId, action }),
+          });
+          if (res.ok) fetchDinnerReqs();
+          else { const err = await res.json(); alert(err.error || "\uCC98\uB9AC \uC2E4\uD328"); }
+        };
+
+        return (
+          <div className="space-y-4">
+            {/* 식사 등록 버튼 */}
+            <div className="flex justify-end">
+              <button onClick={handleOpenMealForm} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
+                + \uC2DD\uC0AC \uB4F1\uB85D
+              </button>
+            </div>
+
+            {/* 탭: 식사 / 석식 신청 */}
+            <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+              <button
+                onClick={() => setMealDinnerTab("meals")}
+                className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${mealDinnerTab === "meals" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+              >
+                \uC2DD\uC0AC \uD604\uD669
+              </button>
+              <button
+                onClick={() => setMealDinnerTab("dinner")}
+                className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${mealDinnerTab === "dinner" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+              >
+                \uC11D\uC2DD \uC2E0\uCCAD
+              </button>
+            </div>
+
+            {/* 석식 신청 탭 */}
+            {mealDinnerTab === "dinner" && (
+              <div className="space-y-3">
+                {dinnerRequests.length > 0 ? dinnerRequests.map((dr) => {
+                  const stMap: Record<string, { label: string; color: string }> = {
+                    PENDING: { label: "\uB300\uAE30", color: "bg-yellow-100 text-yellow-700" },
+                    APPROVED: { label: "\uC2B9\uC778", color: "bg-green-100 text-green-700" },
+                    REJECTED: { label: "\uBC18\uB824", color: "bg-red-100 text-red-700" },
+                    CANCELLED: { label: "\uCDE8\uC18C", color: "bg-gray-100 text-gray-500" },
+                  };
+                  const st = stMap[dr.status] || { label: dr.status, color: "bg-gray-100 text-gray-600" };
+                  return (
+                    <div key={dr.id} className="bg-white rounded-xl border p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium">
+                            {dr.user.rank} {dr.user.name}
+                            <span className="text-gray-400 text-xs ml-2">{dr.user.serviceNumber}</span>
+                          </p>
+                          <p className="text-sm text-gray-600">{new Date(dr.date).toLocaleDateString("ko-KR")} \uC11D\uC2DD</p>
+                          <p className="text-xs text-gray-400 mt-0.5">\uC2E0\uCCAD\uC77C: {new Date(dr.createdAt).toLocaleDateString("ko-KR")}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${st.color}`}>{st.label}</span>
+                          {dr.status === "PENDING" && (
+                            <div className="flex gap-1">
+                              <button onClick={() => handleDinnerAction(dr.id, "approve")} className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700">\uC2B9\uC778</button>
+                              <button onClick={() => handleDinnerAction(dr.id, "reject")} className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700">\uBC18\uB824</button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }) : (
+                  <p className="text-center py-8 text-gray-400">\uC11D\uC2DD \uC2E0\uCCAD \uB0B4\uC5ED\uC774 \uC5C6\uC2B5\uB2C8\uB2E4.</p>
+                )}
+              </div>
+            )}
+
+            {/* 날짜별 식사 목록 */}
+            {mealDinnerTab === "meals" && (
+              <div className="space-y-4">
+                {allMealDates.length > 0 ? allMealDates.map(({ date: isoDate, label: dayLabel }) => {
+                  const dayMeals = mealsList.filter((m) => new Date(m.date).toISOString().split("T")[0] === isoDate);
+                  const attInfo = mealAttendanceByDate[isoDate];
+                  const isWeekend = new Date(isoDate + "T00:00:00").getDay() === 0 || new Date(isoDate + "T00:00:00").getDay() === 6;
+                  return (
+                    <div key={isoDate} className="bg-white rounded-xl border p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className={`font-semibold ${isWeekend ? "text-red-500" : ""}`}>{dayLabel}</h3>
+                        {attInfo && (
+                          <span className="text-xs text-gray-500">
+                            \uCC38\uC11D \uD655\uC815: <span className="font-medium text-green-600">{attInfo.presentCount}\uBA85</span>
+                            {attInfo.pendingCount > 0 && (
+                              <> | \uBBF8\uC815: <span className="font-medium text-yellow-600">{attInfo.pendingCount}\uBA85</span></>
+                            )}
+                          </span>
+                        )}
+                      </div>
+                      <div className="grid sm:grid-cols-3 gap-3">
+                        {["BREAKFAST", "LUNCH", "DINNER"].map((type) => {
+                          const meal = dayMeals.find((m) => m.type === type);
+                          return (
+                            <div
+                              key={type}
+                              className={`p-3 rounded-lg ${meal ? "bg-green-50 border border-green-200" : "bg-gray-50 border border-gray-200"} ${!meal && inlineMealKey !== `${isoDate}-${type}` ? "cursor-pointer hover:bg-gray-100" : ""}`}
+                              onClick={() => {
+                                if (!meal && inlineMealKey !== `${isoDate}-${type}`) {
+                                  setInlineMealKey(`${isoDate}-${type}`);
+                                  setInlineMealValue("");
+                                }
+                              }}
+                            >
+                              <p className="text-xs font-medium text-gray-500 mb-1">{MEAL_TYPE_LABELS[type]}</p>
+                              {meal ? (
+                                <>
+                                  <p className="text-sm">{meal.menuInfo || "\uBA54\uB274 \uBBF8\uB4F1\uB85D"}</p>
+                                  <p className="text-xs text-gray-400 mt-1">{meal.headcount}\uBA85</p>
+                                  <div className="flex gap-2 mt-2">
+                                    <button onClick={() => handleMealEditOpen(meal)} className="text-xs text-blue-600 hover:underline">\uC218\uC815</button>
+                                    <button onClick={() => handleMealDelete(meal.id)} className="text-xs text-red-600 hover:underline">\uC0AD\uC81C</button>
+                                  </div>
+                                </>
+                              ) : inlineMealKey === `${isoDate}-${type}` ? (
+                                <div className="flex gap-1 mt-1" onClick={(e) => e.stopPropagation()}>
+                                  <input
+                                    autoFocus
+                                    value={inlineMealValue}
+                                    onChange={(e) => setInlineMealValue(e.target.value)}
+                                    onKeyDown={async (e) => {
+                                      if (e.key === "Enter" && inlineMealValue.trim()) {
+                                        await fetch("/api/meals", {
+                                          method: "POST",
+                                          headers: { "Content-Type": "application/json" },
+                                          body: JSON.stringify({ batchId, date: isoDate, type, menuInfo: inlineMealValue.trim(), headcount: 0 }),
+                                        });
+                                        setInlineMealKey(null);
+                                        fetchMealsList();
+                                      } else if (e.key === "Escape") {
+                                        setInlineMealKey(null);
+                                      }
+                                    }}
+                                    placeholder="\uBA54\uB274 \uC785\uB825 \uD6C4 Enter"
+                                    className="flex-1 px-2 py-1 border rounded text-sm min-w-0"
+                                  />
+                                  <button
+                                    onClick={async () => {
+                                      if (!inlineMealValue.trim()) return;
+                                      await fetch("/api/meals", {
+                                        method: "POST",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({ batchId, date: isoDate, type, menuInfo: inlineMealValue.trim(), headcount: 0 }),
+                                      });
+                                      setInlineMealKey(null);
+                                      fetchMealsList();
+                                    }}
+                                    className="px-2 py-1 bg-blue-600 text-white rounded text-xs shrink-0"
+                                  >
+                                    \uB4F1\uB85D
+                                  </button>
+                                </div>
+                              ) : (
+                                <p className="text-sm text-gray-400">\uD130\uCE58\uD558\uC5EC \uB4F1\uB85D</p>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                }) : (
+                  <p className="text-center py-8 text-gray-400">\uCC28\uC218 \uB0A0\uC9DC \uC815\uBCF4\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.</p>
+                )}
+              </div>
+            )}
+
+            {/* 등록 모달 */}
+            {showMealForm && (
+              <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+                  <div className="px-6 py-4 border-b flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold">\uC2DD\uC0AC \uBA54\uB274 \uB4F1\uB85D</h3>
+                      <p className="text-xs text-gray-500 mt-0.5">{batch.name} ({mealDayInputs.length}\uC77C)</p>
+                    </div>
+                    <button onClick={() => setShowMealForm(false)} className="text-gray-400 hover:text-gray-600">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                  </div>
+                  <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+                    {mealDayInputs.map((day, index) => {
+                      const isWknd = new Date(day.date + "T00:00:00").getDay() === 0 || new Date(day.date + "T00:00:00").getDay() === 6;
+                      return (
+                        <div key={day.date} className={`border rounded-lg p-4 ${isWknd ? "border-red-200 bg-red-50/30" : ""}`}>
+                          <p className={`text-sm font-semibold mb-3 ${isWknd ? "text-red-500" : "text-gray-700"}`}>{day.label}</p>
+                          <div className="grid grid-cols-3 gap-3">
+                            {(["BREAKFAST", "LUNCH", "DINNER"] as const).map((type) => (
+                              <div key={type}>
+                                <label className="block text-xs text-gray-500 mb-1">{MEAL_TYPE_LABELS[type]}</label>
+                                <input
+                                  type="text"
+                                  value={day[type]}
+                                  onChange={(e) => handleMealInputChange(index, type, e.target.value)}
+                                  className="w-full px-2 py-1.5 border rounded text-sm"
+                                  placeholder="\uBA54\uB274 \uC785\uB825"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="px-6 py-4 border-t flex gap-3">
+                    <button onClick={handleMealBulkSubmit} disabled={mealSubmitting} className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50">
+                      {mealSubmitting ? "\uC800\uC7A5 \uC911..." : "\uC77C\uAD04 \uC800\uC7A5"}
+                    </button>
+                    <button onClick={() => setShowMealForm(false)} className="flex-1 py-2.5 border rounded-lg text-gray-700 hover:bg-gray-50">\uCDE8\uC18C</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 수정 모달 */}
+            {editingMealData && (
+              <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                <div className="bg-white rounded-xl w-full max-w-md p-6 space-y-4">
+                  <h3 className="text-lg font-semibold">\uC2DD\uC0AC \uC218\uC815</h3>
+                  <p className="text-sm text-gray-500">{MEAL_TYPE_LABELS[editingMealData.type]} - {new Date(editingMealData.date).toLocaleDateString("ko-KR")}</p>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">\uBA54\uB274</label>
+                    <textarea value={mealEditForm.menuInfo} onChange={(e) => setMealEditForm({ ...mealEditForm, menuInfo: e.target.value })} rows={3} className="w-full px-3 py-2 border rounded-lg resize-none" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">\uC778\uC6D0</label>
+                    <div className="flex gap-2">
+                      <input type="number" value={mealEditForm.headcount} onChange={(e) => setMealEditForm({ ...mealEditForm, headcount: parseInt(e.target.value) || 0 })} className="flex-1 px-3 py-2 border rounded-lg" />
+                      <button
+                        type="button"
+                        onClick={() => handleMealApplyAttendance(new Date(editingMealData.date).toISOString().split("T")[0])}
+                        className="px-3 py-2 text-xs bg-green-100 text-green-700 rounded-lg hover:bg-green-200 whitespace-nowrap"
+                      >
+                        \uCC38\uC11D\uC778\uC6D0 \uC801\uC6A9
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex gap-3 pt-2">
+                    <button onClick={handleMealEditSave} className="flex-1 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700">\uC800\uC7A5</button>
+                    <button onClick={() => setEditingMealData(null)} className="flex-1 py-2 border rounded-lg text-gray-700 hover:bg-gray-50">\uCDE8\uC18C</button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Settings Modal */}
       {showSettingsModal && (

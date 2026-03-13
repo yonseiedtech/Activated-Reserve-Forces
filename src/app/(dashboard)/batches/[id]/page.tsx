@@ -564,13 +564,13 @@ export default function ReservistBatchDetailPage() {
   const reasonType = getReasonButtonType();
 
   const tabs: { key: TabType; label: string; disabled?: boolean }[] = [
-    { key: "attendance", label: "참석신고" },
-    { key: "training", label: "훈련계획" },
-    { key: "health", label: "건강문진표", disabled: !checkedInToday },
-    { key: "meals", label: "식사현황" },
-    { key: "commuting", label: "출퇴근" },
-    { key: "payment", label: "훈련비" },
-    { key: "survey", label: "설문조사" },
+    { key: "attendance", label: "\uD83D\uDCCB \uCC38\uC11D" },
+    { key: "training", label: "\uD83C\uDFCB \uD6C8\uB828" },
+    { key: "health", label: "\uD83C\uDFE5 \uAC74\uAC15", disabled: !checkedInToday },
+    { key: "meals", label: "\uD83C\uDF5A \uC2DD\uC0AC" },
+    { key: "commuting", label: "\uD83D\uDD50 \uCD9C\uD1F4\uADFC" },
+    { key: "payment", label: "\uD83D\uDCB0 \uD6C8\uB828\uBE44" },
+    { key: "survey", label: "\uD83D\uDCDD \uC124\uBB38" },
   ];
 
   // 탭 변경 시 비활성 탭 클릭 방지
