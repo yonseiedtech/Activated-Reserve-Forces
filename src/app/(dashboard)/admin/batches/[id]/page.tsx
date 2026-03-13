@@ -193,7 +193,8 @@ export default function AdminBatchDetailPage() {
   const batchId = params.id as string;
 
   const [batch, setBatch] = useState<Batch | null>(null);
-  const [tab, setTab] = useState<"training" | "trainees" | "attendance" | "trainingAttendance" | "commuting" | "survey" | "settings">("training");
+  const [tab, setTab] = useState<"training" | "trainees" | "attendance" | "trainingAttendance" | "commuting" | "survey" | "settlement">("training");
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [attendanceFilter, setAttendanceFilter] = useState<"ALL" | "PRESENT" | "ABSENT" | "PENDING">("ALL");
   const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [trainingCategories, setTrainingCategories] = useState<TrainingCategory[]>([]);
@@ -254,9 +255,24 @@ export default function AdminBatchDetailPage() {
   const [tokenExpiryType, setTokenExpiryType] = useState<"batch" | "custom" | "none">("batch");
   const [tokenExpiryDate, setTokenExpiryDate] = useState("");
 
-  // Settings tab state
+  // Settings modal state
   const [settingsForm, setSettingsForm] = useState({ name: "", year: 0, number: 0, startDate: "", endDate: "", location: "", requiredHours: "" });
   const [settingsSaving, setSettingsSaving] = useState(false);
+
+  // Settlement tab state
+  interface SettlementRow {
+    batchUserId: string;
+    userId: string;
+    name: string;
+    rank: string | null;
+    serviceNumber: string | null;
+    completedHours: number | null;
+  }
+  const [settlementRows, setSettlementRows] = useState<SettlementRow[]>([]);
+  const [settlementRequiredHours, setSettlementRequiredHours] = useState<number | null>(null);
+  const [settlementStartDate, setSettlementStartDate] = useState<string>("");
+  const [settlementLoading, setSettlementLoading] = useState(false);
+  const [settlementSaving, setSettlementSaving] = useState(false);
 
   // Survey tab state
   interface SurveyItem {
@@ -471,9 +487,9 @@ export default function AdminBatchDetailPage() {
     alert("저장 완료되었습니다.");
   };
 
-  // Initialize settings form when batch loads or tab switches to settings
+  // Initialize settings form when batch loads or modal opens
   useEffect(() => {
-    if (batch && tab === "settings") {
+    if (batch && showSettingsModal) {
       setSettingsForm({
         name: batch.name,
         year: batch.year,
@@ -484,7 +500,38 @@ export default function AdminBatchDetailPage() {
         requiredHours: batch.requiredHours != null ? String(batch.requiredHours) : "",
       });
     }
-  }, [batch, tab]);
+  }, [batch, showSettingsModal]);
+
+  // Settlement tab data fetch
+  useEffect(() => {
+    if (tab !== "settlement" || !batchId) return;
+    setSettlementLoading(true);
+    fetch(`/api/batches/${batchId}/settlement`)
+      .then((r) => r.json())
+      .then((data) => {
+        setSettlementRows(data.rows || []);
+        setSettlementRequiredHours(data.requiredHours);
+        setSettlementStartDate(data.startDate || "");
+      })
+      .finally(() => setSettlementLoading(false));
+  }, [tab, batchId]);
+
+  const handleSettlementSave = async () => {
+    setSettlementSaving(true);
+    const res = await fetch(`/api/batches/${batchId}/settlement`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        rows: settlementRows.map((r) => ({
+          batchUserId: r.batchUserId,
+          completedHours: r.completedHours,
+        })),
+      }),
+    });
+    setSettlementSaving(false);
+    if (res.ok) alert("저장되었습니다.");
+    else alert("저장에 실패했습니다.");
+  };
 
   const handleSaveSettings = async () => {
     setSettingsSaving(true);
@@ -699,9 +746,20 @@ export default function AdminBatchDetailPage() {
           return `${batch._count.users}명 | ${fmt(s)} ~ ${fmt(e)}`;
         })()}
         actions={
-          <span className={`px-3 py-1.5 rounded-full text-sm font-medium ${STATUS_COLORS[batch.status] || "bg-gray-100"}`}>
-            {BATCH_STATUS_LABELS[batch.status] || batch.status}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className={`px-3 py-1.5 rounded-full text-sm font-medium ${STATUS_COLORS[batch.status] || "bg-gray-100"}`}>
+              {BATCH_STATUS_LABELS[batch.status] || batch.status}
+            </span>
+            <button
+              onClick={() => setShowSettingsModal(true)}
+              className="p-2 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+              title="차수 설정"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </div>
         }
       />
 
@@ -744,10 +802,10 @@ export default function AdminBatchDetailPage() {
           설문조사
         </button>
         <button
-          onClick={() => setTab("settings")}
-          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === "settings" ? "bg-white shadow-sm text-blue-600" : "text-gray-500 hover:text-gray-800 hover:bg-white/50"}`}
+          onClick={() => setTab("settlement")}
+          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === "settlement" ? "bg-white shadow-sm text-blue-600" : "text-gray-500 hover:text-gray-800 hover:bg-white/50"}`}
         >
-          차수 설정
+          훈련비 결산
         </button>
       </div>
 
@@ -1008,7 +1066,7 @@ export default function AdminBatchDetailPage() {
                   <span className="text-yellow-600">미정 {batch.users.filter((u) => !u.batchStatus || u.batchStatus === "PENDING").length}</span>
                 </div>
               </div>
-              <div className="flex gap-1.5">
+              <div className="flex gap-1.5 items-center">
                 {([["ALL", "전체"], ["PRESENT", "참석"], ["ABSENT", "불참"], ["PENDING", "미정"]] as const).map(([key, label]) => (
                   <button
                     key={key}
@@ -1025,6 +1083,25 @@ export default function AdminBatchDetailPage() {
                     {label}
                   </button>
                 ))}
+                {batch.users.filter((u) => !u.batchStatus || u.batchStatus === "PENDING").length > 0 && (
+                  <button
+                    onClick={async () => {
+                      const pendingUsers = batch.users.filter((u) => !u.batchStatus || u.batchStatus === "PENDING");
+                      if (!confirm(`미정 상태인 ${pendingUsers.length}명을 일괄 불참 처리하시겠습니까?`)) return;
+                      const batchUserIds = pendingUsers.map((u) => u.batchUserId).filter(Boolean);
+                      const res = await fetch(`/api/batches/${batchId}/bulk-status`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ batchUserIds, status: "ABSENT" }),
+                      });
+                      if (res.ok) fetchBatch();
+                      else alert("처리에 실패했습니다.");
+                    }}
+                    className="ml-2 px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
+                  >
+                    일괄 불참 처리
+                  </button>
+                )}
               </div>
             </div>
             <div className="divide-y">
@@ -1045,7 +1122,6 @@ export default function AdminBatchDetailPage() {
                         <span className="text-sm shrink-0">
                           <span className="text-gray-500">{u.rank}</span> {u.name}
                         </span>
-                        <span className="text-xs text-gray-400 shrink-0">{u.serviceNumber}</span>
                         {(u.warBattalion || u.warCompany || u.warPlatoon || u.position) && (
                           <span className="text-xs text-gray-400 truncate" title={[u.warBattalion, u.warCompany, u.warPlatoon, u.position].filter(Boolean).join(" / ")}>
                             {[u.warBattalion, u.warCompany, u.warPlatoon, u.position].filter(Boolean).join(" ")}
@@ -1430,13 +1506,34 @@ export default function AdminBatchDetailPage() {
                           </td>
                           <td className="px-4 py-2">
                             <div className="flex gap-1 items-center">
-                              <input
-                                type="time"
-                                value={row.checkIn}
-                                onChange={(e) => updateCommutingRow(idx, "checkIn", e.target.value)}
+                              <select
+                                value={row.checkIn ? row.checkIn.split(":")[0] : ""}
+                                onChange={(e) => {
+                                  const min = row.checkIn ? row.checkIn.split(":")[1] || "00" : "00";
+                                  updateCommutingRow(idx, "checkIn", e.target.value ? `${e.target.value}:${min}` : "");
+                                }}
                                 disabled={isAbsent}
-                                className="flex-1 px-2 py-1 border rounded text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
-                              />
+                                className="w-16 px-1 py-1 border rounded text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
+                              >
+                                <option value="">시</option>
+                                {Array.from({ length: 17 }, (_, i) => i + 6).map((h) => (
+                                  <option key={h} value={String(h).padStart(2, "0")}>{String(h).padStart(2, "0")}시</option>
+                                ))}
+                              </select>
+                              <select
+                                value={row.checkIn ? row.checkIn.split(":")[1] || "00" : ""}
+                                onChange={(e) => {
+                                  const hour = row.checkIn ? row.checkIn.split(":")[0] : "";
+                                  if (hour) updateCommutingRow(idx, "checkIn", `${hour}:${e.target.value}`);
+                                }}
+                                disabled={isAbsent || !row.checkIn}
+                                className="w-16 px-1 py-1 border rounded text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
+                              >
+                                <option value="">분</option>
+                                {["00", "10", "20", "30", "40", "50"].map((m) => (
+                                  <option key={m} value={m}>{m}분</option>
+                                ))}
+                              </select>
                               <button
                                 onClick={() => handleCheckIn(idx)}
                                 disabled={isAbsent}
@@ -1457,13 +1554,34 @@ export default function AdminBatchDetailPage() {
                           </td>
                           <td className="px-4 py-2">
                             <div className="flex gap-1 items-center">
-                              <input
-                                type="time"
-                                value={row.checkOut}
-                                onChange={(e) => updateCommutingRow(idx, "checkOut", e.target.value)}
+                              <select
+                                value={row.checkOut ? row.checkOut.split(":")[0] : ""}
+                                onChange={(e) => {
+                                  const min = row.checkOut ? row.checkOut.split(":")[1] || "00" : "00";
+                                  updateCommutingRow(idx, "checkOut", e.target.value ? `${e.target.value}:${min}` : "");
+                                }}
                                 disabled={isAbsent}
-                                className="flex-1 px-2 py-1 border rounded text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
-                              />
+                                className="w-16 px-1 py-1 border rounded text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
+                              >
+                                <option value="">시</option>
+                                {Array.from({ length: 17 }, (_, i) => i + 6).map((h) => (
+                                  <option key={h} value={String(h).padStart(2, "0")}>{String(h).padStart(2, "0")}시</option>
+                                ))}
+                              </select>
+                              <select
+                                value={row.checkOut ? row.checkOut.split(":")[1] || "00" : ""}
+                                onChange={(e) => {
+                                  const hour = row.checkOut ? row.checkOut.split(":")[0] : "";
+                                  if (hour) updateCommutingRow(idx, "checkOut", `${hour}:${e.target.value}`);
+                                }}
+                                disabled={isAbsent || !row.checkOut}
+                                className="w-16 px-1 py-1 border rounded text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
+                              >
+                                <option value="">분</option>
+                                {["00", "10", "20", "30", "40", "50"].map((m) => (
+                                  <option key={m} value={m}>{m}분</option>
+                                ))}
+                              </select>
                               <button
                                 onClick={() => handleCheckOut(idx)}
                                 disabled={isAbsent}
@@ -1530,13 +1648,34 @@ export default function AdminBatchDetailPage() {
                         <div>
                           <label className="text-xs text-gray-500 mb-1 block">출근시간</label>
                           <div className="flex gap-1">
-                            <input
-                              type="time"
-                              value={row.checkIn}
-                              onChange={(e) => updateCommutingRow(idx, "checkIn", e.target.value)}
+                            <select
+                              value={row.checkIn ? row.checkIn.split(":")[0] : ""}
+                              onChange={(e) => {
+                                const min = row.checkIn ? row.checkIn.split(":")[1] || "00" : "00";
+                                updateCommutingRow(idx, "checkIn", e.target.value ? `${e.target.value}:${min}` : "");
+                              }}
                               disabled={isAbsent}
-                              className="flex-1 px-2 py-1.5 border rounded text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
-                            />
+                              className="w-16 px-1 py-1.5 border rounded text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
+                            >
+                              <option value="">시</option>
+                              {Array.from({ length: 17 }, (_, i) => i + 6).map((h) => (
+                                <option key={h} value={String(h).padStart(2, "0")}>{String(h).padStart(2, "0")}시</option>
+                              ))}
+                            </select>
+                            <select
+                              value={row.checkIn ? row.checkIn.split(":")[1] || "00" : ""}
+                              onChange={(e) => {
+                                const hour = row.checkIn ? row.checkIn.split(":")[0] : "";
+                                if (hour) updateCommutingRow(idx, "checkIn", `${hour}:${e.target.value}`);
+                              }}
+                              disabled={isAbsent || !row.checkIn}
+                              className="w-16 px-1 py-1.5 border rounded text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
+                            >
+                              <option value="">분</option>
+                              {["00", "10", "20", "30", "40", "50"].map((m) => (
+                                <option key={m} value={m}>{m}분</option>
+                              ))}
+                            </select>
                             <button
                               onClick={() => handleCheckIn(idx)}
                               disabled={isAbsent}
@@ -1557,13 +1696,34 @@ export default function AdminBatchDetailPage() {
                         <div>
                           <label className="text-xs text-gray-500 mb-1 block">퇴근시간</label>
                           <div className="flex gap-1">
-                            <input
-                              type="time"
-                              value={row.checkOut}
-                              onChange={(e) => updateCommutingRow(idx, "checkOut", e.target.value)}
+                            <select
+                              value={row.checkOut ? row.checkOut.split(":")[0] : ""}
+                              onChange={(e) => {
+                                const min = row.checkOut ? row.checkOut.split(":")[1] || "00" : "00";
+                                updateCommutingRow(idx, "checkOut", e.target.value ? `${e.target.value}:${min}` : "");
+                              }}
                               disabled={isAbsent}
-                              className="flex-1 px-2 py-1.5 border rounded text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
-                            />
+                              className="w-16 px-1 py-1.5 border rounded text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
+                            >
+                              <option value="">시</option>
+                              {Array.from({ length: 17 }, (_, i) => i + 6).map((h) => (
+                                <option key={h} value={String(h).padStart(2, "0")}>{String(h).padStart(2, "0")}시</option>
+                              ))}
+                            </select>
+                            <select
+                              value={row.checkOut ? row.checkOut.split(":")[1] || "00" : ""}
+                              onChange={(e) => {
+                                const hour = row.checkOut ? row.checkOut.split(":")[0] : "";
+                                if (hour) updateCommutingRow(idx, "checkOut", `${hour}:${e.target.value}`);
+                              }}
+                              disabled={isAbsent || !row.checkOut}
+                              className="w-16 px-1 py-1.5 border rounded text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
+                            >
+                              <option value="">분</option>
+                              {["00", "10", "20", "30", "40", "50"].map((m) => (
+                                <option key={m} value={m}>{m}분</option>
+                              ))}
+                            </select>
                             <button
                               onClick={() => handleCheckOut(idx)}
                               disabled={isAbsent}
@@ -1878,85 +2038,222 @@ export default function AdminBatchDetailPage() {
         </div>
       )}
 
-      {/* Settings Tab */}
-      {tab === "settings" && (
-        <div className="bg-white rounded-xl border p-6 max-w-lg space-y-4">
-          <h3 className="text-lg font-semibold">차수 기본 정보</h3>
-          <div>
-            <label className="text-sm font-medium text-gray-700">차수명</label>
-            <input
-              value={settingsForm.name}
-              onChange={(e) => setSettingsForm({ ...settingsForm, name: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg mt-1"
-            />
+      {/* Settlement Tab */}
+      {tab === "settlement" && (
+        <div className="space-y-4">
+          <div className="bg-white rounded-xl border overflow-hidden">
+            <div className="px-4 py-3 bg-gray-50 border-b flex items-center justify-between">
+              <h3 className="font-semibold text-sm">훈련비 결산</h3>
+              {settlementRows.length > 0 && (
+                <button
+                  onClick={handleSettlementSave}
+                  disabled={settlementSaving}
+                  className="px-4 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {settlementSaving ? "저장 중..." : "이수시간 저장"}
+                </button>
+              )}
+            </div>
+            {settlementLoading ? (
+              <div className="flex justify-center py-10">
+                <div className="animate-spin h-6 w-6 border-4 border-blue-600 border-t-transparent rounded-full" />
+              </div>
+            ) : settlementRows.length === 0 ? (
+              <p className="px-4 py-8 text-sm text-gray-400 text-center">출근 처리된 참석자가 없습니다.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="text-center px-3 py-2 font-medium w-12">순번</th>
+                      <th className="text-left px-3 py-2 font-medium">참석자</th>
+                      <th className="text-right px-3 py-2 font-medium w-28">시간당 훈련비</th>
+                      <th className="text-right px-3 py-2 font-medium w-24">부과시간</th>
+                      <th className="text-center px-3 py-2 font-medium w-28">이수시간</th>
+                      <th className="text-right px-3 py-2 font-medium w-24">감액</th>
+                      <th className="text-right px-3 py-2 font-medium w-28">지급액</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {(() => {
+                      const isWeekend = (() => {
+                        if (!settlementStartDate) return false;
+                        const d = new Date(settlementStartDate);
+                        const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+                        const day = kst.getUTCDay();
+                        return day === 0 || day === 6;
+                      })();
+                      const hourlyRate = isWeekend ? 18750 : 12500;
+                      const reqHours = settlementRequiredHours || 0;
+
+                      return settlementRows.map((row, idx) => {
+                        const completed = row.completedHours ?? reqHours;
+                        const deduction = completed < reqHours ? Math.round((reqHours - completed) * hourlyRate) : 0;
+                        const totalPay = Math.round(reqHours * hourlyRate);
+                        const payAmount = totalPay - deduction;
+
+                        return (
+                          <tr key={row.batchUserId} className="hover:bg-gray-50">
+                            <td className="text-center px-3 py-2 text-gray-400">{idx + 1}</td>
+                            <td className="px-3 py-2">
+                              <span className="text-gray-500">{row.rank}</span> {row.name}
+                            </td>
+                            <td className="text-right px-3 py-2 text-gray-600">
+                              {isWeekend ? "18,750" : "12,500"}원
+                            </td>
+                            <td className="text-right px-3 py-2">{reqHours}시간</td>
+                            <td className="text-center px-3 py-2">
+                              <input
+                                type="number"
+                                step="0.5"
+                                min="0"
+                                max={reqHours || 999}
+                                value={row.completedHours ?? ""}
+                                placeholder={String(reqHours)}
+                                onChange={(e) => {
+                                  const val = e.target.value === "" ? null : parseFloat(e.target.value);
+                                  setSettlementRows((prev) =>
+                                    prev.map((r, i) => i === idx ? { ...r, completedHours: val } : r)
+                                  );
+                                }}
+                                className="w-20 px-2 py-1 border rounded text-sm text-center"
+                              />
+                            </td>
+                            <td className="text-right px-3 py-2 text-red-600">
+                              {deduction > 0 ? `-${deduction.toLocaleString()}원` : "-"}
+                            </td>
+                            <td className="text-right px-3 py-2 font-medium">
+                              {payAmount.toLocaleString()}원
+                            </td>
+                          </tr>
+                        );
+                      });
+                    })()}
+                  </tbody>
+                  <tfoot className="bg-gray-50 font-medium">
+                    <tr>
+                      <td colSpan={6} className="text-right px-3 py-2">합계</td>
+                      <td className="text-right px-3 py-2">
+                        {(() => {
+                          const isWeekend = (() => {
+                            if (!settlementStartDate) return false;
+                            const d = new Date(settlementStartDate);
+                            const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+                            const day = kst.getUTCDay();
+                            return day === 0 || day === 6;
+                          })();
+                          const hourlyRate = isWeekend ? 18750 : 12500;
+                          const reqHours = settlementRequiredHours || 0;
+                          const total = settlementRows.reduce((sum, row) => {
+                            const completed = row.completedHours ?? reqHours;
+                            const deduction = completed < reqHours ? Math.round((reqHours - completed) * hourlyRate) : 0;
+                            return sum + (Math.round(reqHours * hourlyRate) - deduction);
+                          }, 0);
+                          return `${total.toLocaleString()}원`;
+                        })()}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        </div>
+      )}
+
+      {/* Settings Modal */}
+      {showSettingsModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl w-full max-w-lg p-6 space-y-4 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">차수 기본 정보</h3>
+              <button onClick={() => setShowSettingsModal(false)} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+            </div>
             <div>
-              <label className="text-sm font-medium text-gray-700">연도</label>
+              <label className="text-sm font-medium text-gray-700">차수명</label>
+              <input
+                value={settingsForm.name}
+                onChange={(e) => setSettingsForm({ ...settingsForm, name: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg mt-1"
+              />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium text-gray-700">연도</label>
+                <input
+                  type="number"
+                  value={settingsForm.year}
+                  onChange={(e) => setSettingsForm({ ...settingsForm, year: parseInt(e.target.value) || 0 })}
+                  className="w-full px-3 py-2 border rounded-lg mt-1"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700">차수 번호</label>
+                <input
+                  type="number"
+                  value={settingsForm.number}
+                  onChange={(e) => setSettingsForm({ ...settingsForm, number: parseInt(e.target.value) || 0 })}
+                  className="w-full px-3 py-2 border rounded-lg mt-1"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium text-gray-700">시작일</label>
+                <input
+                  type="date"
+                  value={settingsForm.startDate}
+                  onChange={(e) => setSettingsForm({ ...settingsForm, startDate: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg mt-1"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700">종료일</label>
+                <input
+                  type="date"
+                  value={settingsForm.endDate}
+                  onChange={(e) => setSettingsForm({ ...settingsForm, endDate: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg mt-1"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700">훈련 장소</label>
+              <input
+                value={settingsForm.location}
+                onChange={(e) => setSettingsForm({ ...settingsForm, location: e.target.value })}
+                placeholder="예: 00사단 훈련장"
+                className="w-full px-3 py-2 border rounded-lg mt-1"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700">부과시간 (시간)</label>
               <input
                 type="number"
-                value={settingsForm.year}
-                onChange={(e) => setSettingsForm({ ...settingsForm, year: parseInt(e.target.value) || 0 })}
+                value={settingsForm.requiredHours}
+                onChange={(e) => setSettingsForm({ ...settingsForm, requiredHours: e.target.value })}
+                placeholder="예: 8"
                 className="w-full px-3 py-2 border rounded-lg mt-1"
               />
             </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700">차수 번호</label>
-              <input
-                type="number"
-                value={settingsForm.number}
-                onChange={(e) => setSettingsForm({ ...settingsForm, number: parseInt(e.target.value) || 0 })}
-                className="w-full px-3 py-2 border rounded-lg mt-1"
-              />
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={async () => {
+                  await handleSaveSettings();
+                  setShowSettingsModal(false);
+                }}
+                disabled={settingsSaving}
+                className="flex-1 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50"
+              >
+                {settingsSaving ? "저장 중..." : "저장"}
+              </button>
+              <button
+                onClick={() => setShowSettingsModal(false)}
+                className="flex-1 py-2 border rounded-lg text-gray-700 hover:bg-gray-50"
+              >
+                취소
+              </button>
             </div>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm font-medium text-gray-700">시작일</label>
-              <input
-                type="date"
-                value={settingsForm.startDate}
-                onChange={(e) => setSettingsForm({ ...settingsForm, startDate: e.target.value })}
-                className="w-full px-3 py-2 border rounded-lg mt-1"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700">종료일</label>
-              <input
-                type="date"
-                value={settingsForm.endDate}
-                onChange={(e) => setSettingsForm({ ...settingsForm, endDate: e.target.value })}
-                className="w-full px-3 py-2 border rounded-lg mt-1"
-              />
-            </div>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-700">훈련 장소</label>
-            <input
-              value={settingsForm.location}
-              onChange={(e) => setSettingsForm({ ...settingsForm, location: e.target.value })}
-              placeholder="예: 00사단 훈련장"
-              className="w-full px-3 py-2 border rounded-lg mt-1"
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-700">부과시간 (시간)</label>
-            <input
-              type="number"
-              value={settingsForm.requiredHours}
-              onChange={(e) => setSettingsForm({ ...settingsForm, requiredHours: e.target.value })}
-              placeholder="예: 8"
-              className="w-full px-3 py-2 border rounded-lg mt-1"
-            />
-          </div>
-          <div className="pt-2">
-            <button
-              onClick={handleSaveSettings}
-              disabled={settingsSaving}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50"
-            >
-              {settingsSaving ? "저장 중..." : "저장"}
-            </button>
           </div>
         </div>
       )}

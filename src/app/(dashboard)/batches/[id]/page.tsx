@@ -264,9 +264,9 @@ export default function ReservistBatchDetailPage() {
             fetchHealthQuestionnaire(me.batchUserId);
           }
         }
-        // 당일 출근 여부 확인
-        const today = new Date();
-        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+        // 당일 출근 여부 확인 (KST 기준)
+        const nowKst = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
+        const todayStr = `${nowKst.getUTCFullYear()}-${String(nowKst.getUTCMonth() + 1).padStart(2, "0")}-${String(nowKst.getUTCDate()).padStart(2, "0")}`;
         fetch(`/api/commuting?date=${todayStr}`)
           .then((r) => r.json())
           .then((records: CommutingRecord[]) => {
@@ -817,8 +817,6 @@ export default function ReservistBatchDetailPage() {
         <div className="space-y-4">
           {!batchUserId ? (
             <div className="text-center py-10 text-gray-500">차수에 배정되지 않았습니다.</div>
-          ) : attendanceStatus !== "PRESENT" ? (
-            <div className="text-center py-10 text-gray-500">참석 상태일 때만 문진표를 작성할 수 있습니다.</div>
           ) : (
             <>
               {/* 제출 상태 */}
@@ -1045,9 +1043,9 @@ export default function ReservistBatchDetailPage() {
                 </div>
               )}
 
-              {/* 석식 신청 */}
+              {/* 석식 신청 현황 */}
               <div className="border-t pt-4 mt-4">
-                <h3 className="text-sm font-semibold text-gray-800 mb-3">석식 별도 신청</h3>
+                <h3 className="text-sm font-semibold text-gray-800 mb-3">석식 신청 현황</h3>
                 <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-3">
                   <ul className="text-xs text-blue-700 space-y-1.5">
                     <li>

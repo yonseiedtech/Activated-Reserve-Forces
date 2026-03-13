@@ -100,6 +100,7 @@ model BatchUser {
   reason            String?   // 불참 사유
   expectedConfirmAt DateTime? // 미정일 때 확정 예정 시점
   mobilizationCertIssued Boolean @default(false) // 소집필증 발급 여부
+  completedHours    Float?    // 이수시간 (결산용)
   createdAt         DateTime  @default(now())
   reasonReports     ReasonReport[]
   healthQuestionnaire HealthQuestionnaire?
