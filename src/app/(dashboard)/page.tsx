@@ -23,7 +23,7 @@ export default async function DashboardPage() {
     recentNotices,
   ] = await Promise.all([
     prisma.user.count({ where: { role: "RESERVIST" } }),
-    prisma.batch.count({ where: { startDate: { lte: tomorrow }, endDate: { gte: today } } }),
+    prisma.batch.count({ where: { startDate: { lte: today }, endDate: { gte: today } } }),
     prisma.message.count({
       where: { receiverId: session.user.id, isRead: false },
     }),
@@ -61,7 +61,7 @@ export default async function DashboardPage() {
         where: { date: { gte: today, lt: tomorrow }, instructorId: session.user.id },
       }),
       prisma.batch.findMany({
-        where: { startDate: { lte: tomorrow }, endDate: { gte: today } },
+        where: { startDate: { lte: today }, endDate: { gte: today } },
         select: { name: true },
       }),
     ]);
@@ -122,7 +122,7 @@ export default async function DashboardPage() {
 
       // 진행중 차수
       const activeBatch = await prisma.batch.findFirst({
-        where: { id: { in: batchIds }, startDate: { lte: tomorrow }, endDate: { gte: today } },
+        where: { id: { in: batchIds }, startDate: { lte: today }, endDate: { gte: today } },
         select: { id: true, name: true, startDate: true, endDate: true },
       });
       activeBatchInfo = activeBatch;
@@ -132,7 +132,7 @@ export default async function DashboardPage() {
         where: { id: { in: batchIds }, endDate: { lt: today } },
       });
       plannedBatchCount = await prisma.batch.count({
-        where: { id: { in: batchIds }, startDate: { gt: tomorrow } },
+        where: { id: { in: batchIds }, startDate: { gt: today } },
       });
     }
 
