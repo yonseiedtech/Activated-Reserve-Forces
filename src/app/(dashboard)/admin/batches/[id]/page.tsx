@@ -448,15 +448,50 @@ export default function AdminBatchDetailPage() {
 
   const getNowTime = () => {
     const now = new Date();
-    return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+    const h = String(now.getHours()).padStart(2, "0");
+    // 10분 단위로 내림 (드롭다운 선택값과 일치시키기)
+    const m = String(Math.floor(now.getMinutes() / 10) * 10).padStart(2, "0");
+    return `${h}:${m}`;
+  };
+
+  // 개별 출퇴근 즉시 저장
+  const saveOneCommuting = async (row: CommutingRowData, checkIn: string, checkOut: string) => {
+    const toUtcIso = (time: string) => {
+      if (!time) return undefined;
+      const d = new Date(`${commutingDate}T${time}:00+09:00`);
+      return d.toISOString();
+    };
+    await fetch("/api/commuting", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        isManual: true,
+        userId: row.userId,
+        date: commutingDate,
+        checkInAt: toUtcIso(checkIn),
+        checkOutAt: toUtcIso(checkOut),
+        note: row.note || undefined,
+        batchId,
+      }),
+    });
   };
 
   const handleCheckIn = (idx: number) => {
-    updateCommutingRow(idx, "checkIn", getNowTime());
+    const now = getNowTime();
+    setCommutingRows((prev) => {
+      const updated = prev.map((r, i) => i === idx ? { ...r, checkIn: now } : r);
+      saveOneCommuting(updated[idx], now, updated[idx].checkOut);
+      return updated;
+    });
   };
 
   const handleCheckOut = (idx: number) => {
-    updateCommutingRow(idx, "checkOut", getNowTime());
+    const now = getNowTime();
+    setCommutingRows((prev) => {
+      const updated = prev.map((r, i) => i === idx ? { ...r, checkOut: now } : r);
+      saveOneCommuting(updated[idx], updated[idx].checkIn, now);
+      return updated;
+    });
   };
 
   const handleCommutingSave = async () => {
