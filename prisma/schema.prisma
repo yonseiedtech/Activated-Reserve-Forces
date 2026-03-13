@@ -426,10 +426,12 @@ model TrainingTemplateItem {
   type        String?          // 유형 (선택)
   startTime   String           // "08:00"
   endTime     String           // "09:00"
-  instructor  String?          // 통제관/교관
-  location    String?
-  description String?
-  createdAt   DateTime @default(now())
+  instructor         String?          // 통제관/교관
+  location           String?
+  description        String?
+  attendanceEnabled  Boolean @default(true)   // 출석부 기능 활성화
+  countsTowardHours  Boolean @default(true)   // 훈련 이수시간에 반영
+  createdAt          DateTime @default(now())
 }
 
 // ─── 훈련 카테고리 ───

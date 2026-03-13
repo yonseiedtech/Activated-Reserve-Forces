@@ -232,6 +232,10 @@ export default function AdminBatchDetailPage() {
   const [commutingLoading, setCommutingLoading] = useState(false);
   const [commutingSaving, setCommutingSaving] = useState(false);
 
+  // 출퇴근 보고 모달
+  const [reportType, setReportType] = useState<"checkin" | "checkout" | null>(null);
+  const [reportCopied, setReportCopied] = useState(false);
+
   // 사유서 관련
   const [reasonReports, setReasonReports] = useState<ReasonReportWithUser[]>([]);
   const [viewingReport, setViewingReport] = useState<ReasonReportWithUser | null>(null);
@@ -1430,9 +1434,9 @@ export default function AdminBatchDetailPage() {
             </div>
           ) : (
             <>
-              {/* 일괄 출근/퇴근 버튼 */}
+              {/* 일괄 출근/퇴근 + 보고 버튼 */}
               {commutingRows.length > 0 && (
-                <div className="flex gap-2 mb-4">
+                <div className="flex flex-wrap gap-2 mb-4">
                   <button
                     onClick={() => {
                       const now = getNowTime();
@@ -1445,6 +1449,12 @@ export default function AdminBatchDetailPage() {
                     일괄 출근
                   </button>
                   <button
+                    onClick={() => { setReportType("checkin"); setReportCopied(false); }}
+                    className="px-4 py-2 border border-green-600 text-green-700 rounded-lg text-sm font-medium hover:bg-green-50"
+                  >
+                    출근 보고
+                  </button>
+                  <button
                     onClick={() => {
                       const now = getNowTime();
                       setCommutingRows((prev) => prev.map((row) =>
@@ -1454,6 +1464,12 @@ export default function AdminBatchDetailPage() {
                     className="px-4 py-2 bg-orange-600 text-white rounded-lg text-sm font-medium hover:bg-orange-700"
                   >
                     일괄 퇴근
+                  </button>
+                  <button
+                    onClick={() => { setReportType("checkout"); setReportCopied(false); }}
+                    className="px-4 py-2 border border-orange-600 text-orange-700 rounded-lg text-sm font-medium hover:bg-orange-50"
+                  >
+                    퇴근 보고
                   </button>
                 </div>
               )}
@@ -2808,6 +2824,51 @@ export default function AdminBatchDetailPage() {
           </div>
         </div>
       )}
+
+      {/* 출퇴근 보고 모달 */}
+      {reportType && batch && (() => {
+        const totalPlanned = commutingRows.filter((r) => r.attendanceStatus !== "ABSENT").length;
+        const checkedIn = commutingRows.filter((r) => r.checkIn && r.attendanceStatus !== "ABSENT").length;
+        const checkedOut = commutingRows.filter((r) => r.checkOut && r.attendanceStatus !== "ABSENT").length;
+        const pct = totalPlanned > 0 ? Math.round((checkedIn / totalPlanned) * 100) : 0;
+
+        const reportText = reportType === "checkin"
+          ? `[1군단]\n1. 소집부대 : 601수송대대\n2. 훈련계획인원 : ${totalPlanned}명\n3. 입소 : ${checkedIn}명 (계획:입소 ${pct}%)\n4. 특이사항 없음`
+          : `601수송대대 훈련종료 이상무\n(입소 ${checkedIn}명, 퇴소 ${checkedOut}명)`;
+
+        return (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setReportType(null)}>
+            <div className="bg-white rounded-xl w-full max-w-md p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+              <h3 className="text-lg font-semibold">
+                {reportType === "checkin" ? "출근 보고" : "퇴근 보고"}
+              </h3>
+              <div className="bg-gray-50 rounded-lg p-4 whitespace-pre-wrap text-sm font-mono leading-relaxed">
+                {reportText}
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={async () => {
+                    await navigator.clipboard.writeText(reportText);
+                    setReportCopied(true);
+                    setTimeout(() => setReportCopied(false), 2000);
+                  }}
+                  className={`flex-1 py-2.5 rounded-lg text-sm font-medium text-white transition-colors ${
+                    reportCopied ? "bg-green-600" : "bg-blue-600 hover:bg-blue-700"
+                  }`}
+                >
+                  {reportCopied ? "복사 완료!" : "복사하기"}
+                </button>
+                <button
+                  onClick={() => setReportType(null)}
+                  className="flex-1 py-2.5 border rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  닫기
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

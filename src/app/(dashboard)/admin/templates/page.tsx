@@ -12,6 +12,8 @@ interface TemplateItem {
   instructor: string;
   location: string;
   description: string;
+  attendanceEnabled: boolean;
+  countsTowardHours: boolean;
 }
 
 interface Template {
@@ -36,6 +38,8 @@ const EMPTY_ITEM: TemplateItem = {
   instructor: "",
   location: "",
   description: "",
+  attendanceEnabled: true,
+  countsTowardHours: true,
 };
 
 export default function AdminTemplatesPage() {
@@ -96,12 +100,14 @@ export default function AdminTemplatesPage() {
         instructor: item.instructor || "",
         location: item.location || "",
         description: item.description || "",
+        attendanceEnabled: item.attendanceEnabled ?? true,
+        countsTowardHours: item.countsTowardHours ?? true,
       }))
     );
     setShowForm(true);
   };
 
-  const updateItem = (idx: number, field: keyof TemplateItem, value: string) => {
+  const updateItem = (idx: number, field: keyof TemplateItem, value: string | boolean) => {
     setFormItems((prev) => prev.map((item, i) => (i === idx ? { ...item, [field]: value } : item)));
   };
 
@@ -387,6 +393,26 @@ export default function AdminTemplatesPage() {
                         onChange={(e) => updateItem(idx, "description", e.target.value)}
                         className="px-2 py-1.5 border rounded text-sm"
                       />
+                    </div>
+                    <div className="flex gap-4">
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={item.attendanceEnabled}
+                          onChange={(e) => updateItem(idx, "attendanceEnabled", e.target.checked)}
+                          className="w-3.5 h-3.5 text-blue-600 rounded"
+                        />
+                        <span className="text-xs text-gray-600">출석부 활성화</span>
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={item.countsTowardHours}
+                          onChange={(e) => updateItem(idx, "countsTowardHours", e.target.checked)}
+                          className="w-3.5 h-3.5 text-blue-600 rounded"
+                        />
+                        <span className="text-xs text-gray-600">이수시간 반영</span>
+                      </label>
                     </div>
                   </div>
                 );

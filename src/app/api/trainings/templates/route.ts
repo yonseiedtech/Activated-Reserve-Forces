@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
       name: body.name,
       description: body.description,
       items: {
-        create: body.items.map((item: { title: string; type?: string; startTime: string; endTime: string; instructor?: string; location?: string; description?: string }, idx: number) => ({
+        create: body.items.map((item: { title: string; type?: string; startTime: string; endTime: string; instructor?: string; location?: string; description?: string; attendanceEnabled?: boolean; countsTowardHours?: boolean }, idx: number) => ({
           order: idx,
           title: item.title,
           type: item.type || null,
@@ -40,6 +40,8 @@ export async function POST(req: NextRequest) {
           instructor: item.instructor || null,
           location: item.location,
           description: item.description,
+          attendanceEnabled: item.attendanceEnabled ?? true,
+          countsTowardHours: item.countsTowardHours ?? true,
         })),
       },
     },
