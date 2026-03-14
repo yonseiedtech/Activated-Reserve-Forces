@@ -90,8 +90,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     calcHoursMap.set(rec.userId, (calcHoursMap.get(rec.userId) || 0) + hours);
   }
 
+  const TEST_SN = "18-11165";
   const rows = batchUsers
-    .filter((bu) => checkedInUserIds.has(bu.userId))
+    .filter((bu) => checkedInUserIds.has(bu.userId) && bu.user.serviceNumber !== TEST_SN)
     .map((bu) => ({
       batchUserId: bu.id,
       userId: bu.userId,
