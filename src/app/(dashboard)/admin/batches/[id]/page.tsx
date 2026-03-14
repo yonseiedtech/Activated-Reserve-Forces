@@ -142,6 +142,8 @@ interface CommutingRowData {
   checkOut: string;
   note: string;
   attendanceStatus: string;
+  batchStatus: string;
+  batchUserId: string;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -523,6 +525,8 @@ export default function AdminBatchDetailPage() {
             : "",
           note: existing?.note || "",
           attendanceStatus: attendanceMap[u.id] || "",
+          batchStatus: u.batchStatus || "PENDING",
+          batchUserId: u.batchUserId || "",
         };
       });
       setCommutingRows(rows);
@@ -581,10 +585,29 @@ export default function AdminBatchDetailPage() {
     });
   };
 
+  // 불참→참석 전환 후 출근 처리
+  const handleSwitchToPresent = async (idx: number) => {
+    const row = commutingRows[idx];
+    if (!row.batchUserId) return;
+    const res = await fetch(`/api/batches/${batchId}/bulk-status`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ batchUserIds: [row.batchUserId], status: "PRESENT" }),
+    });
+    if (res.ok) {
+      const now = getNowTime();
+      setCommutingRows((prev) => prev.map((r, i) => i === idx ? { ...r, batchStatus: "PRESENT", checkIn: now } : r));
+      saveOneCommuting(row, now, row.checkOut);
+      fetchBatch(); // 참석신고 현황도 갱신
+    } else {
+      alert("참석 전환에 실패했습니다.");
+    }
+  };
+
   const handleCommutingSave = async () => {
     setCommutingSaving(true);
     const promises = commutingRows
-      .filter((row) => row.attendanceStatus !== "ABSENT")
+      .filter((row) => row.batchStatus !== "ABSENT" || row.checkIn || row.checkOut)
       .map((row) => {
         // KST 시간을 UTC ISO 문자열로 변환 (9시간 빼기)
         const toUtcIso = (time: string) => {
@@ -1566,7 +1589,7 @@ export default function AdminBatchDetailPage() {
                     onClick={() => {
                       const now = getNowTime();
                       setCommutingRows((prev) => prev.map((row) =>
-                        row.attendanceStatus === "ABSENT" || row.checkIn ? row : { ...row, checkIn: now }
+                        row.batchStatus === "ABSENT" || row.checkIn ? row : { ...row, checkIn: now }
                       ));
                     }}
                     className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700"
@@ -1583,7 +1606,7 @@ export default function AdminBatchDetailPage() {
                     onClick={() => {
                       const now = getNowTime();
                       setCommutingRows((prev) => prev.map((row) =>
-                        row.attendanceStatus === "ABSENT" || row.checkOut ? row : { ...row, checkOut: now }
+                        row.batchStatus === "ABSENT" || row.checkOut ? row : { ...row, checkOut: now }
                       ));
                     }}
                     className="px-4 py-2 bg-orange-600 text-white rounded-lg text-sm font-medium hover:bg-orange-700"
@@ -1618,28 +1641,31 @@ export default function AdminBatchDetailPage() {
                       </tr>
                     )}
                     {commutingRows.map((row, idx) => {
-                      const isAbsent = row.attendanceStatus === "ABSENT";
-                      const isPending = row.attendanceStatus === "PENDING";
+                      const isAbsent = row.batchStatus === "ABSENT";
+                      const isPending = row.batchStatus === "PENDING";
                       return (
                         <tr
                           key={row.userId}
-                          className={`${isAbsent ? "bg-red-50 opacity-60" : isPending ? "bg-yellow-50" : "hover:bg-gray-50"}`}
+                          className={`${isAbsent ? "bg-red-50/60" : isPending ? "bg-yellow-50" : "hover:bg-gray-50"}`}
                         >
                           <td className="px-4 py-2">
                             <span className="text-gray-500">{row.rank}</span> {row.name}
                             <span className="text-xs text-gray-400 ml-2">{row.serviceNumber}</span>
                           </td>
                           <td className="px-4 py-2">
-                            {row.attendanceStatus ? (
-                              <span className={`text-xs font-medium ${
-                                row.attendanceStatus === "PRESENT" ? "text-green-600" :
-                                row.attendanceStatus === "ABSENT" ? "text-red-600" :
-                                "text-yellow-600"
-                              }`}>
-                                {row.attendanceStatus === "PRESENT" ? "참석" : row.attendanceStatus === "ABSENT" ? "불참" : "미정"}
-                              </span>
+                            {isAbsent ? (
+                              <button
+                                onClick={() => handleSwitchToPresent(idx)}
+                                className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 whitespace-nowrap"
+                              >
+                                참석 전환
+                              </button>
                             ) : (
-                              <span className="text-xs text-gray-300">-</span>
+                              <span className={`text-xs font-medium ${
+                                row.batchStatus === "PRESENT" ? "text-green-600" : "text-yellow-600"
+                              }`}>
+                                {row.batchStatus === "PRESENT" ? "참석" : "미정"}
+                              </span>
                             )}
                           </td>
                           <td className="px-4 py-2">
@@ -1722,26 +1748,29 @@ export default function AdminBatchDetailPage() {
                   <p className="text-center py-8 text-gray-400">배정된 대상자가 없습니다.</p>
                 )}
                 {commutingRows.map((row, idx) => {
-                  const isAbsent = row.attendanceStatus === "ABSENT";
+                  const isAbsent = row.batchStatus === "ABSENT";
                   return (
                     <div
                       key={row.userId}
-                      className={`bg-white rounded-xl border p-4 ${isAbsent ? "bg-red-50 opacity-60" : ""}`}
+                      className={`rounded-xl border p-4 ${isAbsent ? "bg-red-50/60" : "bg-white"}`}
                     >
                       <div className="flex items-center justify-between mb-3">
                         <div className="font-medium text-sm">
                           <span className="text-gray-500">{row.rank}</span> {row.name}
                         </div>
-                        {row.attendanceStatus ? (
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                            row.attendanceStatus === "PRESENT" ? "bg-green-100 text-green-700" :
-                            row.attendanceStatus === "ABSENT" ? "bg-red-100 text-red-700" :
-                            "bg-yellow-100 text-yellow-700"
-                          }`}>
-                            {row.attendanceStatus === "PRESENT" ? "참석" : row.attendanceStatus === "ABSENT" ? "불참" : "미정"}
-                          </span>
+                        {isAbsent ? (
+                          <button
+                            onClick={() => handleSwitchToPresent(idx)}
+                            className="px-2.5 py-1 text-xs bg-blue-600 text-white rounded-full font-medium hover:bg-blue-700"
+                          >
+                            참석 전환
+                          </button>
                         ) : (
-                          <span className="text-xs text-gray-300">-</span>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                            row.batchStatus === "PRESENT" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"
+                          }`}>
+                            {row.batchStatus === "PRESENT" ? "참석" : "미정"}
+                          </span>
                         )}
                       </div>
                       <div className="grid grid-cols-2 gap-2 mb-2">
