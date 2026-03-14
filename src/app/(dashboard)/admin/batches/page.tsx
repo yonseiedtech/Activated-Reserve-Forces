@@ -93,9 +93,12 @@ export default function AdminBatchesPage() {
   const fetchBatches = () => fetch("/api/batches").then((r) => r.json()).then(setBatches);
 
   const generateBatchName = (f: BatchFormData) => {
-    const unitName = units.find((u) => u.id === f.unitId)?.name || "";
+    const fullName = units.find((u) => u.id === f.unitId)?.name || "";
+    // 대대 단위만 추출 (예: "1군수지원여단 601수송대대" → "601수송대대")
+    const match = fullName.match(/(\S*대대)/);
+    const shortName = match ? match[1] : fullName;
     const yy = String(f.year).slice(2);
-    return `${unitName} ${yy}년 ${f.number}차 상비예비군 소집훈련`.trim();
+    return shortName ? `[${shortName}] ${yy}년 ${f.number}차 상비예비군 소집훈련` : `${yy}년 ${f.number}차 상비예비군 소집훈련`;
   };
 
   const formToPayload = (f: BatchFormData) => ({
@@ -350,13 +353,23 @@ function BatchFormModal({
         {/* 차수명 (자동 생성) */}
         <div>
           <label className="text-sm font-medium">차수명</label>
-          <input
-            placeholder={generateName ? generateName(form) : ""}
-            value={form.name}
-            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-            className="w-full px-3 py-2 border rounded-lg mt-1"
-          />
-          {generateName && <p className="text-xs text-gray-400 mt-1">비워두면 자동 생성: {generateName(form)}</p>}
+          <div className="flex gap-2 mt-1">
+            <input
+              placeholder={generateName ? generateName(form) : ""}
+              value={form.name}
+              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+              className="flex-1 px-3 py-2 border rounded-lg"
+            />
+            {generateName && (
+              <button
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, name: generateName(f) }))}
+                className="px-3 py-2 text-sm bg-blue-50 text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-100 whitespace-nowrap"
+              >
+                자동 입력
+              </button>
+            )}
+          </div>
         </div>
 
         {/* 기간 체크 */}
