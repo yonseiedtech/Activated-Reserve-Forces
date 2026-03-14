@@ -133,11 +133,6 @@ export default function ScrollTimePicker({ value, onChange, onClose, title }: Sc
           </div>
         </div>
 
-        {/* 현재 선택 표시 */}
-        <div className="text-center pb-4">
-          <span className="text-2xl font-bold text-gray-900">{h}:{m}</span>
-        </div>
-
         <div className="h-[env(safe-area-inset-bottom)]" />
       </div>
     </div>
