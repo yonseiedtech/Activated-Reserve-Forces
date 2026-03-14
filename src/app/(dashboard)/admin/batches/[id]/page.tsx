@@ -126,6 +126,7 @@ interface CommutingRecord {
   checkOutAt: string | null;
   isManual: boolean;
   note: string | null;
+  supplementaryTraining: boolean;
 }
 
 interface AttendanceRecord {
@@ -144,6 +145,7 @@ interface CommutingRowData {
   attendanceStatus: string;
   batchStatus: string;
   batchUserId: string;
+  supplementaryTraining: boolean;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -530,6 +532,7 @@ export default function AdminBatchDetailPage() {
           attendanceStatus: attendanceMap[u.id] || "",
           batchStatus: u.batchStatus || "PENDING",
           batchUserId: u.batchUserId || "",
+          supplementaryTraining: existing?.supplementaryTraining || false,
         };
       });
       setCommutingRows(rows);
@@ -566,6 +569,29 @@ export default function AdminBatchDetailPage() {
         checkOutAt: toUtcIso(checkOut),
         note: row.note || undefined,
         batchId,
+      }),
+    });
+  };
+
+  // 보충교육 체크 저장
+  const saveSupplementaryTraining = async (row: CommutingRowData, checked: boolean) => {
+    const toUtcIso = (time: string) => {
+      if (!time) return undefined;
+      const d = new Date(`${commutingDate}T${time}:00+09:00`);
+      return d.toISOString();
+    };
+    await fetch("/api/commuting", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        isManual: true,
+        userId: row.userId,
+        date: commutingDate,
+        checkInAt: toUtcIso(row.checkIn),
+        checkOutAt: toUtcIso(row.checkOut),
+        note: row.note || undefined,
+        batchId,
+        supplementaryTraining: checked,
       }),
     });
   };
@@ -1593,6 +1619,11 @@ export default function AdminBatchDetailPage() {
                 const pendingCount = rows.filter((r) => r.batchStatus === "PENDING").length;
                 const absentCount = rows.filter((r) => r.batchStatus === "ABSENT").length;
                 const checkedInCount = rows.filter((r) => r.batchStatus !== "ABSENT" && r.checkIn).length;
+                const lateArrivalCount = rows.filter((r) => {
+                  if (!r.checkIn || r.batchStatus === "ABSENT") return false;
+                  const [hh, mm] = r.checkIn.split(":").map(Number);
+                  return hh > 8 || (hh === 8 && mm > 30);
+                }).length;
                 const earlyOutCount = rows.filter((r) => {
                   if (!r.checkOut) return false;
                   const [hh, mm] = r.checkOut.split(":").map(Number);
@@ -1611,6 +1642,7 @@ export default function AdminBatchDetailPage() {
                 ];
                 const commStats = [
                   { label: "입소(출근)", value: checkedInCount, color: "bg-blue-50 text-blue-700" },
+                  { label: "지연입소", value: lateArrivalCount, color: "bg-amber-50 text-amber-700", sub: "08:30 이후" },
                   { label: "조기퇴소", value: earlyOutCount, color: "bg-orange-50 text-orange-700", sub: "17:30 이전" },
                   { label: "퇴소(퇴근)", value: checkedOutCount, color: "bg-purple-50 text-purple-700", sub: "17:30 이후" },
                 ];
@@ -1694,14 +1726,24 @@ export default function AdminBatchDetailPage() {
                     {commutingRows.map((row, idx) => {
                       const isAbsent = row.batchStatus === "ABSENT";
                       const isPending = row.batchStatus === "PENDING";
+                      const isLateArrival = (() => {
+                        if (!row.checkIn || isAbsent) return false;
+                        const [hh, mm] = row.checkIn.split(":").map(Number);
+                        return hh > 8 || (hh === 8 && mm > 30);
+                      })();
                       return (
                         <tr
                           key={row.userId}
                           className={`${isAbsent ? "bg-red-50/60" : isPending ? "bg-yellow-50" : "hover:bg-gray-50"}`}
                         >
                           <td className="px-4 py-2">
-                            <span className="text-gray-500">{row.rank}</span> {row.name}
-                            <span className="text-xs text-gray-400 ml-2">{row.serviceNumber}</span>
+                            <div className="flex items-center gap-1.5">
+                              <span><span className="text-gray-500">{row.rank}</span> {row.name}</span>
+                              {isLateArrival && (
+                                <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-amber-100 text-amber-700 rounded">지연</span>
+                              )}
+                            </div>
+                            <span className="text-xs text-gray-400">{row.serviceNumber}</span>
                           </td>
                           <td className="px-4 py-2">
                             {isAbsent ? (
@@ -1785,6 +1827,23 @@ export default function AdminBatchDetailPage() {
                               disabled={isAbsent}
                               className="w-full px-2 py-1 border rounded text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
                             />
+                            {isLateArrival && (
+                              <label className="flex items-center gap-1 mt-1 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={row.supplementaryTraining}
+                                  onChange={(e) => {
+                                    const checked = e.target.checked;
+                                    setCommutingRows((prev) =>
+                                      prev.map((r, i) => i === idx ? { ...r, supplementaryTraining: checked } : r)
+                                    );
+                                    saveSupplementaryTraining(row, checked);
+                                  }}
+                                  className="w-3.5 h-3.5 rounded border-amber-400 text-amber-600 focus:ring-amber-500"
+                                />
+                                <span className="text-[10px] text-amber-700 font-medium">보충교육</span>
+                              </label>
+                            )}
                           </td>
                         </tr>
                       );
@@ -1800,14 +1859,22 @@ export default function AdminBatchDetailPage() {
                 )}
                 {commutingRows.map((row, idx) => {
                   const isAbsent = row.batchStatus === "ABSENT";
+                  const isLateArrivalMobile = (() => {
+                    if (!row.checkIn || isAbsent) return false;
+                    const [hh, mm] = row.checkIn.split(":").map(Number);
+                    return hh > 8 || (hh === 8 && mm > 30);
+                  })();
                   return (
                     <div
                       key={row.userId}
                       className={`rounded-xl border p-4 ${isAbsent ? "bg-red-50/60" : "bg-white"}`}
                     >
                       <div className="flex items-center justify-between mb-3">
-                        <div className="font-medium text-sm">
-                          <span className="text-gray-500">{row.rank}</span> {row.name}
+                        <div className="font-medium text-sm flex items-center gap-1.5">
+                          <span><span className="text-gray-500">{row.rank}</span> {row.name}</span>
+                          {isLateArrivalMobile && (
+                            <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-amber-100 text-amber-700 rounded">지연</span>
+                          )}
                         </div>
                         {isAbsent ? (
                           <button
@@ -1891,6 +1958,23 @@ export default function AdminBatchDetailPage() {
                         disabled={isAbsent}
                         className="w-full px-2 py-1.5 border rounded text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
                       />
+                      {isLateArrivalMobile && (
+                        <label className="flex items-center gap-1.5 mt-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={row.supplementaryTraining}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setCommutingRows((prev) =>
+                                prev.map((r, i) => i === idx ? { ...r, supplementaryTraining: checked } : r)
+                              );
+                              saveSupplementaryTraining(row, checked);
+                            }}
+                            className="w-4 h-4 rounded border-amber-400 text-amber-600 focus:ring-amber-500"
+                          />
+                          <span className="text-xs text-amber-700 font-medium">보충교육 이수</span>
+                        </label>
+                      )}
                     </div>
                   );
                 })}

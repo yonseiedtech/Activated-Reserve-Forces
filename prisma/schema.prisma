@@ -200,9 +200,10 @@ model CommutingRecord {
   checkInLng  Float?   // GPS 경도
   checkOutLat Float?
   checkOutLng Float?
-  isManual    Boolean  @default(false) // 관리자 수기 입력 여부
-  note        String?  // 비고
-  createdAt   DateTime @default(now())
+  isManual              Boolean  @default(false) // 관리자 수기 입력 여부
+  note                  String?  // 비고
+  supplementaryTraining Boolean  @default(false) // 보충교육 이수 여부 (지연입소자)
+  createdAt             DateTime @default(now())
 
   @@unique([userId, date])
 }

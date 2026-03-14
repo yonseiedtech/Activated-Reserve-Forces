@@ -79,6 +79,7 @@ export async function POST(req: NextRequest) {
         isManual: true,
         note: body.note,
         batchId: body.batchId || undefined,
+        supplementaryTraining: body.supplementaryTraining ?? false,
       },
       update: {
         checkInAt: body.checkInAt ? new Date(body.checkInAt) : undefined,
@@ -86,6 +87,7 @@ export async function POST(req: NextRequest) {
         isManual: true,
         note: body.note,
         batchId: body.batchId || undefined,
+        ...(body.supplementaryTraining !== undefined && { supplementaryTraining: body.supplementaryTraining }),
       },
     });
     return json(record);

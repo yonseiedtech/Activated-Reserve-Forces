@@ -86,7 +86,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const calcHoursMap = new Map<string, number>();
   for (const rec of commutingRecords) {
     if (!rec.checkInAt || !rec.checkOutAt) continue;
-    const hours = calcWorkHours(rec.checkInAt, rec.checkOutAt);
+    let effectiveCheckIn = rec.checkInAt;
+    // 보충교육 이수 시: 지연입소 시간을 08:30으로 상쇄
+    if (rec.supplementaryTraining) {
+      const inKst = toKstMinutes(rec.checkInAt);
+      const baseTime = 8 * 60 + 30; // 08:30
+      if (inKst > baseTime) {
+        // 출근시간을 08:30 KST로 조정
+        const diff = (inKst - baseTime) * 60 * 1000; // ms
+        effectiveCheckIn = new Date(rec.checkInAt.getTime() - diff);
+      }
+    }
+    const hours = calcWorkHours(effectiveCheckIn, rec.checkOutAt);
     calcHoursMap.set(rec.userId, (calcHoursMap.get(rec.userId) || 0) + hours);
   }
 
