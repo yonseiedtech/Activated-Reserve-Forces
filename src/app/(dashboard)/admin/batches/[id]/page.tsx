@@ -2254,11 +2254,11 @@ export default function AdminBatchDetailPage() {
 
       {/* Meals Tab */}
       {tab === "meals" && batch && (() => {
-        const DAYS = ["\uC77C", "\uC6D4", "\uD654", "\uC218", "\uBAA9", "\uAE08", "\uD1A0"];
+        const DAYS = ["일", "월", "화", "수", "목", "금", "토"];
         const mealDateRange = getDateRange(batch.startDate, batch.endDate);
         const allMealDates = mealDateRange.map((isoDate) => {
           const d = new Date(isoDate + "T00:00:00");
-          return { date: isoDate, label: `${d.getMonth() + 1}\uC6D4 ${d.getDate()}\uC77C (${DAYS[d.getDay()]})` };
+          return { date: isoDate, label: `${d.getMonth() + 1}월 ${d.getDate()}일 (${DAYS[d.getDay()]})` };
         });
 
         const handleOpenMealForm = () => {
@@ -2305,7 +2305,7 @@ export default function AdminBatchDetailPage() {
             setShowMealForm(false);
             fetchMealsList();
           } catch {
-            alert("\uC800\uC7A5 \uC911 \uC624\uB958\uAC00 \uBC1C\uC0DD\uD588\uC2B5\uB2C8\uB2E4.");
+            alert("저장 중 오류가 발생했습니다.");
           } finally {
             setMealSubmitting(false);
           }
@@ -2327,7 +2327,7 @@ export default function AdminBatchDetailPage() {
         };
 
         const handleMealDelete = async (mealId: string) => {
-          if (!confirm("\uC2DD\uC0AC \uC815\uBCF4\uB97C \uC0AD\uC81C\uD558\uC2DC\uACA0\uC2B5\uB2C8\uAE4C?")) return;
+          if (!confirm("식사 정보를 삭제하시겠습니까?")) return;
           const res = await fetch(`/api/meals/${mealId}`, { method: "DELETE" });
           if (res.ok) fetchMealsList();
         };
@@ -2345,7 +2345,7 @@ export default function AdminBatchDetailPage() {
             body: JSON.stringify({ requestId, action }),
           });
           if (res.ok) fetchDinnerReqs();
-          else { const err = await res.json(); alert(err.error || "\uCC98\uB9AC \uC2E4\uD328"); }
+          else { const err = await res.json(); alert(err.error || "처리 실패"); }
         };
 
         return (
@@ -2353,7 +2353,7 @@ export default function AdminBatchDetailPage() {
             {/* 식사 등록 버튼 */}
             <div className="flex justify-end">
               <button onClick={handleOpenMealForm} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
-                + \uC2DD\uC0AC \uB4F1\uB85D
+                + 식사 등록
               </button>
             </div>
 
@@ -2363,13 +2363,13 @@ export default function AdminBatchDetailPage() {
                 onClick={() => setMealDinnerTab("meals")}
                 className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${mealDinnerTab === "meals" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
               >
-                \uC2DD\uC0AC \uD604\uD669
+                식사 현황
               </button>
               <button
                 onClick={() => setMealDinnerTab("dinner")}
                 className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${mealDinnerTab === "dinner" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
               >
-                \uC11D\uC2DD \uC2E0\uCCAD
+                석식 신청
               </button>
             </div>
 
@@ -2378,10 +2378,10 @@ export default function AdminBatchDetailPage() {
               <div className="space-y-3">
                 {dinnerRequests.length > 0 ? dinnerRequests.map((dr) => {
                   const stMap: Record<string, { label: string; color: string }> = {
-                    PENDING: { label: "\uB300\uAE30", color: "bg-yellow-100 text-yellow-700" },
-                    APPROVED: { label: "\uC2B9\uC778", color: "bg-green-100 text-green-700" },
-                    REJECTED: { label: "\uBC18\uB824", color: "bg-red-100 text-red-700" },
-                    CANCELLED: { label: "\uCDE8\uC18C", color: "bg-gray-100 text-gray-500" },
+                    PENDING: { label: "대기", color: "bg-yellow-100 text-yellow-700" },
+                    APPROVED: { label: "승인", color: "bg-green-100 text-green-700" },
+                    REJECTED: { label: "반려", color: "bg-red-100 text-red-700" },
+                    CANCELLED: { label: "취소", color: "bg-gray-100 text-gray-500" },
                   };
                   const st = stMap[dr.status] || { label: dr.status, color: "bg-gray-100 text-gray-600" };
                   return (
@@ -2392,15 +2392,15 @@ export default function AdminBatchDetailPage() {
                             {dr.user.rank} {dr.user.name}
                             <span className="text-gray-400 text-xs ml-2">{dr.user.serviceNumber}</span>
                           </p>
-                          <p className="text-sm text-gray-600">{new Date(dr.date).toLocaleDateString("ko-KR")} \uC11D\uC2DD</p>
-                          <p className="text-xs text-gray-400 mt-0.5">\uC2E0\uCCAD\uC77C: {new Date(dr.createdAt).toLocaleDateString("ko-KR")}</p>
+                          <p className="text-sm text-gray-600">{new Date(dr.date).toLocaleDateString("ko-KR")} 석식</p>
+                          <p className="text-xs text-gray-400 mt-0.5">신청일: {new Date(dr.createdAt).toLocaleDateString("ko-KR")}</p>
                         </div>
                         <div className="flex items-center gap-2">
                           <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${st.color}`}>{st.label}</span>
                           {dr.status === "PENDING" && (
                             <div className="flex gap-1">
-                              <button onClick={() => handleDinnerAction(dr.id, "approve")} className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700">\uC2B9\uC778</button>
-                              <button onClick={() => handleDinnerAction(dr.id, "reject")} className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700">\uBC18\uB824</button>
+                              <button onClick={() => handleDinnerAction(dr.id, "approve")} className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700">승인</button>
+                              <button onClick={() => handleDinnerAction(dr.id, "reject")} className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700">반려</button>
                             </div>
                           )}
                         </div>
@@ -2408,7 +2408,7 @@ export default function AdminBatchDetailPage() {
                     </div>
                   );
                 }) : (
-                  <p className="text-center py-8 text-gray-400">\uC11D\uC2DD \uC2E0\uCCAD \uB0B4\uC5ED\uC774 \uC5C6\uC2B5\uB2C8\uB2E4.</p>
+                  <p className="text-center py-8 text-gray-400">석식 신청 내역이 없습니다.</p>
                 )}
               </div>
             )}
@@ -2426,9 +2426,9 @@ export default function AdminBatchDetailPage() {
                         <h3 className={`font-semibold ${isWeekend ? "text-red-500" : ""}`}>{dayLabel}</h3>
                         {attInfo && (
                           <span className="text-xs text-gray-500">
-                            \uCC38\uC11D \uD655\uC815: <span className="font-medium text-green-600">{attInfo.presentCount}\uBA85</span>
+                            참석 확정: <span className="font-medium text-green-600">{attInfo.presentCount}명</span>
                             {attInfo.pendingCount > 0 && (
-                              <> | \uBBF8\uC815: <span className="font-medium text-yellow-600">{attInfo.pendingCount}\uBA85</span></>
+                              <> | 미정: <span className="font-medium text-yellow-600">{attInfo.pendingCount}명</span></>
                             )}
                           </span>
                         )}
@@ -2450,11 +2450,11 @@ export default function AdminBatchDetailPage() {
                               <p className="text-xs font-medium text-gray-500 mb-1">{MEAL_TYPE_LABELS[type]}</p>
                               {meal ? (
                                 <>
-                                  <p className="text-sm">{meal.menuInfo || "\uBA54\uB274 \uBBF8\uB4F1\uB85D"}</p>
-                                  <p className="text-xs text-gray-400 mt-1">{meal.headcount}\uBA85</p>
+                                  <p className="text-sm">{meal.menuInfo || "메뉴 미등록"}</p>
+                                  <p className="text-xs text-gray-400 mt-1">{meal.headcount}명</p>
                                   <div className="flex gap-2 mt-2">
-                                    <button onClick={() => handleMealEditOpen(meal)} className="text-xs text-blue-600 hover:underline">\uC218\uC815</button>
-                                    <button onClick={() => handleMealDelete(meal.id)} className="text-xs text-red-600 hover:underline">\uC0AD\uC81C</button>
+                                    <button onClick={() => handleMealEditOpen(meal)} className="text-xs text-blue-600 hover:underline">수정</button>
+                                    <button onClick={() => handleMealDelete(meal.id)} className="text-xs text-red-600 hover:underline">삭제</button>
                                   </div>
                                 </>
                               ) : inlineMealKey === `${isoDate}-${type}` ? (
@@ -2476,7 +2476,7 @@ export default function AdminBatchDetailPage() {
                                         setInlineMealKey(null);
                                       }
                                     }}
-                                    placeholder="\uBA54\uB274 \uC785\uB825 \uD6C4 Enter"
+                                    placeholder="메뉴 입력 후 Enter"
                                     className="flex-1 px-2 py-1 border rounded text-sm min-w-0"
                                   />
                                   <button
@@ -2492,11 +2492,11 @@ export default function AdminBatchDetailPage() {
                                     }}
                                     className="px-2 py-1 bg-blue-600 text-white rounded text-xs shrink-0"
                                   >
-                                    \uB4F1\uB85D
+                                    등록
                                   </button>
                                 </div>
                               ) : (
-                                <p className="text-sm text-gray-400">\uD130\uCE58\uD558\uC5EC \uB4F1\uB85D</p>
+                                <p className="text-sm text-gray-400">터치하여 등록</p>
                               )}
                             </div>
                           );
@@ -2505,7 +2505,7 @@ export default function AdminBatchDetailPage() {
                     </div>
                   );
                 }) : (
-                  <p className="text-center py-8 text-gray-400">\uCC28\uC218 \uB0A0\uC9DC \uC815\uBCF4\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.</p>
+                  <p className="text-center py-8 text-gray-400">차수 날짜 정보가 없습니다.</p>
                 )}
               </div>
             )}
@@ -2516,8 +2516,8 @@ export default function AdminBatchDetailPage() {
                 <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
                   <div className="px-6 py-4 border-b flex items-center justify-between">
                     <div>
-                      <h3 className="text-lg font-semibold">\uC2DD\uC0AC \uBA54\uB274 \uB4F1\uB85D</h3>
-                      <p className="text-xs text-gray-500 mt-0.5">{batch.name} ({mealDayInputs.length}\uC77C)</p>
+                      <h3 className="text-lg font-semibold">식사 메뉴 등록</h3>
+                      <p className="text-xs text-gray-500 mt-0.5">{batch.name} ({mealDayInputs.length}일)</p>
                     </div>
                     <button onClick={() => setShowMealForm(false)} className="text-gray-400 hover:text-gray-600">
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -2538,7 +2538,7 @@ export default function AdminBatchDetailPage() {
                                   value={day[type]}
                                   onChange={(e) => handleMealInputChange(index, type, e.target.value)}
                                   className="w-full px-2 py-1.5 border rounded text-sm"
-                                  placeholder="\uBA54\uB274 \uC785\uB825"
+                                  placeholder="메뉴 입력"
                                 />
                               </div>
                             ))}
@@ -2549,9 +2549,9 @@ export default function AdminBatchDetailPage() {
                   </div>
                   <div className="px-6 py-4 border-t flex gap-3">
                     <button onClick={handleMealBulkSubmit} disabled={mealSubmitting} className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50">
-                      {mealSubmitting ? "\uC800\uC7A5 \uC911..." : "\uC77C\uAD04 \uC800\uC7A5"}
+                      {mealSubmitting ? "저장 중..." : "일괄 저장"}
                     </button>
-                    <button onClick={() => setShowMealForm(false)} className="flex-1 py-2.5 border rounded-lg text-gray-700 hover:bg-gray-50">\uCDE8\uC18C</button>
+                    <button onClick={() => setShowMealForm(false)} className="flex-1 py-2.5 border rounded-lg text-gray-700 hover:bg-gray-50">취소</button>
                   </div>
                 </div>
               </div>
@@ -2561,14 +2561,14 @@ export default function AdminBatchDetailPage() {
             {editingMealData && (
               <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
                 <div className="bg-white rounded-xl w-full max-w-md p-6 space-y-4">
-                  <h3 className="text-lg font-semibold">\uC2DD\uC0AC \uC218\uC815</h3>
+                  <h3 className="text-lg font-semibold">식사 수정</h3>
                   <p className="text-sm text-gray-500">{MEAL_TYPE_LABELS[editingMealData.type]} - {new Date(editingMealData.date).toLocaleDateString("ko-KR")}</p>
                   <div>
-                    <label className="block text-sm font-medium mb-1">\uBA54\uB274</label>
+                    <label className="block text-sm font-medium mb-1">메뉴</label>
                     <textarea value={mealEditForm.menuInfo} onChange={(e) => setMealEditForm({ ...mealEditForm, menuInfo: e.target.value })} rows={3} className="w-full px-3 py-2 border rounded-lg resize-none" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1">\uC778\uC6D0</label>
+                    <label className="block text-sm font-medium mb-1">인원</label>
                     <div className="flex gap-2">
                       <input type="number" value={mealEditForm.headcount} onChange={(e) => setMealEditForm({ ...mealEditForm, headcount: parseInt(e.target.value) || 0 })} className="flex-1 px-3 py-2 border rounded-lg" />
                       <button
@@ -2576,13 +2576,13 @@ export default function AdminBatchDetailPage() {
                         onClick={() => handleMealApplyAttendance(new Date(editingMealData.date).toISOString().split("T")[0])}
                         className="px-3 py-2 text-xs bg-green-100 text-green-700 rounded-lg hover:bg-green-200 whitespace-nowrap"
                       >
-                        \uCC38\uC11D\uC778\uC6D0 \uC801\uC6A9
+                        참석인원 적용
                       </button>
                     </div>
                   </div>
                   <div className="flex gap-3 pt-2">
-                    <button onClick={handleMealEditSave} className="flex-1 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700">\uC800\uC7A5</button>
-                    <button onClick={() => setEditingMealData(null)} className="flex-1 py-2 border rounded-lg text-gray-700 hover:bg-gray-50">\uCDE8\uC18C</button>
+                    <button onClick={handleMealEditSave} className="flex-1 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700">저장</button>
+                    <button onClick={() => setEditingMealData(null)} className="flex-1 py-2 border rounded-lg text-gray-700 hover:bg-gray-50">취소</button>
                   </div>
                 </div>
               </div>
@@ -3257,9 +3257,11 @@ export default function AdminBatchDetailPage() {
 
       {/* 출퇴근 보고 모달 */}
       {reportType && batch && (() => {
-        const totalPlanned = commutingRows.filter((r) => r.attendanceStatus !== "ABSENT").length;
-        const checkedIn = commutingRows.filter((r) => r.checkIn && r.attendanceStatus !== "ABSENT").length;
-        const checkedOut = commutingRows.filter((r) => r.checkOut && r.attendanceStatus !== "ABSENT").length;
+        const TEST_SN = "18-11165";
+        const reportRows = commutingRows.filter((r) => r.serviceNumber !== TEST_SN);
+        const totalPlanned = reportRows.filter((r) => r.batchStatus !== "ABSENT").length;
+        const checkedIn = reportRows.filter((r) => r.checkIn && r.batchStatus !== "ABSENT").length;
+        const checkedOut = reportRows.filter((r) => r.checkOut && r.batchStatus !== "ABSENT").length;
         const pct = totalPlanned > 0 ? Math.round((checkedIn / totalPlanned) * 100) : 0;
 
         const reportText = reportType === "checkin"
