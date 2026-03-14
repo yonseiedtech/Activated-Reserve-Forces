@@ -2,10 +2,17 @@ import { prisma } from "@/lib/prisma";
 import { getSession, json, unauthorized, forbidden, badRequest } from "@/lib/api-utils";
 import { NextRequest } from "next/server";
 
+// UTC Date → KST 시:분 (하루 내 분 단위, 0~1439)
+function toKstMinutes(d: Date): number {
+  // KST = UTC + 9h. Date 객체로 변환하여 정확한 시간 계산
+  const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+  return kst.getUTCHours() * 60 + kst.getUTCMinutes();
+}
+
 // 출퇴근 시간으로 이수시간 계산 (점심 11:30~12:30 제외, 0.5시간 단위 내림)
 function calcWorkHours(checkInAt: Date, checkOutAt: Date): number {
-  const inMin = checkInAt.getUTCHours() * 60 + checkInAt.getUTCMinutes() + 9 * 60; // KST
-  const outMin = checkOutAt.getUTCHours() * 60 + checkOutAt.getUTCMinutes() + 9 * 60;
+  const inMin = toKstMinutes(checkInAt);
+  const outMin = toKstMinutes(checkOutAt);
   if (outMin <= inMin) return 0;
 
   const LUNCH_START = 11 * 60 + 30; // 11:30
