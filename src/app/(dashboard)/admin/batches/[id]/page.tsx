@@ -1583,6 +1583,53 @@ export default function AdminBatchDetailPage() {
             </div>
           ) : (
             <>
+              {/* 인원 현황 통계 카드 */}
+              {commutingRows.length > 0 && (() => {
+                const total = commutingRows.length;
+                const presentCount = commutingRows.filter((r) => r.batchStatus === "PRESENT").length;
+                const pendingCount = commutingRows.filter((r) => r.batchStatus === "PENDING").length;
+                const absentCount = commutingRows.filter((r) => r.batchStatus === "ABSENT").length;
+                const checkedInCount = commutingRows.filter((r) => r.batchStatus !== "ABSENT" && r.checkIn).length;
+                const earlyOutCount = commutingRows.filter((r) => {
+                  if (!r.checkOut) return false;
+                  const [hh, mm] = r.checkOut.split(":").map(Number);
+                  return hh < 17 || (hh === 17 && mm < 30);
+                }).length;
+                const checkedOutCount = commutingRows.filter((r) => {
+                  if (!r.checkOut) return false;
+                  const [hh, mm] = r.checkOut.split(":").map(Number);
+                  return hh > 17 || (hh === 17 && mm >= 30);
+                }).length;
+                const stats = [
+                  { label: "총원", value: total, color: "bg-gray-100 text-gray-800" },
+                  { label: "참석", value: presentCount, color: "bg-green-50 text-green-700" },
+                  { label: "미정", value: pendingCount, color: "bg-yellow-50 text-yellow-700" },
+                  { label: "불참", value: absentCount, color: "bg-red-50 text-red-700" },
+                ];
+                const commStats = [
+                  { label: "입소(출근)", value: checkedInCount, color: "bg-blue-50 text-blue-700" },
+                  { label: "조기퇴소", value: earlyOutCount, color: "bg-orange-50 text-orange-700", sub: "17:30 이전" },
+                  { label: "퇴소(퇴근)", value: checkedOutCount, color: "bg-purple-50 text-purple-700", sub: "17:30 이후" },
+                ];
+                return (
+                  <div className="grid grid-cols-4 gap-2 mb-2">
+                    {stats.map((s) => (
+                      <div key={s.label} className={`${s.color} rounded-xl px-3 py-2.5 text-center`}>
+                        <div className="text-[10px] font-medium opacity-70">{s.label}</div>
+                        <div className="text-lg font-bold">{s.value}</div>
+                      </div>
+                    ))}
+                    {commStats.map((s) => (
+                      <div key={s.label} className={`${s.color} rounded-xl px-3 py-2.5 text-center`}>
+                        <div className="text-[10px] font-medium opacity-70">{s.label}</div>
+                        <div className="text-lg font-bold">{s.value}</div>
+                        {s.sub && <div className="text-[9px] opacity-50">{s.sub}</div>}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+
               {/* 일괄 출근/퇴근 + 보고 버튼 */}
               {commutingRows.length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-4">
