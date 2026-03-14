@@ -92,8 +92,14 @@ export default function AdminBatchesPage() {
 
   const fetchBatches = () => fetch("/api/batches").then((r) => r.json()).then(setBatches);
 
+  const generateBatchName = (f: BatchFormData) => {
+    const unitName = units.find((u) => u.id === f.unitId)?.name || "";
+    const yy = String(f.year).slice(2);
+    return `${unitName} ${yy}년 ${f.number}차 상비예비군 소집훈련`.trim();
+  };
+
   const formToPayload = (f: BatchFormData) => ({
-    name: f.name,
+    name: f.name || generateBatchName(f),
     year: f.year,
     number: f.number,
     startDate: f.startDate,
@@ -165,7 +171,7 @@ export default function AdminBatchesPage() {
     setDuplicateTarget(batch);
     setDupForm({
       unitId: batch.unitId || "",
-      name: `${batch.name} (복제)`,
+      name: "",
       year: batch.year,
       number: batch.number + 1,
       isMultiDay: batch.startDate.split("T")[0] !== batch.endDate.split("T")[0],
@@ -246,6 +252,7 @@ export default function AdminBatchesPage() {
           onSubmit={handleCreate}
           onClose={() => { setShowForm(false); setForm({ ...defaultForm }); }}
           submitLabel="생성"
+          generateName={generateBatchName}
         />
       )}
 
@@ -260,6 +267,7 @@ export default function AdminBatchesPage() {
           onClose={() => setEditTarget(null)}
           submitLabel={editLoading ? "저장 중..." : "저장"}
           disabled={editLoading}
+          generateName={generateBatchName}
         />
       )}
 
@@ -275,6 +283,7 @@ export default function AdminBatchesPage() {
           onClose={() => setDuplicateTarget(null)}
           submitLabel={dupLoading ? "복제 중..." : "복제"}
           disabled={dupLoading}
+          generateName={generateBatchName}
         />
       )}
     </div>
@@ -292,6 +301,7 @@ function BatchFormModal({
   onClose,
   submitLabel = "생성",
   disabled = false,
+  generateName,
 }: {
   title: string;
   subtitle?: string;
@@ -302,6 +312,7 @@ function BatchFormModal({
   onClose: () => void;
   submitLabel?: string;
   disabled?: boolean;
+  generateName?: (f: BatchFormData) => string;
 }) {
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -336,10 +347,16 @@ function BatchFormModal({
           </div>
         </div>
 
-        {/* 차수명 */}
+        {/* 차수명 (자동 생성) */}
         <div>
           <label className="text-sm font-medium">차수명</label>
-          <input placeholder="예: 2026년 1차수" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className="w-full px-3 py-2 border rounded-lg mt-1" />
+          <input
+            placeholder={generateName ? generateName(form) : ""}
+            value={form.name}
+            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+            className="w-full px-3 py-2 border rounded-lg mt-1"
+          />
+          {generateName && <p className="text-xs text-gray-400 mt-1">비워두면 자동 생성: {generateName(form)}</p>}
         </div>
 
         {/* 기간 체크 */}
