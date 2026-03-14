@@ -2,6 +2,35 @@ import { prisma } from "@/lib/prisma";
 import { getSession, json, unauthorized, forbidden, badRequest } from "@/lib/api-utils";
 import { NextRequest } from "next/server";
 
+// 출퇴근 시간으로 이수시간 계산 (점심 11:30~12:30 제외, 0.5시간 단위 내림)
+function calcWorkHours(checkInAt: Date, checkOutAt: Date): number {
+  const inMin = checkInAt.getUTCHours() * 60 + checkInAt.getUTCMinutes() + 9 * 60; // KST
+  const outMin = checkOutAt.getUTCHours() * 60 + checkOutAt.getUTCMinutes() + 9 * 60;
+  if (outMin <= inMin) return 0;
+
+  const LUNCH_START = 11 * 60 + 30; // 11:30
+  const LUNCH_END = 12 * 60 + 30;   // 12:30
+
+  let totalMin = 0;
+
+  if (inMin >= LUNCH_END || outMin <= LUNCH_START) {
+    // 점심시간과 겹치지 않음
+    totalMin = outMin - inMin;
+  } else {
+    // 점심 전 구간
+    if (inMin < LUNCH_START) {
+      totalMin += LUNCH_START - inMin;
+    }
+    // 점심 후 구간
+    if (outMin > LUNCH_END) {
+      totalMin += outMin - LUNCH_END;
+    }
+  }
+
+  // 0.5시간(30분) 단위 내림
+  return Math.floor(totalMin / 30) * 0.5;
+}
+
 // GET: 차수별 결산 데이터 조회
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -46,6 +75,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const checkedInUserIds = new Set(commutingRecords.map((r) => r.userId));
 
+  // 사용자별 출퇴근 기록으로 이수시간 합산 (여러 날에 걸쳐)
+  const calcHoursMap = new Map<string, number>();
+  for (const rec of commutingRecords) {
+    if (!rec.checkInAt || !rec.checkOutAt) continue;
+    const hours = calcWorkHours(rec.checkInAt, rec.checkOutAt);
+    calcHoursMap.set(rec.userId, (calcHoursMap.get(rec.userId) || 0) + hours);
+  }
+
   const rows = batchUsers
     .filter((bu) => checkedInUserIds.has(bu.userId))
     .map((bu) => ({
@@ -55,6 +92,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       rank: bu.user.rank,
       serviceNumber: bu.user.serviceNumber,
       completedHours: bu.completedHours,
+      calculatedHours: calcHoursMap.get(bu.userId) ?? null,
     }));
 
   return json({

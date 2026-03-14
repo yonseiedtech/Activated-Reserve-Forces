@@ -277,6 +277,7 @@ export default function AdminBatchDetailPage() {
     rank: string | null;
     serviceNumber: string | null;
     completedHours: number | null;
+    calculatedHours: number | null;
   }
   const [settlementRows, setSettlementRows] = useState<SettlementRow[]>([]);
   const [settlementRequiredHours, setSettlementRequiredHours] = useState<number | null>(null);
@@ -2136,15 +2137,35 @@ export default function AdminBatchDetailPage() {
             <div className="px-4 py-3 bg-gray-50 border-b flex items-center justify-between">
               <h3 className="font-semibold text-sm">훈련비 결산</h3>
               {settlementRows.length > 0 && (
-                <button
-                  onClick={handleSettlementSave}
-                  disabled={settlementSaving}
-                  className="px-4 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
-                >
-                  {settlementSaving ? "저장 중..." : "이수시간 저장"}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setSettlementRows((prev) =>
+                        prev.map((r) => ({
+                          ...r,
+                          completedHours: r.calculatedHours ?? r.completedHours,
+                        }))
+                      );
+                    }}
+                    className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 border"
+                  >
+                    출퇴근 기준 자동계산
+                  </button>
+                  <button
+                    onClick={handleSettlementSave}
+                    disabled={settlementSaving}
+                    className="px-4 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {settlementSaving ? "저장 중..." : "이수시간 저장"}
+                  </button>
+                </div>
               )}
             </div>
+            {settlementRows.length > 0 && settlementRows.some((r) => r.calculatedHours != null) && (
+              <div className="px-4 py-2 bg-blue-50 border-b text-xs text-blue-700">
+                출퇴근 기록 기준 자동계산 (점심 11:30~12:30 제외, 0.5시간 단위 내림)
+              </div>
+            )}
             {settlementLoading ? (
               <div className="flex justify-center py-10">
                 <div className="animate-spin h-6 w-6 border-4 border-blue-600 border-t-transparent rounded-full" />
@@ -2178,7 +2199,7 @@ export default function AdminBatchDetailPage() {
                       const reqHours = settlementRequiredHours || 0;
 
                       return settlementRows.map((row, idx) => {
-                        const completed = row.completedHours ?? reqHours;
+                        const completed = row.completedHours ?? row.calculatedHours ?? reqHours;
                         const deduction = completed < reqHours ? Math.round((reqHours - completed) * hourlyRate) : 0;
                         const totalPay = Math.round(reqHours * hourlyRate);
                         const payAmount = totalPay - deduction;
@@ -2194,21 +2215,26 @@ export default function AdminBatchDetailPage() {
                             </td>
                             <td className="text-right px-3 py-2">{reqHours}시간</td>
                             <td className="text-center px-3 py-2">
-                              <input
-                                type="number"
-                                step="0.5"
-                                min="0"
-                                max={reqHours || 999}
-                                value={row.completedHours ?? ""}
-                                placeholder={String(reqHours)}
-                                onChange={(e) => {
-                                  const val = e.target.value === "" ? null : parseFloat(e.target.value);
-                                  setSettlementRows((prev) =>
-                                    prev.map((r, i) => i === idx ? { ...r, completedHours: val } : r)
-                                  );
-                                }}
-                                className="w-20 px-2 py-1 border rounded text-sm text-center"
-                              />
+                              <div className="flex flex-col items-center gap-0.5">
+                                <input
+                                  type="number"
+                                  step="0.5"
+                                  min="0"
+                                  max={reqHours || 999}
+                                  value={row.completedHours ?? ""}
+                                  placeholder={row.calculatedHours != null ? String(row.calculatedHours) : String(reqHours)}
+                                  onChange={(e) => {
+                                    const val = e.target.value === "" ? null : parseFloat(e.target.value);
+                                    setSettlementRows((prev) =>
+                                      prev.map((r, i) => i === idx ? { ...r, completedHours: val } : r)
+                                    );
+                                  }}
+                                  className="w-20 px-2 py-1 border rounded text-sm text-center"
+                                />
+                                {row.calculatedHours != null && row.completedHours == null && (
+                                  <span className="text-[10px] text-blue-500">자동 {row.calculatedHours}h</span>
+                                )}
+                              </div>
                             </td>
                             <td className="text-right px-3 py-2 text-red-600">
                               {deduction > 0 ? `-${deduction.toLocaleString()}원` : "-"}
@@ -2236,7 +2262,7 @@ export default function AdminBatchDetailPage() {
                           const hourlyRate = isWeekend ? 18750 : 12500;
                           const reqHours = settlementRequiredHours || 0;
                           const total = settlementRows.reduce((sum, row) => {
-                            const completed = row.completedHours ?? reqHours;
+                            const completed = row.completedHours ?? row.calculatedHours ?? reqHours;
                             const deduction = completed < reqHours ? Math.round((reqHours - completed) * hourlyRate) : 0;
                             return sum + (Math.round(reqHours * hourlyRate) - deduction);
                           }, 0);
