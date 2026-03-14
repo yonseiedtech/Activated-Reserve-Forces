@@ -64,7 +64,7 @@ function WheelColumn({ items, value, onChange, suffix = "" }: WheelColumnProps) 
       <div
         ref={containerRef}
         onScroll={handleScroll}
-        className="h-full overflow-y-auto scrollbar-hide snap-y snap-mandatory"
+        className="relative z-20 h-full overflow-y-auto scrollbar-hide snap-y snap-mandatory"
         style={{
           paddingTop: CENTER * ITEM_HEIGHT,
           paddingBottom: CENTER * ITEM_HEIGHT,
