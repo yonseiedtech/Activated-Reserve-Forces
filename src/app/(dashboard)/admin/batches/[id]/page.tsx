@@ -189,6 +189,8 @@ function getDateRange(startDate: string, endDate: string): string[] {
   return dates;
 }
 
+const TEST_SN = "18-11165";
+
 export default function AdminBatchDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -1585,17 +1587,18 @@ export default function AdminBatchDetailPage() {
             <>
               {/* 인원 현황 통계 카드 */}
               {commutingRows.length > 0 && (() => {
-                const total = commutingRows.length;
-                const presentCount = commutingRows.filter((r) => r.batchStatus === "PRESENT").length;
-                const pendingCount = commutingRows.filter((r) => r.batchStatus === "PENDING").length;
-                const absentCount = commutingRows.filter((r) => r.batchStatus === "ABSENT").length;
-                const checkedInCount = commutingRows.filter((r) => r.batchStatus !== "ABSENT" && r.checkIn).length;
-                const earlyOutCount = commutingRows.filter((r) => {
+                const rows = commutingRows.filter((r) => r.serviceNumber !== TEST_SN);
+                const total = rows.length;
+                const presentCount = rows.filter((r) => r.batchStatus === "PRESENT").length;
+                const pendingCount = rows.filter((r) => r.batchStatus === "PENDING").length;
+                const absentCount = rows.filter((r) => r.batchStatus === "ABSENT").length;
+                const checkedInCount = rows.filter((r) => r.batchStatus !== "ABSENT" && r.checkIn).length;
+                const earlyOutCount = rows.filter((r) => {
                   if (!r.checkOut) return false;
                   const [hh, mm] = r.checkOut.split(":").map(Number);
                   return hh < 17 || (hh === 17 && mm < 30);
                 }).length;
-                const checkedOutCount = commutingRows.filter((r) => {
+                const checkedOutCount = rows.filter((r) => {
                   if (!r.checkOut) return false;
                   const [hh, mm] = r.checkOut.split(":").map(Number);
                   return hh > 17 || (hh === 17 && mm >= 30);
@@ -3330,7 +3333,6 @@ export default function AdminBatchDetailPage() {
 
       {/* 출퇴근 보고 모달 */}
       {reportType && batch && (() => {
-        const TEST_SN = "18-11165";
         const reportRows = commutingRows.filter((r) => r.serviceNumber !== TEST_SN);
         const totalPlanned = reportRows.filter((r) => r.batchStatus !== "ABSENT").length;
         const checkedIn = reportRows.filter((r) => r.checkIn && r.batchStatus !== "ABSENT").length;
